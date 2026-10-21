@@ -13,8 +13,8 @@ Code lives in `Assets/GuitarTutor/`, split into assemblies that enforce the plan
 |---|---|---|
 | `GuitarTutor.Core` | `Core/` | Plain C#, no Unity references (`noEngineReferences`): song model, timing, later the bandleader and the score follower. Tested without a scene. |
 | `GuitarTutor.Core.Tests` | `Tests/EditMode/` | NUnit tests for the core |
-| `GuitarTutor.Runtime` (to come) | `Runtime/` | Unity side: views, band animation, the connection to the engine. Depends on the core, never the other way round. |
-| `GuitarTutor.Editor` (to come) | `Editor/` | Editor tools, and commands for the Unity CLI (`[CliCommand]`) |
+| `GuitarTutor.Runtime` | `Runtime/` | Unity side: the desktop screen, later band animation and the connection to the engine. Depends on the core, never the other way round. |
+| `GuitarTutor.Editor` | `Editor/` | Project setup and the desktop build, from code (`ProjectSetup`) |
 
 What is there now:
 
@@ -23,6 +23,41 @@ What is there now:
 - `Core/Songs/Song.cs`: a song in layers: sections, chords, lyrics (words at positions), strumming patterns,
   chord voicings (frets, fingers, barre), riffs as tab notes, and the sources each part came from.
 - `Core/Songs/SongJson.cs`: songs on disk as versioned JSON.
+- `Core/Songs/DemoSong.cs`: a short made-up song with every layer, played when there is no song to load (and
+  shown in the screenshots in the repository).
+- `Core/Chart/SongChart.cs`: the song laid out bar by bar for the chart, and what to show at a position: the
+  bar, the lyric line and the words sung, the next chord change, the strumming pattern and stroke.
+- `Core/Playback/SongClock.cs`: play, pause, seek, practice speed and count-ins, on a wall clock for now.
+- `Runtime/Desktop/DesktopApp.cs` and `Runtime/UI/`: the desktop screen in UI Toolkit (M1). The chart strip
+  (section map, the current bar large with the beat cursor and the next three bars, lyrics karaoke style)
+  and the panels: chord diagrams drawn from the voicings, strumming, tab, song info. Look in `Chart.uss`.
+
+![The desktop screen with the demo song](../docs/images/m1-desktop-intro.png)
+
+## Building and running
+
+```
+game\build_desktop.cmd
+game\Builds\Desktop\GuitarTutor.exe
+```
+
+`build_desktop.cmd` sets the project up from code (`ProjectSetup.Run`: the UI Toolkit theme and panel
+settings, the Desktop scene, player settings) and builds the Windows player (Mono) into `Builds/Desktop`. In the
+Editor: menu GuitarTutor > Set up project, then play `Assets/GuitarTutor/Scenes/Desktop.unity`.
+
+The game plays the first song in the repository's `songs-local/` (imported with `tools/songtool`), or the demo
+song. Keys: Space play / pause (playing again counts you in from the start of the bar), R restart with a
+count-in, Left / Right a bar, PgUp / PgDn a section (or click it in the section map), Up / Down the speed in
+5% steps, 1-4 the panels, P the next strumming pattern, L the next song, H help, Esc quit.
+
+Command line:
+
+| | |
+|---|---|
+| `-song <file>` | play that song file |
+| `-demo` | play the demo song |
+| `-shot <folder> -at 1.75,17.75,countin` | screenshots at those positions (quarter notes), every panel shown, then quit |
+| `-keys "2:Space,6:DownArrow,7:shot,9:quit" -keyshots <folder>` | presses keys on the game's own keyboard at those seconds (never the desktop's), screenshots on "shot": tests the controls end to end |
 
 ## Tests
 

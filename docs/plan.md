@@ -290,3 +290,9 @@ to recordings.
 - 2026-10-21: E2 app built (`experiments/e2-passthrough/`): musician on an exact #FF00FF background, no post or
   anti-aliasing, cutout hair; controller placement, floor calibration, key colour switching; XR started by the app.
   Desktop check: background exact, no edge pixel tinted towards the key. Headset test with Virtual Desktop: yours.
+- 2026-10-21: M1 done: the desktop screen in UI Toolkit (`game/`, see its README). Chart strip (section map,
+  current bar with beat cursor plus three bars ahead, chords over a band per chord, words at their beats, the
+  lyric line karaoke style and the next line), panels (chord diagrams from the voicings, strumming with the
+  stroke lit, tab for the current and next bar, song info), internal clock with count-in, practice speed,
+  keyboard transport. Checked by screenshots from the built player (`-shot`, `-keys`), with the demo song and
+  Wicked Game. 34 core tests.

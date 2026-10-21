@@ -1,0 +1,17 @@
+{
+    "name": "GuitarTutor.Runtime",
+    "rootNamespace": "GuitarTutor.Runtime",
+    "references": [
+        "GuitarTutor.Core",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

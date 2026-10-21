@@ -1,0 +1,288 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using GuitarTutor.Core.Music;
+using GuitarTutor.Core.Songs;
+
+namespace GuitarTutor.Core.Chart
+{
+    /// <summary>A chord as one bar shows it: where in the bar it starts and how much of the bar it fills.</summary>
+    public readonly struct BarChord
+    {
+        public ChordEvent Chord { get; }
+        /// <summary>Quarter notes from the start of the bar (0 if the chord carries in from an earlier bar).</summary>
+        public double Offset { get; }
+        public double Quarters { get; }
+        /// <summary>True if the chord started before this bar.</summary>
+        public bool CarriedIn { get; }
+
+        public BarChord(ChordEvent chord, double offset, double quarters, bool carriedIn)
+        {
+            Chord = chord;
+            Offset = offset;
+            Quarters = quarters;
+            CarriedIn = carriedIn;
+        }
+    }
+
+    /// <summary>A lyric word as one bar shows it.</summary>
+    public readonly struct BarWord
+    {
+        public LyricWord Word { get; }
+        public double Offset { get; }
+
+        public BarWord(LyricWord word, double offset)
+        {
+            Word = word;
+            Offset = offset;
+        }
+    }
+
+    /// <summary>A tab note as one bar shows it.</summary>
+    public readonly struct BarNote
+    {
+        public TabNote Note { get; }
+        public double Offset { get; }
+        public Riff Riff { get; }
+
+        public BarNote(TabNote note, double offset, Riff riff)
+        {
+            Note = note;
+            Offset = offset;
+            Riff = riff;
+        }
+    }
+
+    /// <summary>One bar of the chart: its chords, the words sung in it, and the tab notes played in it.</summary>
+    public sealed class ChartBar
+    {
+        /// <summary>Numbered from 0 (the chart shows it from 1).</summary>
+        public int Index { get; internal set; }
+        public double AtQuarter { get; internal set; }
+        public TimeSignature Signature { get; internal set; }
+        public double Quarters => Signature.QuartersPerBar;
+        public Section Section { get; internal set; }
+        /// <summary>True for the first bar of a section.</summary>
+        public bool StartsSection { get; internal set; }
+        public List<BarChord> Chords { get; } = new List<BarChord>();
+        public List<BarWord> Words { get; } = new List<BarWord>();
+        public List<BarNote> Notes { get; } = new List<BarNote>();
+    }
+
+    /// <summary>A section as the section map shows it: which bars it covers.</summary>
+    public readonly struct SectionSpan
+    {
+        public Section Section { get; }
+        public int FirstBar { get; }
+        public int Bars { get; }
+
+        public SectionSpan(Section section, int firstBar, int bars)
+        {
+            Section = section;
+            FirstBar = firstBar;
+            Bars = bars;
+        }
+    }
+
+    /// <summary>
+    /// A song laid out as the chart shows it (see docs/plan.md, "Desktop mode"): bar by bar, with what to show at a
+    /// position (the bar, the lyric line, the strumming stroke, the next chord change). Built once per song; the
+    /// views only ask it questions.
+    /// </summary>
+    public sealed class SongChart
+    {
+        /// <summary>How long a lyric line stays current after its last word starts, at most (in quarter notes).</summary>
+        public const double LineTail = 4;
+
+        public Song Song { get; }
+        public IReadOnlyList<ChartBar> Bars => bars;
+        public IReadOnlyList<SectionSpan> Sections => sections;
+        /// <summary>The song's chords by name, in the order they first appear.</summary>
+        public IReadOnlyList<string> ChordNames { get; }
+        public double EndQuarter { get; }
+
+        readonly List<ChartBar> bars = new List<ChartBar>();
+        readonly List<SectionSpan> sections = new List<SectionSpan>();
+        readonly List<LyricLine> lines;
+        readonly List<ChordEvent> chords;
+
+        public SongChart(Song song)
+        {
+            Song = song ?? throw new ArgumentNullException(nameof(song));
+            chords = song.Chords.OrderBy(c => c.AtQuarter).ToList();
+            lines = song.Lyrics.Where(l => l.Words.Count > 0).OrderBy(l => l.AtQuarter).ToList();
+            ChordNames = chords.Select(c => c.Name).Distinct().ToList();
+
+            var ends = new List<double> { 0 };
+            ends.AddRange(chords.Select(c => c.AtQuarter + c.Quarters));
+            ends.AddRange(song.Sections.Select(s => s.AtQuarter + s.Quarters));
+            ends.AddRange(lines.SelectMany(l => l.Words).Select(w => w.AtQuarter + 1));
+            ends.AddRange(song.Riffs.SelectMany(r => r.Notes).Select(n => n.AtQuarter + Math.Max(n.Quarters, 0.25)));
+            var end = ends.Max();
+
+            var tempo = song.Tempo;
+            Section previous = null;
+            for (int index = 0; ; ++index)
+            {
+                var at = tempo.QuarterOfBar(index);
+                if (at >= end - 1e-6 && index > 0)
+                    break;
+                var bar = new ChartBar { Index = index, AtQuarter = at, Signature = tempo.SignatureAtBar(index) };
+                bar.Section = song.SectionAt(at + 1e-6);
+                bar.StartsSection = bar.Section != null && bar.Section != previous;
+                previous = bar.Section;
+                bars.Add(bar);
+            }
+            EndQuarter = bars.Count > 0 ? bars[bars.Count - 1].AtQuarter + bars[bars.Count - 1].Quarters : 0;
+
+            foreach (var c in chords)
+                foreach (var bar in BarsOver(c.AtQuarter, c.AtQuarter + c.Quarters))
+                {
+                    var from = Math.Max(c.AtQuarter, bar.AtQuarter);
+                    var to = Math.Min(c.AtQuarter + c.Quarters, bar.AtQuarter + bar.Quarters);
+                    bar.Chords.Add(new BarChord(c, from - bar.AtQuarter, to - from, c.AtQuarter < bar.AtQuarter - 1e-6));
+                }
+            foreach (var w in lines.SelectMany(l => l.Words))
+            {
+                var bar = BarOf(w.AtQuarter);
+                bar?.Words.Add(new BarWord(w, w.AtQuarter - bar.AtQuarter));
+            }
+            foreach (var r in song.Riffs)
+                foreach (var n in r.Notes)
+                {
+                    var bar = BarOf(n.AtQuarter);
+                    bar?.Notes.Add(new BarNote(n, n.AtQuarter - bar.AtQuarter, r));
+                }
+            foreach (var bar in bars)
+            {
+                bar.Words.Sort((a, b) => a.Offset.CompareTo(b.Offset));
+                bar.Notes.Sort((a, b) => a.Offset.CompareTo(b.Offset));
+            }
+
+            for (int i = 0; i < bars.Count;)
+            {
+                int j = i + 1;
+                while (j < bars.Count && !bars[j].StartsSection && bars[j].Section == bars[i].Section)
+                    ++j;
+                if (bars[i].Section != null)
+                    sections.Add(new SectionSpan(bars[i].Section, i, j - i));
+                i = j;
+            }
+        }
+
+        // ------------------------------------------------------------ bars
+        /// <summary>The bar a position falls in (null before the song or after its end).</summary>
+        public ChartBar BarOf(double quarter)
+        {
+            if (quarter < 0 || bars.Count == 0)
+                return null;
+            var (index, _) = Song.Tempo.BarAt(quarter);
+            return index < bars.Count ? bars[index] : null;
+        }
+
+        IEnumerable<ChartBar> BarsOver(double from, double to)
+        {
+            var first = BarOf(from);
+            if (first == null)
+                yield break;
+            for (int i = first.Index; i < bars.Count && bars[i].AtQuarter < to - 1e-6; ++i)
+                yield return bars[i];
+        }
+
+        /// <summary>The section a bar belongs to, as an index into <see cref="Sections"/> (-1 if none).</summary>
+        public int SectionIndexOf(int bar)
+        {
+            for (int i = 0; i < sections.Count; ++i)
+                if (bar >= sections[i].FirstBar && bar < sections[i].FirstBar + sections[i].Bars)
+                    return i;
+            return -1;
+        }
+
+        // ------------------------------------------------------------ lyrics
+        /// <summary>
+        /// The lyric line being sung at a position: from its first word until the next line starts, but no longer
+        /// than <see cref="LineTail"/> after its last word (so instrumental stretches show no line). -1 if none.
+        /// </summary>
+        public int LineAt(double quarter)
+        {
+            for (int i = lines.Count - 1; i >= 0; --i)
+            {
+                var line = lines[i];
+                var start = line.Words[0].AtQuarter;
+                if (start > quarter)
+                    continue;
+                var end = line.Words[line.Words.Count - 1].AtQuarter + LineTail;
+                if (i + 1 < lines.Count)
+                    end = Math.Min(end, lines[i + 1].Words[0].AtQuarter);
+                return quarter < end ? i : -1;
+            }
+            return -1;
+        }
+
+        /// <summary>The next lyric line to start after a position (-1 if none).</summary>
+        public int NextLineAfter(double quarter)
+        {
+            for (int i = 0; i < lines.Count; ++i)
+                if (lines[i].Words[0].AtQuarter > quarter)
+                    return i;
+            return -1;
+        }
+
+        public LyricLine Line(int index) => index >= 0 && index < lines.Count ? lines[index] : null;
+        public int LineCount => lines.Count;
+
+        /// <summary>How many words of a line have started at a position (0 before the first word).</summary>
+        public static int WordsSung(LyricLine line, double quarter) => line?.Words.Count(w => w.AtQuarter <= quarter) ?? 0;
+
+        // ------------------------------------------------------------ chords
+        /// <summary>The next chord change after a position: the first chord after it with a different name.</summary>
+        public ChordEvent NextChange(double quarter)
+        {
+            var now = Song.ChordAt(quarter);
+            return chords.FirstOrDefault(c => c.AtQuarter > quarter && (now == null || c.Name != now.Name));
+        }
+
+        // ------------------------------------------------------------ strumming
+        /// <summary>
+        /// The strumming patterns for a section: those made for it first, then those for the whole song (empty if
+        /// the song has none).
+        /// </summary>
+        public IReadOnlyList<StrumPattern> PatternsFor(Section section)
+        {
+            var name = section?.Name ?? "";
+            return Song.Strumming.Where(p => p.Sections.Contains(name))
+                .Concat(Song.Strumming.Where(p => p.Sections.Count == 0))
+                .ToList();
+        }
+
+        /// <summary>
+        /// The stroke of a pattern being played at a position: its index in the pattern (patterns repeat each bar,
+        /// or more often if shorter), and how far through that stroke's slot the position is (0..1). (-1, 0) before
+        /// the song.
+        /// </summary>
+        public (int index, double fraction) StrokeAt(StrumPattern pattern, double quarter)
+        {
+            if (pattern == null || pattern.Strokes.Count == 0 || pattern.Subdivision <= 0 || quarter < 0)
+                return (-1, 0);
+            var (_, inBar) = Song.Tempo.BarAt(quarter);
+            var slot = 4.0 / pattern.Subdivision;
+            var steps = inBar / slot;
+            var step = (int)Math.Floor(steps + 1e-9);
+            return (step % pattern.Strokes.Count, steps - step);
+        }
+
+        /// <summary>The counts to show under a pattern's strokes: "1 & 2 &" for eighths, "1 e & a" for sixteenths.</summary>
+        public static IReadOnlyList<string> Counts(StrumPattern pattern)
+        {
+            var perBeat = Math.Max(1, pattern.Subdivision / 4);
+            string[] names = perBeat == 2 ? new[] { "", "&" } : perBeat == 4 ? new[] { "", "e", "&", "a" } : perBeat == 3 ? new[] { "", "&", "a" } : new[] { "" };
+            var counts = new List<string>();
+            for (int i = 0; i < pattern.Strokes.Count; ++i)
+            {
+                var within = i % perBeat;
+                counts.Add(within == 0 ? (i / perBeat + 1).ToString() : names[Math.Min(within, names.Length - 1)]);
+            }
+            return counts;
+        }
+    }
+}

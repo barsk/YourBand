@@ -1,0 +1,19 @@
+{
+    "name": "GuitarTutor.Editor",
+    "rootNamespace": "GuitarTutor.EditorTools",
+    "references": [
+        "GuitarTutor.Core",
+        "GuitarTutor.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
