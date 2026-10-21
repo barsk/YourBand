@@ -9,13 +9,7 @@ namespace
 
     const char* slotKey (EngineCore::Slot slot)
     {
-        switch (slot)
-        {
-            case EngineCore::Slot::toneA: return "toneA";
-            case EngineCore::Slot::toneB: return "toneB";
-            case EngineCore::Slot::bass:  return "bassAmp";
-        }
-        return "";
+        return slot == EngineCore::Slot::guitar ? "guitarAmp" : "bassAmp";
     }
 
     /** A window holding a plugin's own editor; closing it only hides the editor, the plugin keeps running. */
@@ -74,29 +68,35 @@ MainComponent::MainComponent()
         refreshInputs();
     };
 
-    // the three TONE3000 instances, with the tones they had last time
+    // the two TONE3000 instances, with the state they had last time (an older tone A becomes the guitar's)
     const juce::File pluginFile (settings->getValue ("plugin", defaultPlugin));
     if (const auto error = engine.loadPlugins (pluginFile); error.isNotEmpty())
         log (error);
-    else if (auto* p = engine.plugin (EngineCore::Slot::toneA))
-        log ("Loaded 3 x " + p->getName() + " (" + juce::String (p->getTotalNumInputChannels()) + " in, "
+    else if (auto* p = engine.plugin (EngineCore::Slot::guitar))
+        log ("Loaded 2 x " + p->getName() + " (" + juce::String (p->getTotalNumInputChannels()) + " in, "
              + juce::String (p->getTotalNumOutputChannels()) + " out, latency "
              + juce::String (p->getLatencySamples()) + " samples)");
-    for (auto slot : { EngineCore::Slot::toneA, EngineCore::Slot::toneB, EngineCore::Slot::bass })
+    for (auto slot : { EngineCore::Slot::guitar, EngineCore::Slot::bass })
     {
+        auto value = settings->getValue (slotKey (slot));
+        if (value.isEmpty() && slot == EngineCore::Slot::guitar)
+            value = settings->getValue ("toneA");
         juce::MemoryBlock state;
-        if (state.fromBase64Encoding (settings->getValue (slotKey (slot))))
+        if (state.fromBase64Encoding (value))
             engine.setPluginState (slot, state);
     }
 
-    for (auto* b : { &toneAButton, &toneBButton, &bassButton, &toneSwitch, &bassSwitch })
-        addAndMakeVisible (*b);
-    toneAButton.onClick = [this] { showPlugin (EngineCore::Slot::toneA, "Guitar tone A"); };
-    toneBButton.onClick = [this] { showPlugin (EngineCore::Slot::toneB, "Guitar tone B"); };
+    for (auto* c : std::initializer_list<juce::Component*> { &guitarButton, &bassButton, &presetLabel, &presetBox,
+                                                             &previousButton, &nextButton, &bassSwitch })
+        addAndMakeVisible (*c);
+    guitarButton.onClick = [this] { showPlugin (EngineCore::Slot::guitar, "Guitar tone"); };
     bassButton.onClick = [this] { showPlugin (EngineCore::Slot::bass, "Bass amp"); };
-    toneSwitch.onClick = [this] { setTone (1 - engine.selectedTone()); };
+    previousButton.onClick = [this] { stepPreset (-1); };
+    nextButton.onClick = [this] { stepPreset (1); };
+    presetBox.onChange = [this] { selectPreset (presetBox.getSelectedId() - 1); };
     bassSwitch.onClick = [this] { setBass (! engine.bassLinePlaying()); };
-    setTone (0);
+    refreshPresets();
+    log (juce::String ((int) presetList.size()) + " presets saved in TONE3000");
     setBass (false);
 
     for (auto* l : { &latencyLabel, &cpuLabel, &footLabel })
@@ -106,7 +106,7 @@ MainComponent::MainComponent()
     }
     footLabel.setText ("Footswitch: none found (any HID game controller works)", juce::dontSendNotification);
 
-    // footswitch: button 1 switches tone A/B, button 2 starts and stops the bass line
+    // footswitch: button 1 next preset, button 2 previous preset, button 3 starts and stops the bass line
     footswitch.onDevice = [this] (const juce::String& name)
     {
         footLabel.setText ("Footswitch: " + (name.isEmpty() ? juce::String ("none found") : name), juce::dontSendNotification);
@@ -118,8 +118,10 @@ MainComponent::MainComponent()
         if (! down)
             return;
         if (button == 1)
-            setTone (1 - engine.selectedTone());
+            stepPreset (1);
         else if (button == 2)
+            stepPreset (-1);
+        else if (button == 3)
             setBass (! engine.bassLinePlaying());
     };
     footswitch.start();
@@ -142,12 +144,14 @@ void MainComponent::saveSettings()
     if (auto xml = engine.deviceState())
         settings->setValue ("devices", xml.get());
     settings->setValue ("guitarInput", engine.guitarInput());
-    for (auto slot : { EngineCore::Slot::toneA, EngineCore::Slot::toneB, EngineCore::Slot::bass })
+    for (auto slot : { EngineCore::Slot::guitar, EngineCore::Slot::bass })
     {
         const auto state = engine.pluginState (slot);
         if (state.getSize() > 0)
             settings->setValue (slotKey (slot), state.toBase64Encoding());
     }
+    settings->removeValue ("toneA");
+    settings->removeValue ("toneB");
     settings->saveIfNeeded();
 }
 
@@ -158,6 +162,44 @@ void MainComponent::refreshInputs()
     for (int i = 0; i < names.size(); ++i)
         inputBox.addItem (juce::String (i + 1) + ": " + names[i], i + 1);
     inputBox.setSelectedId (engine.guitarInput() + 1, juce::dontSendNotification);
+}
+
+void MainComponent::refreshPresets()
+{
+    presetList = engine.presets();
+    presetBox.clear (juce::dontSendNotification);
+    for (const auto& p : presetList)
+        presetBox.addItem (juce::String (p.index + 1) + ": " + p.name, p.index + 1);
+    presetBox.setTextWhenNothingSelected (presetList.empty() ? "No presets saved in TONE3000 yet" : "Choose a preset");
+    presetBox.setSelectedId (engine.currentPreset() + 1, juce::dontSendNotification);
+}
+
+void MainComponent::selectPreset (int index)
+{
+    if (index < 0)
+        return;
+    engine.selectPreset (index);
+    presetBox.setSelectedId (index + 1, juce::dontSendNotification);
+    for (const auto& p : presetList)
+        if (p.index == index)
+            log ("Preset " + juce::String (index + 1) + ": " + p.name);
+}
+
+void MainComponent::stepPreset (int step)
+{
+    refreshPresets();  // presets saved in the plugin window since the last look
+    if (presetList.empty())
+    {
+        log ("No presets saved in TONE3000 yet");
+        return;
+    }
+    const auto current = engine.currentPreset();
+    int at = 0;
+    for (int i = 0; i < (int) presetList.size(); ++i)
+        if (presetList[(size_t) i].index == current)
+            at = i;
+    const auto n = (int) presetList.size();
+    selectPreset (presetList[(size_t) (((at + step) % n + n) % n)].index);
 }
 
 void MainComponent::showPlugin (EngineCore::Slot slot, const juce::String& title)
@@ -174,13 +216,11 @@ void MainComponent::showPlugin (EngineCore::Slot slot, const juce::String& title
         return;
     }
     if (auto* editor = p->createEditorAndMakeActive())
-        windows[slot] = std::make_unique<PluginWindow> (title, editor, [this, slot] { windows.erase (slot); });
-}
-
-void MainComponent::setTone (int tone)
-{
-    engine.selectTone (tone);
-    toneSwitch.setButtonText (tone == 0 ? "Playing tone A (switch to B)" : "Playing tone B (switch to A)");
+        windows[slot] = std::make_unique<PluginWindow> (title, editor, [this, slot]
+        {
+            windows.erase (slot);
+            refreshPresets();
+        });
 }
 
 void MainComponent::setBass (bool on)
@@ -228,15 +268,18 @@ void MainComponent::resized()
     r.removeFromTop (8);
 
     row = r.removeFromTop (30);
-    const auto w = row.getWidth() / 3;
-    toneAButton.setBounds (row.removeFromLeft (w).reduced (3, 0));
-    toneBButton.setBounds (row.removeFromLeft (w).reduced (3, 0));
+    guitarButton.setBounds (row.removeFromLeft (row.getWidth() / 2).reduced (3, 0));
     bassButton.setBounds (row.reduced (3, 0));
     r.removeFromTop (6);
 
     row = r.removeFromTop (30);
-    toneSwitch.setBounds (row.removeFromLeft (row.getWidth() / 2).reduced (3, 0));
-    bassSwitch.setBounds (row.reduced (3, 0));
+    presetLabel.setBounds (row.removeFromLeft (60));
+    nextButton.setBounds (row.removeFromRight (90).reduced (3, 0));
+    previousButton.setBounds (row.removeFromRight (90).reduced (3, 0));
+    presetBox.setBounds (row.reduced (3, 0));
+    r.removeFromTop (6);
+
+    bassSwitch.setBounds (r.removeFromTop (30).reduced (3, 0));
     r.removeFromTop (10);
 
     latencyLabel.setBounds (r.removeFromTop (24));

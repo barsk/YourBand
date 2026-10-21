@@ -1,8 +1,8 @@
 #pragma once
 
-// The engine's window for experiment E1: audio device settings, the TONE3000 windows, tone A/B and the
-// test bass line, with live latency, CPU and footswitch readouts. Settings and tones are remembered in
-// %APPDATA%\GuitarTutor\GuitarTutor Engine.settings.
+// The engine's window for experiment E1: audio device settings, the TONE3000 windows, preset switching and
+// the test bass line, with live latency, CPU and footswitch readouts. Settings and tones are remembered in
+// %APPDATA%\GuitarTutor\GuitarTutor Engine.settings, next to a log (engine.log).
 
 #include <juce_audio_utils/juce_audio_utils.h>
 
@@ -28,7 +28,9 @@ private:
     void log (const juce::String&);
     void showPlugin (EngineCore::Slot, const juce::String& title);
     void refreshInputs();
-    void setTone (int tone);
+    void refreshPresets();
+    void stepPreset (int step);
+    void selectPreset (int index);
     void setBass (bool on);
     void saveSettings();
 
@@ -37,14 +39,15 @@ private:
     Footswitch footswitch;
 
     std::unique_ptr<juce::AudioDeviceSelectorComponent> selector;
-    juce::Label inputLabel { {}, "Guitar input" };
-    juce::ComboBox inputBox;
-    juce::TextButton toneAButton { "Tone A..." }, toneBButton { "Tone B..." }, bassButton { "Bass amp..." };
-    juce::TextButton toneSwitch, bassSwitch;
+    juce::Label inputLabel { {}, "Guitar input" }, presetLabel { {}, "Preset" };
+    juce::ComboBox inputBox, presetBox;
+    juce::TextButton guitarButton { "Guitar tone..." }, bassButton { "Bass amp..." };
+    juce::TextButton previousButton { "< Previous" }, nextButton { "Next >" }, bassSwitch;
     juce::Label latencyLabel, cpuLabel, footLabel;
     juce::TextEditor logView;
 
     std::map<EngineCore::Slot, std::unique_ptr<juce::DocumentWindow>> windows;
+    std::vector<Preset> presetList;
     int ticks = 0;
 };
 

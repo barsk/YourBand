@@ -2,12 +2,12 @@
 
 // The audio engine's core: the audio interface, and a processing graph with the hosted TONE3000 instances.
 //
-//   instrument input --+--> TONE3000 (tone A) --+
-//                      |                        +--> crossfade --+
-//                      +--> TONE3000 (tone B) --+                +--> outputs
-//   test bass line ------> TONE3000 (bass amp) ------------------+
+//   instrument input --> TONE3000 (guitar) ----+
+//                                              +--> outputs
+//   test bass line ----> TONE3000 (bass amp) --+
 //
-// Both guitar tones run all the time, so the footswitch switches between them instantly.
+// Tones are switched with TONE3000's own presets: it builds the new model in the background and fades its
+// output across the swap, so a switch in a pause between phrases is not heard.
 
 #include <juce_audio_utils/juce_audio_utils.h>
 
@@ -26,10 +26,17 @@ struct Latency
     double roundTripMs() const { return ms (input + output + plugin); }
 };
 
+/** One of the plugin's presets (its program number and name). */
+struct Preset
+{
+    int index;
+    juce::String name;
+};
+
 class EngineCore final : private juce::ChangeListener
 {
 public:
-    enum class Slot { toneA, toneB, bass };
+    enum class Slot { guitar, bass };
 
     EngineCore();
     ~EngineCore() override;
@@ -41,12 +48,16 @@ public:
     juce::AudioDeviceManager& devices() { return deviceManager; }
     juce::String deviceSummary() const;
 
-    /** Loads three instances of the plugin (two guitar tones and the bass amp). Returns an error message,
-        or empty on success. */
+    /** Loads two instances of the plugin (guitar and bass amp). Returns an error message, or empty. */
     juce::String loadPlugins (const juce::File& pluginFile);
     juce::AudioProcessor* plugin (Slot) const;
     juce::MemoryBlock pluginState (Slot) const;
     void setPluginState (Slot, const juce::MemoryBlock&);
+
+    /** The guitar plugin's saved presets, and switching between them (message thread). */
+    std::vector<Preset> presets() const;
+    void selectPreset (int index);
+    int currentPreset() const;
 
     /** The device input channel the guitar is plugged into (0-based; on a Scarlett Solo the instrument
         jack is input 2, channel 1). */
@@ -54,8 +65,6 @@ public:
     int guitarInput() const { return inputChannel; }
     juce::StringArray inputChannelNames() const;
 
-    void selectTone (int tone) { if (fade != nullptr) fade->select (tone); }
-    int selectedTone() const { return fade != nullptr ? fade->selected() : 0; }
     void setBassLine (bool on) { if (bass != nullptr) bass->setPlaying (on); }
     bool bassLinePlaying() const { return bass != nullptr && bass->isPlaying(); }
 
@@ -79,8 +88,7 @@ private:
     std::unique_ptr<juce::AudioProcessorGraph> graph;
     juce::AudioProcessorPlayer player;
 
-    Node::Ptr input, output, toneA, toneB, crossfade, bassLine, bassTone;
-    ToneCrossfade* fade = nullptr;
+    Node::Ptr input, output, guitarTone, bassLine, bassTone;
     TestBassLine* bass = nullptr;
     int inputChannel = 1;
 };

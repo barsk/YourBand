@@ -27,7 +27,7 @@ It is for personal use first and may be published later, so licences are kept cl
 | Game client | Unity, C# | Mecanim retargets Mixamo clips onto Rocketbox avatars; IK, OpenXR and UI are mature |
 | Audio engine | Separate C++ process, built on JUCE | ASIO, VST3 hosting and the amp model engine are all C++; audio stays glitch-free whatever Unity does |
 | Offline tools | Python | Import, alignment and the Blender asset pipeline already live there |
-| Guitar tone | The engine hosts the TONE3000 plugin (VST3) | Same tones as the standalone app, and one program owns the audio interface |
+| Guitar tone | The engine hosts the TONE3000 plugin (VST3); one instance, tones switched with its own presets | Same tones as the standalone app, one program owns the audio interface; TONE3000 swaps presets with a short fade, which a pause between phrases hides |
 | Audio driver | Focusrite's own ASIO driver, not ASIO4ALL | Lower latency |
 | Band bass and guitar tone | Clean sampled notes through more TONE3000 instances | Real amp tone for the band from the same library |
 | VR | PC VR through Virtual Desktop (Wi-Fi or USB) | Better quality than Link; audio stays on the PC |
@@ -150,7 +150,8 @@ piece of code, tested against saved pages.
 ## Control
 
 - Footswitch: an Arduino with a 32U4 chip (Pro Micro or Leonardo) as a HID joystick. Buttons are mapped in
-  settings: start/stop, loop section, previous/next section, push-to-talk, tone preset up/down.
+  settings: start/stop, loop section, previous/next section, push-to-talk, tone preset up/down (TONE3000's
+  own presets).
 - Musical cues: strum to start (count-in), stop playing to stop or vamp.
 - Voice: offline recognizer with fixed phrases ("stop", "from the top", "chorus again", "slower",
   "chart closer"). Push-to-talk on the pedal, or a wake word. Microphone: the Quest's (Virtual Desktop forwards
@@ -238,7 +239,7 @@ Experiments first; each tests a risk that could change the plan:
 
 | Experiment | What it proves |
 |---|---|
-| E1 Audio engine | Scarlett → TONE3000 hosted in our engine → output, latency measured; a second TONE3000 instance on a bass sample; footswitch read by the engine |
+| E1 Audio engine | Scarlett → TONE3000 hosted in our engine → output, latency measured; preset switching from the footswitch; a second TONE3000 instance on a bass sample; footswitch read by the engine |
 | E2 Virtual Desktop passthrough | One musician in a Unity OpenXR scene over Virtual Desktop: exact key colour, edges and hair, Virtual Desktop settings, latency; moving and turning with controllers; floor calibration |
 | E3 Song import | Both Wicked Game pages merged into one layered song file, first-guess timing checked against the tab timestamps |
 | E4 Renderer | One musician in URP and in HDRP, side by side |
@@ -261,6 +262,7 @@ to recordings.
 ## Status
 
 - 2026-10-21: plan written, repository set up; home studio chosen as the first venue.
-- 2026-10-21: E1 started (`engine/`): JUCE 9 engine hosting three TONE3000 instances on Focusrite USB ASIO,
-  tone A/B crossfade, test bass line, footswitch reader. Reported round trip 7.8 ms at a 64-sample buffer
-  (5.5 ms at 32). Next: load real tones, check CPU and feel, measure the true round trip.
+- 2026-10-21: E1 started (`engine/`): JUCE 9 engine on Focusrite USB ASIO hosting TONE3000 for the guitar
+  (its presets switched from the footswitch) and for a test bass line, plus a footswitch reader. Reported
+  round trip 7.8 ms at a 64-sample buffer (5.5 ms at 32). Next: play through real tones, check CPU and feel,
+  measure the true round trip.

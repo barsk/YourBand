@@ -13,10 +13,6 @@ EngineCore::EngineCore()
     input = graph->addNode (std::make_unique<IO> (IO::audioInputNode));
     output = graph->addNode (std::make_unique<IO> (IO::audioOutputNode));
 
-    auto fadeProcessor = std::make_unique<ToneCrossfade>();
-    fade = fadeProcessor.get();
-    crossfade = graph->addNode (std::move (fadeProcessor));
-
     auto bassProcessor = std::make_unique<TestBassLine>();
     bass = bassProcessor.get();
     bassLine = graph->addNode (std::move (bassProcessor));
@@ -93,7 +89,7 @@ juce::String EngineCore::loadPlugins (const juce::File& pluginFile)
     const auto rate = d != nullptr ? d->getCurrentSampleRate() : 48000.0;
     const auto block = d != nullptr ? d->getCurrentBufferSizeSamples() : 128;
 
-    for (auto* slot : { &toneA, &toneB, &bassTone })
+    for (auto* slot : { &guitarTone, &bassTone })
     {
         juce::String error;
         auto instance = formats.createPluginInstance (*types[0], rate, block, error);
@@ -111,9 +107,8 @@ EngineCore::Node::Ptr EngineCore::slotNode (Slot slot) const
 {
     switch (slot)
     {
-        case Slot::toneA: return toneA;
-        case Slot::toneB: return toneB;
-        case Slot::bass:  return bassTone;
+        case Slot::guitar: return guitarTone;
+        case Slot::bass:   return bassTone;
     }
     return nullptr;
 }
@@ -136,6 +131,28 @@ void EngineCore::setPluginState (Slot slot, const juce::MemoryBlock& state)
 {
     if (auto* p = plugin (slot); p != nullptr && state.getSize() > 0)
         p->setStateInformation (state.getData(), (int) state.getSize());
+}
+
+std::vector<Preset> EngineCore::presets() const
+{
+    std::vector<Preset> list;
+    if (auto* p = plugin (Slot::guitar))
+        for (int i = 0; i < p->getNumPrograms(); ++i)
+            if (const auto name = p->getProgramName (i); name.isNotEmpty() && name != "(empty)")
+                list.push_back ({ i, name });
+    return list;
+}
+
+void EngineCore::selectPreset (int index)
+{
+    if (auto* p = plugin (Slot::guitar); p != nullptr && index >= 0 && index < p->getNumPrograms())
+        p->setCurrentProgram (index);
+}
+
+int EngineCore::currentPreset() const
+{
+    auto* p = plugin (Slot::guitar);
+    return p != nullptr ? p->getCurrentProgram() : -1;
 }
 
 void EngineCore::setGuitarInput (int channel)
@@ -174,15 +191,11 @@ void EngineCore::connect()
     const auto ins = graph->getTotalNumInputChannels();
     const auto outs = juce::jmin (2, graph->getTotalNumOutputChannels());
 
-    // guitar: the instrument input into both tones, and their outputs through the crossfade
-    if (inputChannel < ins)
-        for (const auto& tone : { toneA, toneB })
-            if (tone != nullptr)
-                for (int c = 0; c < tone->getProcessor()->getTotalNumInputChannels(); ++c)
-                    link (input, inputChannel, tone, c);
-    stereo (toneA, crossfade, 0, 2);
-    stereo (toneB, crossfade, 2, 2);
-    stereo (crossfade, output, 0, outs);
+    // guitar: the instrument input into its amp
+    if (inputChannel < ins && guitarTone != nullptr)
+        for (int c = 0; c < guitarTone->getProcessor()->getTotalNumInputChannels(); ++c)
+            link (input, inputChannel, guitarTone, c);
+    stereo (guitarTone, output, 0, outs);
 
     // the band's test bass through its own amp
     if (bassTone != nullptr)
@@ -208,7 +221,7 @@ Latency EngineCore::latency() const
         l.input = d->getInputLatencyInSamples();
         l.output = d->getOutputLatencyInSamples();
     }
-    if (auto* p = plugin (selectedTone() == 0 ? Slot::toneA : Slot::toneB))
+    if (auto* p = plugin (Slot::guitar))
         l.plugin = p->getLatencySamples();
     return l;
 }
@@ -221,8 +234,7 @@ void EngineCore::shutdown()
     deviceManager.removeAudioCallback (&player);
     player.setProcessor (nullptr);
     deviceManager.closeAudioDevice();
-    toneA = toneB = bassTone = crossfade = bassLine = input = output = nullptr;
-    fade = nullptr;
+    guitarTone = bassTone = bassLine = input = output = nullptr;
     bass = nullptr;
     graph->clear();
     graph.reset();

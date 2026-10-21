@@ -31,26 +31,6 @@ public:
     void setStateInformation (const void*, int) override {}
 };
 
-/** Crossfades between two stereo inputs (tone A on channels 0-1, tone B on 2-3), so switching tones with the
-    footswitch is instant and click-free: both tones run all the time and only their gains move. */
-class ToneCrossfade final : public SimpleProcessor
-{
-public:
-    ToneCrossfade();
-
-    const juce::String getName() const override { return "Tone crossfade"; }
-    void prepareToPlay (double sampleRate, int samplesPerBlock) override;
-    void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
-
-    /** 0 = tone A, 1 = tone B. Safe to call from any thread. */
-    void select (int tone) { target.store (tone == 0 ? 0.0f : 1.0f); }
-    int selected() const { return target.load() < 0.5f ? 0 : 1; }
-
-private:
-    std::atomic<float> target { 0.0f };
-    juce::SmoothedValue<float> mix;
-};
-
 /** A test bass line for the band's bass: plucked strings (Karplus-Strong) playing quarter-note roots of
     Bm - A - E - E at a fixed tempo. It stands in for sampled clean bass notes until the band engine exists,
     and feeds a TONE3000 instance loaded with a bass amp capture. */

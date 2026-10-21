@@ -4,39 +4,6 @@ namespace gt
 {
 
 //==============================================================================
-ToneCrossfade::ToneCrossfade()
-    : SimpleProcessor (BusesProperties()
-                           .withInput ("Tones", juce::AudioChannelSet::discreteChannels (4), true)
-                           .withOutput ("Out", juce::AudioChannelSet::stereo(), true))
-{
-}
-
-void ToneCrossfade::prepareToPlay (double sampleRate, int)
-{
-    mix.reset (sampleRate, 0.02);  // 20 ms crossfade
-    mix.setCurrentAndTargetValue (target.load());
-}
-
-void ToneCrossfade::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
-{
-    if (buffer.getNumChannels() < 4)
-        return;
-
-    mix.setTargetValue (target.load());
-    auto* aL = buffer.getWritePointer (0);
-    auto* aR = buffer.getWritePointer (1);
-    const auto* bL = buffer.getReadPointer (2);
-    const auto* bR = buffer.getReadPointer (3);
-
-    for (int i = 0; i < buffer.getNumSamples(); ++i)
-    {
-        const auto b = mix.getNextValue();
-        aL[i] = aL[i] * (1.0f - b) + bL[i] * b;
-        aR[i] = aR[i] * (1.0f - b) + bR[i] * b;
-    }
-}
-
-//==============================================================================
 TestBassLine::TestBassLine()
     : SimpleProcessor (BusesProperties().withOutput ("Bass", juce::AudioChannelSet::mono(), true))
 {
