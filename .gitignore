@@ -46,3 +46,4 @@ game/.vs/
 .idea/
 Thumbs.db
 desktop.ini
+engine/build_log.txt

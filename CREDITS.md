@@ -14,6 +14,8 @@ Allowed licences: CC0, CC BY (with credit), MIT, BSD, royalty-free store licence
 | Mixamo animations: Guitar Playing (2 clips), Piano Playing (2), Playing Drums | Adobe | https://www.mixamo.com | Adobe Mixamo terms: use in projects; raw files not redistributed | `mockup/mocap/` | Musicians' motion |
 | Home Studio | R-LAB | https://sketchfab.com/3d-models/home-studio-6d1a0713efc543a99d33e11e67099ef2 | CC BY 4.0 (we modify it) | `model_images/venues/home_studio/` | First desktop venue |
 | TONE3000 plugin | TONE3000 | https://github.com/tone-3000/tone3000-plugin | MIT | Installed plugin (VST3/CLAP), not bundled | Guitar tone |
+| JUCE 9.0.4 | Raw Material Software | https://github.com/juce-framework/JUCE | AGPLv3 while personal; a commercial JUCE licence may be required before publishing | `engine/third_party/JUCE/` | Audio engine |
+| ASIO headers (bundled with JUCE) | Steinberg | https://www.steinberg.net/developers/ | Steinberg ASIO licence or GPLv3; publishing under Steinberg's licence needs their free signed agreement | `engine/third_party/JUCE/modules/juce_audio_devices/native/asio/` | ASIO audio |
 
 ## Licence still to record
 
@@ -39,7 +41,6 @@ models need their licence checked one by one before any release.
 
 | Asset | Source | Licence |
 |---|---|---|
-| JUCE | https://github.com/juce-framework/JUCE | AGPLv3 or commercial; check before any release |
 | NeuralAmpModelerCore | https://github.com/sdatkinson/NeuralAmpModelerCore | MIT |
 | sfizz | https://github.com/sfztools/sfizz | BSD-2-Clause |
 | Salamander Grand Piano | https://github.com/sfzinstruments/SalamanderGrandPiano | CC BY 3.0 |

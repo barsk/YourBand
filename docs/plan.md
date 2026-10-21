@@ -260,4 +260,7 @@ to recordings.
 
 ## Status
 
-- 2026-10-21: plan written, repository set up; home studio chosen as the first venue. E1 started.
+- 2026-10-21: plan written, repository set up; home studio chosen as the first venue.
+- 2026-10-21: E1 started (`engine/`): JUCE 9 engine hosting three TONE3000 instances on Focusrite USB ASIO,
+  tone A/B crossfade, test bass line, footswitch reader. Reported round trip 7.8 ms at a 64-sample buffer
+  (5.5 ms at 32). Next: load real tones, check CPU and feel, measure the true round trip.
