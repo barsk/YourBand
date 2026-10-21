@@ -1,0 +1,263 @@
+# GuitarTutor: game plan
+
+Living document, started 2026-10-21. Decisions made so far are in the table below; the rest of the
+document explains how the pieces fit together.
+
+## Goal
+
+You play your real guitar, and a virtual band (drums, bass, keys, a second guitar) plays the song with you.
+It is a practice tool and a jam partner, not a scored game:
+
+- Practice mode: the band keeps steady time. You get the chart, what you played against what was expected
+  ("A, expected E"), timing hints, section loops and a speed trainer.
+- Jam mode: the band follows your tempo, keeps a groove going when you pause, and plays fills and variations.
+
+There are two ways to see it:
+
+- Desktop: a monitor shows the band in a venue (home studio, garage, studio, arena), with chart panels.
+- VR: mixed reality on a Quest 3. The band and the panels appear in your own room.
+
+It is for personal use first and may be published later, so licences are kept clean from the start.
+
+## Decisions
+
+| Topic | Decision | Why |
+|---|---|---|
+| Game type | Practice and jam partner; no scoring | Your call |
+| Game client | Unity, C# | Mecanim retargets Mixamo clips onto Rocketbox avatars; IK, OpenXR and UI are mature |
+| Audio engine | Separate C++ process, built on JUCE | ASIO, VST3 hosting and the amp model engine are all C++; audio stays glitch-free whatever Unity does |
+| Offline tools | Python | Import, alignment and the Blender asset pipeline already live there |
+| Guitar tone | The engine hosts the TONE3000 plugin (VST3) | Same tones as the standalone app, and one program owns the audio interface |
+| Audio driver | Focusrite's own ASIO driver, not ASIO4ALL | Lower latency |
+| Band bass and guitar tone | Clean sampled notes through more TONE3000 instances | Real amp tone for the band from the same library |
+| VR | PC VR through Virtual Desktop (Wi-Fi or USB) | Better quality than Link; audio stays on the PC |
+| Mixed reality | Virtual Desktop chroma key, key colour configurable (default magenta) | Works without Meta's developer-only passthrough; could ship |
+| XR API | Unity's standard OpenXR, no Meta-only SDK features | Virtual Desktop has its own OpenXR runtime |
+| Venues | Desktop only; VR shows your real room | Your call |
+| Footswitch | Arduino HID joystick, read by the audio engine | Instant tone switching, independent of the game's focus |
+| Bandleader | Rule-based; no language model in the timing loop | Predictable, testable, real-time |
+| Renderer | URP or HDRP: open, decided by a side-by-side test | VR is light now (no venues), which makes HDRP possible |
+
+## Architecture
+
+Two programs on the PC, talking over a local connection:
+
+| Audio engine (C++) | Game client (Unity, C#) |
+|---|---|
+| Device I/O: the Scarlett through ASIO | Song library and chart |
+| Your guitar: TONE3000 hosted in the engine | Bandleader |
+| Band sound: scheduler, sampled instruments, TONE3000 for band bass and guitar, venue reverb | Band animation |
+| Listener: strums, chord recognition, tuner, tempo and phase | Views: desktop and VR, panels |
+| Recorder: your clean guitar signal and the clock, for replay tests | Room layouts (VR) and venues (desktop) |
+| Footswitch | Input: every input becomes the same set of commands |
+
+- Commands go from the game to the engine; events (strums, chords, pedal presses) come back.
+- The beat clock is shared memory: the engine's sample position and the matching wall-clock time, so the
+  game draws in exact sync with the sound.
+- The engine schedules notes 0.3–0.5 s ahead. Animation needs that: a drummer's stick must be moving before
+  the hit. Tempo changes are committed at beat boundaries inside that window.
+- The audio thread never allocates memory or waits on locks.
+
+Offline Python tools feed song files and assets to the game.
+
+Dependency rules in the game client:
+
+- Core logic (song model, tempo map, chart timing, bandleader, score follower) is plain C# with no Unity
+  dependencies, unit-tested without starting Unity.
+- Unity code depends on the core, never the other way round.
+- The song file format and the engine messages are defined once in `schema/`, and C# and C++ code is
+  generated from them.
+
+## Song data
+
+A song is stored in our own versioned file format, in layers:
+
+| Layer | Contents |
+|---|---|
+| Skeleton | Sections, chords per bar, lyrics |
+| Rhythm guitar | Strumming pattern, chord voicings (frets, fingers, barre) |
+| Lead and riffs | Tab notes |
+| Timing | Tempo map, bars and beats |
+| Arrangement | Generated band parts |
+| Provenance | Source URLs and revisions, and which source was chosen where they disagree |
+
+Importers: Ultimate Guitar (chords and tabs pages), ChordPro, MIDI, later Guitar Pro.
+
+### What Ultimate Guitar pages contain
+
+Checked on Wicked Game. The data is JSON embedded in the page (`js-store`).
+
+| | Chords page | Tabs page |
+|---|---|---|
+| Sections, chord sequence, lyrics | Yes; chords tagged `[ch]` | Yes; same sequence, chords as plain text |
+| Key, tuning | `meta.tonality`, `meta.tuning` | Same |
+| Strumming pattern and tempo | `strummings` (bpm, strokes on an 8th-note grid) | No |
+| Chord fingerings | `applicature`: frets, fingers, barre, sounding notes | No |
+| Lead riff and fills | No | Yes (ASCII tab: frets, no note lengths) |
+| Timestamps from the recording | No | Some sections (intro 00:00–00:17) |
+
+Neither page has bar lines or chord lengths.
+
+### Combining sources
+
+- The pages share lyric lines and section names; those match the sources up, line by line.
+- Where the chords agree, nothing to decide. Where they differ, the default is the source with tagged chords
+  and more votes; the other is kept as an alternative, and the chart editor shows the differences for a
+  one-click choice.
+- Rhythm guitar comes from the chords page, riffs from the tabs page.
+
+### Timing
+
+1. First guess: 4/4 at the page's tempo, chords spread by their position in the line, repeats expanded.
+   Tab timestamps check the bar count (17 s at 112 BPM is about 8 bars).
+2. Learn by playing: you play the song once; the listener hears your chord changes. The chord order is known,
+   so only the timing has to be found. The result is saved.
+3. Chart editor for anything still wrong.
+4. Later: align to a recording you own.
+
+### Legal
+
+Ultimate Guitar's terms don't allow automated scraping, and lyrics are licensed content. Import is something
+you trigger on a page you have open; songs are stored locally and never redistributed. Ultimate Guitar import
+cannot ship in a public product as is. The page format changes over time, so the importer is one isolated
+piece of code, tested against saved pages.
+
+## Audio
+
+- Your guitar: Scarlett instrument input → TONE3000 → output. A clean copy goes to the listener and the
+  recorder. Target: under 10 ms round trip.
+- Band: arrangement → scheduler → instruments:
+  - drums: a sampled kit (SFZ);
+  - keys: Salamander Grand Piano;
+  - bass: clean sampled bass (for example Karoryfer Growlybass) → TONE3000 with a bass amp capture;
+  - band guitar: clean notes recorded from your own guitar → TONE3000.
+- Sample player: sfizz, inside the engine.
+- Venue reverb (desktop only): convolution with impulse responses of real rooms (OpenAIR). Off in mixed
+  reality, where your real room is the acoustics.
+- Mixer: band parts, your guitar, click.
+- Calibration: a short play-along with clicks measures your input delay.
+
+## Listening, following, bandleader
+
+- Listener: strum onsets; chord recognition against the chord and voicing the chart expects; tuner; level.
+- Score follower: where in the chart you are.
+- Tempo and phase: smoothed estimate, changes limited in how fast they can happen.
+- Bandleader rules: count-in; keep time (practice) or follow (jam); keep a groove going when you stop and
+  catch up when you start again; loop a section; speed trainer; fills at section changes; dynamics; endings.
+- The bandleader sits behind an interface, so a trained model could replace it later. A language model is
+  useful later for speech-to-command and coaching, outside the timing loop.
+
+## Control
+
+- Footswitch: an Arduino with a 32U4 chip (Pro Micro or Leonardo) as a HID joystick. Buttons are mapped in
+  settings: start/stop, loop section, previous/next section, push-to-talk, tone preset up/down.
+- Musical cues: strum to start (count-in), stop playing to stop or vamp.
+- Voice: offline recognizer with fixed phrases ("stop", "from the top", "chorus again", "slower",
+  "chart closer"). Push-to-talk on the pedal, or a wake word. Microphone: the Quest's (Virtual Desktop forwards
+  it), one on the Scarlett's XLR input, or the PC's.
+- Keyboard and mouse on the desktop; controllers in VR layout mode.
+
+## Stations
+
+A station is a musician plus everything that belongs to them, fitted together: the drummer with kit and
+throne, the keyboardist with keyboard, stand and bench, the bassist with bass and amp. Venues place stations
+on fixed spots; room layouts let you place them yourself. Moving a station never breaks its fit.
+
+## Desktop mode
+
+- Venues: home studio first, then garage, studio, arena; the mockup's living room can be ported. Status and
+  asset requirements: [venues.md](venues.md).
+- A venue is a Unity scene loaded on top of the band and UI, plus a definition: station spots, your spot,
+  camera shots, lighting, acoustics, ambience.
+- Camera: orbit, preset shots, optional auto-director. The director uses the scheduler's look-ahead to cut to
+  the drummer before a fill.
+- UI: a chart strip (current bar large with beat cursor and lyrics, next bar smaller, section map), plus
+  panels toggled by key, pedal or voice: chord diagrams (drawn from the voicing data), strumming,
+  key/tuning/capo, tuner, tab, mixer and tone.
+
+## VR mode (mixed reality)
+
+- Quest 3 through Virtual Desktop, on Wi-Fi or its USB mode. Virtual Desktop's audio streaming is off;
+  you hear everything through the Scarlett.
+- Passthrough by chroma key:
+  - the band renders on a transparent background; a final pass after all post-processing paints the empty
+    pixels exactly the key colour;
+  - every pixel is either fully model or fully key (no blending), hair uses cutout transparency, and a
+    despill step removes key tint from edges;
+  - the key colour is configurable; a check tool renders the band, highlights pixels near the key and
+    suggests the safest colour, and shows the values to enter in Virtual Desktop.
+- Limits: no shadows on the real floor, opaque panels only, no real-world occlusion.
+- Room layouts, one profile per room:
+  - layout mode, with controllers in hand: stations move along the floor and turn (life size, upright),
+    with footprint outlines and overlap warnings;
+  - panels move freely, push and pull, scale, can face you, and anchor to the room or follow your head;
+    "keep readable" scales a panel with distance;
+  - play mode locks the layout; voice gives small panel adjustments;
+  - floor calibration by touching the floor; two-point realignment when tracking has shifted;
+  - simple light controls to match the room.
+
+## Band animation
+
+Rocketbox avatars as Unity humanoids. Mixamo clips are retargeted by Mecanim. Hands go onto real targets
+(frets, keys, drums) with IK. Clips are time-scaled and locked to the beat, and driven by the scheduled notes.
+The Blender mockup (`mockup/`) is the reference for fitting and IK: `mocap.py`, `drumming.py`, `comping.py`,
+`riding.py`, `fretting.py`.
+
+## Repository
+
+```
+capture/   video hand-capture experiments
+mockup/    Blender prototype (Python): avatars, instruments, mocap, MIDI band
+engine/    C++ audio engine
+game/      Unity project
+schema/    song format and engine messages
+tools/     offline Python tools
+docs/      this plan, venues
+```
+
+Large third-party downloads are not in git; [CREDITS.md](../CREDITS.md) lists their sources and licences.
+Binary files that are in git go through Git LFS (`.gitattributes`).
+
+## Testing
+
+- Core C# logic: unit tests.
+- Importers: tests against saved pages.
+- Listener, follower and bandleader: recorded sessions (your clean guitar signal plus the clock) replayed as
+  tests. This keeps tempo following reliable while it changes.
+- Engine DSP: unit tests.
+
+## Licences
+
+Every third-party asset and library gets an entry in CREDITS.md. Allowed: CC0, CC BY (with credit), MIT,
+BSD, royalty-free store licences. Not allowed: non-commercial (NC), no-derivatives (ND), editorial use,
+models ripped from games. JUCE's licence needs checking before any release.
+
+## Order of work
+
+Experiments first; each tests a risk that could change the plan:
+
+| Experiment | What it proves |
+|---|---|
+| E1 Audio engine | Scarlett → TONE3000 hosted in our engine → output, latency measured; a second TONE3000 instance on a bass sample; footswitch read by the engine |
+| E2 Virtual Desktop passthrough | One musician in a Unity OpenXR scene over Virtual Desktop: exact key colour, edges and hair, Virtual Desktop settings, latency; moving and turning with controllers; floor calibration |
+| E3 Song import | Both Wicked Game pages merged into one layered song file, first-guess timing checked against the tab timestamps |
+| E4 Renderer | One musician in URP and in HDRP, side by side |
+
+Then:
+
+| Step | Contents |
+|---|---|
+| M1 | Chart and panels |
+| M2 | Band at a fixed tempo: style templates, sampled instruments, TONE3000 on band bass and guitar, footswitch and keyboard control, count-in |
+| M3 | Listening: tuner, strums, chord check, learn timing by playing |
+| M4 | Tempo following and the bandleader |
+| M5 | Voice commands |
+| M6 | 3D band on the desktop, home studio venue |
+| M7 | VR: mixed reality, room layouts |
+
+Later: more venues, guitar tracking with ghost hands, a teacher avatar, a language-model coach, alignment
+to recordings.
+
+## Status
+
+- 2026-10-21: plan written, repository set up; home studio chosen as the first venue. E1 started.
