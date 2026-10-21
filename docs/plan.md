@@ -131,7 +131,10 @@ piece of code, tested against saved pages.
   recorder. Target: under 10 ms round trip.
 - Band: arrangement → scheduler → instruments:
   - drums: a sampled kit (SFZ);
-  - keys: Salamander Grand Piano;
+  - keys: Numa Player (Studiologic, free, installed by you): 47 sounds (grands, upright, Rhodes, Wurlitzer,
+    clavinet, B3 organs, strings, pads), 1-3 % audio CPU per take at 64 samples. It has no program list:
+    a sound is chosen by giving the plugin a state whose zone names the sound (`engine/tools/numa_state.py`).
+    Salamander Grand Piano stays the fallback for a published version;
   - bass: clean sampled bass (for example Karoryfer Growlybass) → TONE3000 with a bass amp capture;
   - band guitar: clean notes recorded from your own guitar → TONE3000.
 - Sample player: sfizz, inside the engine.
@@ -271,3 +274,6 @@ to recordings.
   audio CPU about 25 % (peak 28 %) of a 64-sample buffer with the guitar and bass amp models running.
   Speakers: the ADAM D3Vs are USB speakers, so the game's audio needs them on the Scarlett's line outputs
   (one device, one clock) or headphones on the Scarlett. Still open: the true round trip (loopback cable).
+- 2026-10-21: Numa Player checked with `plugin_probe` (engine/tools): plays when hosted once given a state
+  with a sound; grand, upright, Rhodes and rock B3 rendered; 1-3 % mean audio CPU, peaks 6-18 %.
+  Unity 6.6 (6000.6.7f1) and the Unity CLI (1.0.0-beta.13) installed.

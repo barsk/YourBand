@@ -15,6 +15,7 @@ Allowed licences: CC0, CC BY (with credit), MIT, BSD, royalty-free store licence
 | Home Studio | R-LAB | https://sketchfab.com/3d-models/home-studio-6d1a0713efc543a99d33e11e67099ef2 | CC BY 4.0 (we modify it) | `model_images/venues/home_studio/` | First desktop venue |
 | TONE3000 plugin | TONE3000 | https://github.com/tone-3000/tone3000-plugin | MIT | Installed plugin (VST3/CLAP), not bundled | Guitar tone |
 | JUCE 9.0.4 | Raw Material Software | https://github.com/juce-framework/JUCE | AGPLv3 while personal; a commercial JUCE licence may be required before publishing | `engine/third_party/JUCE/` | Audio engine |
+| Numa Player 2.2.2 | Studiologic | https://www.studiologic-music.com | Free; no licence text found. Installed by you, not bundled; check terms before publishing | Installed plugin (VST3) | Keyboardist's sounds |
 | ASIO headers (bundled with JUCE) | Steinberg | https://www.steinberg.net/developers/ | Steinberg ASIO licence or GPLv3; publishing under Steinberg's licence needs their free signed agreement | `engine/third_party/JUCE/modules/juce_audio_devices/native/asio/` | ASIO audio |
 
 ## Licence still to record

@@ -43,3 +43,22 @@ target_link_libraries(gt_engine
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags)
+
+# plugin_probe: checks whether a plugin can serve as a band instrument (see tools/PluginProbe.cpp)
+juce_add_console_app(plugin_probe PRODUCT_NAME "plugin_probe")
+target_sources(plugin_probe PRIVATE tools/PluginProbe.cpp)
+target_compile_definitions(plugin_probe
+    PRIVATE
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JUCE_PLUGINHOST_VST3=1
+        JUCE_MODAL_LOOPS_PERMITTED=1    # lets the probe wait for program changes to load
+        JUCE_DISPLAY_SPLASH_SCREEN=0)
+target_link_libraries(plugin_probe
+    PRIVATE
+        juce::juce_audio_processors
+        juce::juce_audio_formats
+        juce::juce_gui_basics
+    PUBLIC
+        juce::juce_recommended_config_flags
+        juce::juce_recommended_warning_flags)

@@ -15,7 +15,7 @@ Needs the Visual Studio Build Tools (C++ workload; CMake and Ninja come with the
 engine\build.cmd            (Release; or: build.cmd Debug)
 ```
 
-The program is `build\Release\gt_engine_artefacts\Release\GuitarTutor Engine.exe`.
+The program is `buildRelease\gt_engine_artefacts\Release\GuitarTutor Engine.exe`.
 
 ## Trying experiment E1
 
@@ -51,6 +51,16 @@ quick and not disturbing.
 
 Still to measure: the true round trip with a loopback cable.
 
+## Checking an instrument plugin
+
+```
+buildRelease\plugin_probe_artefacts\Release\plugin_probe.exe <plugin.vst3> outprobe [program-filter ... | --state <file> ...]
+```
+
+Numa Player (2026-10-21): VST3 instrument, 0 in / 2 out, no latency, no program list. A new instance is silent
+until it gets a state with a sound (`tools/numa_state.py`). Grand, upright, Rhodes and rock B3: 1-3 % mean audio
+CPU at 64 samples, peaks 6-18 %.
+
 ## Layout
 
 | File | Contents |
@@ -59,6 +69,8 @@ Still to measure: the true round trip with a loopback cable.
 | `src/Processors.*` | Test bass line |
 | `src/Footswitch.*` | HID joystick reader (Windows joystick API, 500 Hz polling) |
 | `src/MainComponent.*`, `src/Main.cpp` | The window |
+| `tools/PluginProbe.cpp` | `plugin_probe`: loads a plugin without a window, lists what it offers, plays a keyboard phrase in 64-sample blocks at real-time pace, reports audio CPU and writes WAVs |
+| `tools/numa_state.py` | Numa Player states: list its sounds, take the standalone's state, make a state for any sound |
 
 ## Licences
 
