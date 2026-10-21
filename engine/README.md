@@ -32,7 +32,7 @@ Tone switching uses TONE3000's presets: it builds the new model in the backgroun
 the swap (25 ms fades), so a switch in a pause between phrases is not heard. An instance runs its amp model
 whether you play or not, which is why there is one guitar instance rather than one per tone.
 
-Device settings and all three tones are remembered in `%APPDATA%\GuitarTutor\GuitarTutor Engine.settings`;
+Device settings and both TONE3000 instances (with their tones) are remembered in `%APPDATA%\GuitarTutor\GuitarTutor Engine.settings`;
 the log is kept in `engine.log` in the same folder.
 
 ## Measured (2026-10-21, Scarlett Solo, Focusrite USB ASIO, 48 kHz)
