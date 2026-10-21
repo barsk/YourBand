@@ -277,3 +277,7 @@ to recordings.
 - 2026-10-21: Numa Player checked with `plugin_probe` (engine/tools): plays when hosted once given a state
   with a sound; grand, upright, Rhodes and rock B3 rendered; 1-3 % mean audio CPU, peaks 6-18 %.
   Unity 6.6 (6000.6.7f1) and the Unity CLI (1.0.0-beta.13) installed.
+- 2026-10-21: E4 run (`experiments/e4-renderer/`): one guitarist at Quest 3 stereo resolution takes 1.5 ms in
+  URP and 2.1-2.7 ms in HDRP; HDRP's skin looks clearly better; Unity keeps HDRP in maintenance mode and develops
+  URP. Recommendation: URP with an improved skin shader (decision pending). Unity MCP server registered for
+  Claude Code (`unity-editor-mcp`).

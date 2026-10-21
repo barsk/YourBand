@@ -1,0 +1,80 @@
+{
+    "device": "NVIDIA GeForce RTX 5090",
+    "api": "Direct3D12",
+    "width": 4128,
+    "height": 2208,
+    "results": [
+        {
+            "pipeline": "HDRP High Fidelity",
+            "quality": "High Fidelity",
+            "shot": "Closeup",
+            "gpuMs": 0.0000064000000747910235,
+            "gpuP95Ms": 0.0,
+            "cpuMs": 0.7844104766845703,
+            "renderThreadMs": 0.019122017547488213,
+            "frameMs": 2.682077169418335,
+            "frameP95Ms": 3.0330002307891846,
+            "frames": 600
+        },
+        {
+            "pipeline": "HDRP High Fidelity",
+            "quality": "High Fidelity",
+            "shot": "Full",
+            "gpuMs": 0.0000064000000747910235,
+            "gpuP95Ms": 0.0,
+            "cpuMs": 0.7928218245506287,
+            "renderThreadMs": 0.01943100616335869,
+            "frameMs": 2.6365768909454346,
+            "frameP95Ms": 3.002196788787842,
+            "frames": 600
+        },
+        {
+            "pipeline": "HDRP Balanced",
+            "quality": "Balanced",
+            "shot": "Closeup",
+            "gpuMs": 0.0000064000000747910235,
+            "gpuP95Ms": 0.0,
+            "cpuMs": 0.7237206101417542,
+            "renderThreadMs": 0.019344184547662735,
+            "frameMs": 2.282118797302246,
+            "frameP95Ms": 2.5711026191711426,
+            "frames": 600
+        },
+        {
+            "pipeline": "HDRP Balanced",
+            "quality": "Balanced",
+            "shot": "Full",
+            "gpuMs": 0.0000068266667767602485,
+            "gpuP95Ms": 0.0,
+            "cpuMs": 0.7330968379974365,
+            "renderThreadMs": 0.01912318542599678,
+            "frameMs": 2.2218496799468994,
+            "frameP95Ms": 2.534701108932495,
+            "frames": 600
+        },
+        {
+            "pipeline": "HDRP Performant",
+            "quality": "Performant",
+            "shot": "Closeup",
+            "gpuMs": 0.000004266666564944899,
+            "gpuP95Ms": 0.0,
+            "cpuMs": 0.7077171802520752,
+            "renderThreadMs": 0.018839338794350624,
+            "frameMs": 2.151970148086548,
+            "frameP95Ms": 2.376495122909546,
+            "frames": 600
+        },
+        {
+            "pipeline": "HDRP Performant",
+            "quality": "Performant",
+            "shot": "Full",
+            "gpuMs": 0.000003839999862975674,
+            "gpuP95Ms": 0.0,
+            "cpuMs": 0.7119489312171936,
+            "renderThreadMs": 0.018815500661730766,
+            "frameMs": 2.1136908531188965,
+            "frameP95Ms": 2.4479024410247803,
+            "frames": 600
+        }
+    ]
+}

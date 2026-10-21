@@ -1,0 +1,32 @@
+{
+    "device": "NVIDIA GeForce RTX 5090",
+    "api": "Direct3D12",
+    "width": 4128,
+    "height": 2208,
+    "results": [
+        {
+            "pipeline": "PC_RPAsset",
+            "quality": "PC",
+            "shot": "Closeup",
+            "gpuMs": 0.00003498666774248704,
+            "gpuP95Ms": 0.00025599999935366213,
+            "cpuMs": 0.4143032729625702,
+            "renderThreadMs": 0.015288327820599079,
+            "frameMs": 1.5948861837387085,
+            "frameP95Ms": 1.7065973281860352,
+            "frames": 600
+        },
+        {
+            "pipeline": "PC_RPAsset",
+            "quality": "PC",
+            "shot": "Full",
+            "gpuMs": 0.00003328000093461014,
+            "gpuP95Ms": 0.00025599999935366213,
+            "cpuMs": 0.43453866243362427,
+            "renderThreadMs": 0.014923169277608395,
+            "frameMs": 1.4767168760299683,
+            "frameP95Ms": 1.5753968954086304,
+            "frames": 600
+        }
+    ]
+}
