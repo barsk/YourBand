@@ -287,3 +287,6 @@ to recordings.
   `tools/songtool`. Wicked Game from both pages: 133 bars, 4:45 against the album's ~4:49; the intro's guessed
   0:34 matches the tabs page's 0:00-0:34; all lyric lines matched, 25 riffs placed. 20 tests pass. Imported songs
   and saved pages live in `songs-local/` (not in git).
+- 2026-10-21: E2 app built (`experiments/e2-passthrough/`): musician on an exact #FF00FF background, no post or
+  anti-aliasing, cutout hair; controller placement, floor calibration, key colour switching; XR started by the app.
+  Desktop check: background exact, no edge pixel tinted towards the key. Headset test with Virtual Desktop: yours.
