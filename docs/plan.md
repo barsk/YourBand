@@ -36,7 +36,7 @@ It is for personal use first and may be published later, so licences are kept cl
 | Venues | Desktop only; VR shows your real room | Your call |
 | Footswitch | Arduino HID joystick, read by the audio engine | Instant tone switching, independent of the game's focus |
 | Bandleader | Rule-based; no language model in the timing loop | Predictable, testable, real-time |
-| Renderer | URP or HDRP: open, decided by a side-by-side test | VR is light now (no venues), which makes HDRP possible |
+| Renderer | URP (decided 2026-10-21 after E4) | Both are fast enough (one player at Quest 3 stereo resolution: URP 1.5 ms, HDRP 2.1-2.7 ms); HDRP's skin looks better, but Unity keeps HDRP in maintenance mode and develops URP. Skin gets a better shader in URP |
 
 ## Architecture
 
@@ -279,5 +279,7 @@ to recordings.
   Unity 6.6 (6000.6.7f1) and the Unity CLI (1.0.0-beta.13) installed.
 - 2026-10-21: E4 run (`experiments/e4-renderer/`): one guitarist at Quest 3 stereo resolution takes 1.5 ms in
   URP and 2.1-2.7 ms in HDRP; HDRP's skin looks clearly better; Unity keeps HDRP in maintenance mode and develops
-  URP. Recommendation: URP with an improved skin shader (decision pending). Unity MCP server registered for
-  Claude Code (`unity-editor-mcp`).
+  URP. Unity MCP server registered for Claude Code (`unity-editor-mcp`).
+- 2026-10-21: URP chosen. `game/` created (Unity 6.6, URP, agent package): `GuitarTutor.Core` assembly without
+  Unity references holding the tempo map and the layered song model with JSON files, and 13 passing EditMode
+  tests (`game/run_tests.cmd`).
