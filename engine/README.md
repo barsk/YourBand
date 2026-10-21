@@ -54,7 +54,7 @@ Still to measure: the true round trip with a loopback cable.
 ## Checking an instrument plugin
 
 ```
-buildRelease\plugin_probe_artefacts\Release\plugin_probe.exe <plugin.vst3> outprobe [program-filter ... | --state <file> ...]
+build\Release\plugin_probe_artefacts\Release\plugin_probe.exe <plugin.vst3> out\probe [program-filter ... | --state <file> ...]
 ```
 
 Numa Player (2026-10-21): VST3 instrument, 0 in / 2 out, no latency, no program list. A new instance is silent

@@ -47,3 +47,4 @@ game/.vs/
 Thumbs.db
 desktop.ini
 engine/build_log.txt
+engine/out_probe_*.txt
