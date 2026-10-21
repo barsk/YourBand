@@ -37,15 +37,19 @@ the log is kept in `engine.log` in the same folder.
 
 ## Measured (2026-10-21, Scarlett Solo, Focusrite USB ASIO, 48 kHz)
 
-Round trip as reported by the driver, TONE3000 instances without models loaded:
+Round trip as reported by the driver:
 
-| Buffer | Round trip | Audio CPU |
-|---|---|---|
-| 32 | 5.5 ms | 3 % |
-| 64 | 7.8 ms | 2 % |
-| 128 | 14.5 ms | 2 % |
+| Buffer | Round trip | Audio CPU, no models | Audio CPU, guitar and bass amp models playing |
+|---|---|---|---|
+| 32 | 5.5 ms | 3 % | |
+| 64 | 7.8 ms | 2 % | about 25 %, peak 28 % |
+| 128 | 14.5 ms | 2 % | |
 
-Still to measure: CPU with real amp models loaded, and the true round trip with a loopback cable.
+"Audio CPU" is the share of each buffer's time spent processing (JUCE's measure), not of the whole processor:
+at 64 samples a buffer lasts 1.33 ms, so the two amp models take about 0.33 ms of it. Preset switches are
+quick and not disturbing.
+
+Still to measure: the true round trip with a loopback cable.
 
 ## Layout
 

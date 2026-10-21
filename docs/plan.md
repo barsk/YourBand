@@ -57,6 +57,9 @@ Two programs on the PC, talking over a local connection:
 - The engine schedules notes 0.3–0.5 s ahead. Animation needs that: a drummer's stick must be moving before
   the hit. Tempo changes are committed at beat boundaries inside that window.
 - The audio thread never allocates memory or waits on locks.
+- Only your guitar needs the low-latency path. The band (sampled instruments, band amps, reverb) is rendered
+  ahead on its own thread in larger blocks and only mixed in the audio callback, so the band can grow without
+  eating into your guitar's budget. (E1: two amp models take about 25 % of a 64-sample buffer.)
 
 Offline Python tools feed song files and assets to the game.
 
@@ -264,5 +267,7 @@ to recordings.
 - 2026-10-21: plan written, repository set up; home studio chosen as the first venue.
 - 2026-10-21: E1 started (`engine/`): JUCE 9 engine on Focusrite USB ASIO hosting TONE3000 for the guitar
   (its presets switched from the footswitch) and for a test bass line, plus a footswitch reader. Reported
-  round trip 7.8 ms at a 64-sample buffer (5.5 ms at 32). Next: play through real tones, check CPU and feel,
-  measure the true round trip.
+  round trip 7.8 ms at a 64-sample buffer (5.5 ms at 32). Played through real tones: preset switching quick,
+  audio CPU about 25 % (peak 28 %) of a 64-sample buffer with the guitar and bass amp models running.
+  Speakers: the ADAM D3Vs are USB speakers, so the game's audio needs them on the Scarlett's line outputs
+  (one device, one clock) or headphones on the Scarlett. Still open: the true round trip (loopback cable).
