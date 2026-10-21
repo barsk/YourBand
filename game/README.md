@@ -27,7 +27,15 @@ What is there now:
   shown in the screenshots in the repository).
 - `Core/Chart/SongChart.cs`: the song laid out bar by bar for the chart, and what to show at a position: the
   bar, the lyric line and the words sung, the next chord change, the strumming pattern and stroke.
-- `Core/Playback/SongClock.cs`: play, pause, seek, practice speed and count-ins, on a wall clock for now.
+- `Core/Playback/SongClock.cs`, `Transport.cs`: play, pause, seek, practice speed and count-ins. The audio
+  engine runs the transport when it is there; without it, a wall clock keeps time silently.
+- `Core/Music/Chord.cs`: chord names read as notes (root, intervals, slash bass).
+- `Core/Band/Arranger.cs`: the band's parts from the chart, in a style (Ballad, Rock, Pop). Drums with crashes
+  at section starts and a fill into each new section, bass on the roots walking into changes, keys voiced
+  close and moving as little as they can.
+- `Core/Engine/EngineProtocol.cs`, `Runtime/Engine/`: the connection to the audio engine
+  ([../schema/engine-protocol.md](../schema/engine-protocol.md)): messages over TCP, and the engine's clock
+  read from shared memory each frame, so the chart moves with the sound.
 - `Runtime/Desktop/DesktopApp.cs` and `Runtime/UI/`: the desktop screen in UI Toolkit (M1). The chart strip
   (section map, the current bar large with the beat cursor and the next three bars, lyrics karaoke style)
   and the panels: chord diagrams drawn from the voicings, strumming, tab, song info. Look in `Chart.uss`.
@@ -46,9 +54,22 @@ settings, the Desktop scene, player settings) and builds the Windows player (Mon
 Editor: menu GuitarTutor > Set up project, then play `Assets/GuitarTutor/Scenes/Desktop.unity`.
 
 The game plays the first song in the repository's `songs-local/` (imported with `tools/songtool`), or the demo
-song. Keys: Space play / pause (playing again counts you in from the start of the bar), R restart with a
-count-in, Left / Right a bar, PgUp / PgDn a section (or click it in the section map), Up / Down the speed in
-5% steps, 1-4 the panels, P the next strumming pattern, L the next song, H help, Esc quit.
+song. Start the audio engine (`engine/`) first, or any time later, for the band. The game connects by itself;
+the header says "band: Ballad" once the band has the song, and "no band" without the engine.
+
+Keys:
+- Space: play or pause. Playing again counts you in from the start of the bar.
+- R: restart with a count-in.
+- Left / Right: a bar back or on.
+- PgUp / PgDn: a section back or on (or click it in the section map).
+- Up / Down: the speed in 5 % steps.
+- 1-4: the panels.
+- P: the next strumming pattern.
+- B: the next band style.
+- L: the next song.
+- H: help. Esc: quit.
+
+The footswitch's buttons 3-6 (play / pause, previous section, next section, restart) come through the engine.
 
 Command line:
 
@@ -56,7 +77,10 @@ Command line:
 |---|---|
 | `-song <file>` | play that song file |
 | `-demo` | play the demo song |
-| `-shot <folder> -at 1.75,17.75,countin` | screenshots at those positions (quarter notes), every panel shown, then quit |
+| `-shot <folder> -at 1.75,17.75,countin` | screenshots at those positions (quarter notes), every panel shown, then quit (without the band) |
+| `-noengine` | do not look for the audio engine |
+| `-style Rock` | start in that band style |
+| `-parts drums,bass` | give the band only those parts (to check them one at a time) |
 | `-keys "2:Space,6:DownArrow,7:shot,9:quit" -keyshots <folder>` | presses keys on the game's own keyboard at those seconds (never the desktop's), screenshots on "shot": tests the controls end to end |
 
 ## Tests

@@ -25,8 +25,13 @@ namespace GuitarTutor.EditorTools
 
         static readonly Color Background = new Color32(0x14, 0x16, 0x1a, 0xff);
 
+        /// <summary>Menu: sets everything up, the Desktop scene made again.</summary>
         [MenuItem("GuitarTutor/Set up project")]
-        public static void Run()
+        public static void Run() => Setup(true);
+
+        /// <param name="rebuildScene">Make the Desktop scene again even if it exists (it is otherwise left alone,
+        /// so a build does not rewrite it).</param>
+        static void Setup(bool rebuildScene)
         {
             Directory.CreateDirectory(SettingsFolder);
             Directory.CreateDirectory(Path.GetDirectoryName(ScenePath));
@@ -49,7 +54,8 @@ namespace GuitarTutor.EditorTools
             EditorUtility.SetDirty(panel);
             AssetDatabase.SaveAssets();
 
-            BuildScene();
+            if (rebuildScene || !File.Exists(ScenePath))
+                BuildScene();
             ConfigurePlayer();
             AssetDatabase.SaveAssets();
             Debug.Log("GuitarTutor setup: done");
@@ -87,7 +93,7 @@ namespace GuitarTutor.EditorTools
         /// <summary>Batch mode: sets up the project and builds the desktop player; exits with 1 if the build fails.</summary>
         public static void BuildDesktop()
         {
-            Run();
+            Setup(false);
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
                 scenes = new[] { ScenePath },

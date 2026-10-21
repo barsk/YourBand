@@ -1,5 +1,8 @@
 #include "EngineCore.h"
 
+#include "NumaKeys.h"
+#include "SilentDevice.h"
+
 namespace gt
 {
 
@@ -13,9 +16,13 @@ EngineCore::EngineCore()
     input = graph->addNode (std::make_unique<IO> (IO::audioInputNode));
     output = graph->addNode (std::make_unique<IO> (IO::audioOutputNode));
 
-    auto bassProcessor = std::make_unique<TestBassLine>();
-    bass = bassProcessor.get();
-    bassLine = graph->addNode (std::move (bassProcessor));
+    auto band = std::make_unique<BandProcessor> (clock);
+    bandProcessor = band.get();
+    bandNode = graph->addNode (std::move (band));
+    // the band's mixer; the bass amp is loud next to the drums, and the keys sit under both
+    bassMix = graph->addNode (std::make_unique<GainProcessor> ("Bass", 0.5f));
+    keysMix = graph->addNode (std::make_unique<GainProcessor> ("Keys", 1.3f));
+    bandBus = graph->addNode (std::make_unique<GainProcessor> ("Band", 1.0f, true));
 
     player.setProcessor (graph.get());
 }
@@ -61,6 +68,25 @@ juce::String EngineCore::openDevice (const juce::XmlElement* saved)
     return error;
 }
 
+juce::String EngineCore::openSilentDevice (const juce::File& recording)
+{
+    silent = true;
+    deviceManager.addAudioDeviceType (std::make_unique<SilentDeviceType> (recording));
+    deviceManager.setCurrentAudioDeviceType (SilentDeviceType::typeName, true);
+    auto setup = deviceManager.getAudioDeviceSetup();
+    setup.inputDeviceName = setup.outputDeviceName = SilentDeviceType::deviceName;
+    setup.sampleRate = 48000.0;
+    setup.bufferSize = 64;
+    setup.useDefaultInputChannels = setup.useDefaultOutputChannels = false;
+    setup.inputChannels.setRange (0, 2, true);
+    setup.outputChannels.setRange (0, 2, true);
+    const auto error = deviceManager.setAudioDeviceSetup (setup, true);
+    deviceManager.addChangeListener (this);
+    deviceManager.addAudioCallback (&player);
+    connect();
+    return error;
+}
+
 juce::String EngineCore::deviceSummary() const
 {
     auto* d = deviceManager.getCurrentAudioDevice();
@@ -100,6 +126,55 @@ juce::String EngineCore::loadPlugins (const juce::File& pluginFile)
     }
 
     connect();
+    return {};
+}
+
+juce::String EngineCore::loadKeys (const juce::File& pluginFile)
+{
+    if (! pluginFile.exists())
+        return "Keyboard plugin not found: " + pluginFile.getFullPathName();
+    juce::OwnedArray<juce::PluginDescription> types;
+    for (auto* format : formats.getFormats())
+        if (format->fileMightContainThisPluginType (pluginFile.getFullPathName()))
+            format->findAllTypesForFile (types, pluginFile.getFullPathName());
+    if (types.isEmpty())
+        return "No plugin found in " + pluginFile.getFullPathName();
+
+    auto* d = deviceManager.getCurrentAudioDevice();
+    juce::String error;
+    auto instance = formats.createPluginInstance (*types[0], d != nullptr ? d->getCurrentSampleRate() : 48000.0,
+                                                  d != nullptr ? d->getCurrentBufferSizeSamples() : 64, error);
+    if (instance == nullptr)
+        return "Could not load " + types[0]->name + ": " + error;
+    instance->enableAllBuses();
+    keysNode = graph->addNode (std::move (instance));
+    connect();
+    return {};
+}
+
+bool EngineCore::setPartGain (const juce::String& part, float gain)
+{
+    if (part == "drums")
+        bandProcessor->setDrumsGain (gain);
+    else if (part == "bass" || part == "keys")
+        static_cast<GainProcessor*> ((part == "bass" ? bassMix : keysMix)->getProcessor())->setGain (gain);
+    else
+        return false;
+    return true;
+}
+
+juce::String EngineCore::setKeysSound (const juce::String& sound)
+{
+    if (keysNode == nullptr)
+        return "no keyboard plugin";
+    if (sound == currentKeysSound)
+        return {};
+    juce::String error;
+    const auto state = numa::stateFor (sound, error);
+    if (state.isEmpty())
+        return error;
+    keysNode->getProcessor()->setStateInformation (state.getData(), (int) state.getSize());
+    currentKeysSound = sound;
     return {};
 }
 
@@ -197,11 +272,24 @@ void EngineCore::connect()
             link (input, inputChannel, guitarTone, c);
     stereo (guitarTone, output, 0, outs);
 
-    // the band's test bass through its own amp
+    // the band: drums straight out, the bass DI through its amp, the keys' MIDI into the keyboard plugin
+    stereo (bandNode, bandBus, 0, 2);
     if (bassTone != nullptr)
         for (int c = 0; c < bassTone->getProcessor()->getTotalNumInputChannels(); ++c)
-            link (bassLine, 0, bassTone, c);
-    stereo (bassTone, output, 0, outs);
+            link (bandNode, 2, bassTone, c);
+    stereo (bassTone, bassMix, 0, 2);
+    stereo (bassMix, bandBus, 0, 2);
+    if (keysNode != nullptr)
+    {
+        graph->addConnection ({ { bandNode->nodeID, juce::AudioProcessorGraph::midiChannelIndex },
+                                { keysNode->nodeID, juce::AudioProcessorGraph::midiChannelIndex } });
+        stereo (keysNode, keysMix, 0, 2);
+        stereo (keysMix, bandBus, 0, 2);
+    }
+    stereo (bandBus, output, 0, outs);
+
+    if (auto* d = deviceManager.getCurrentAudioDevice())
+        bandProcessor->setOutputLatency (d->getOutputLatencyInSamples() / d->getCurrentSampleRate());
 }
 
 void EngineCore::changeListenerCallback (juce::ChangeBroadcaster*)
@@ -234,8 +322,8 @@ void EngineCore::shutdown()
     deviceManager.removeAudioCallback (&player);
     player.setProcessor (nullptr);
     deviceManager.closeAudioDevice();
-    guitarTone = bassTone = bassLine = input = output = nullptr;
-    bass = nullptr;
+    guitarTone = bassTone = bandNode = keysNode = bassMix = keysMix = bandBus = input = output = nullptr;
+    bandProcessor = nullptr;
     graph->clear();
     graph.reset();
 }

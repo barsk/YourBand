@@ -19,8 +19,13 @@ target_sources(gt_engine
         src/Main.cpp
         src/MainComponent.cpp
         src/EngineCore.cpp
-        src/Processors.cpp
-        src/Footswitch.cpp)
+        src/Footswitch.cpp
+        src/Band.cpp
+        src/Instruments.cpp
+        src/NumaKeys.cpp
+        src/GameLink.cpp
+        src/SharedClock.cpp
+        src/SilentDevice.cpp)
 
 target_compile_definitions(gt_engine
     PRIVATE

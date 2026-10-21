@@ -3,26 +3,39 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using GuitarTutor.Core.Band;
 using GuitarTutor.Core.Chart;
+using GuitarTutor.Core.Engine;
 using GuitarTutor.Core.Playback;
 using GuitarTutor.Core.Songs;
+using GuitarTutor.Runtime.Engine;
 using GuitarTutor.Runtime.Songs;
 using GuitarTutor.Runtime.UI;
+using Newtonsoft.Json.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UIElements;
 
 namespace GuitarTutor.Runtime.Desktop
 {
+    /// <summary>The game's controls; keys and the footswitch (through the engine) both become these.</summary>
+    public enum Command
+    {
+        PlayPause, Restart, Home, BarBack, BarOn, SectionBack, SectionOn, Faster, Slower,
+        NextPattern, NextSong, NextStyle, Help, Quit,
+    }
+
     /// <summary>
-    /// The desktop game (M1: the chart and its panels, on an internal clock). Loads a song, runs the transport from
-    /// the keyboard, and shows the chart at the clock's position every frame.
+    /// The desktop game: loads a song, arranges the band's parts and hands them to the audio engine, runs the
+    /// transport from the keyboard and the footswitch, and shows the chart at the music's position every frame.
+    /// Without the engine it keeps time on its own, silently (as in M1).
     /// </summary>
     /// <remarks>
     /// Command line: <c>-song &lt;file&gt;</c> plays that song, <c>-demo</c> the built-in demo song (otherwise the
     /// first song in songs-local, or the demo if there is none). <c>-shot &lt;folder&gt; -at &lt;positions&gt;</c>
     /// renders a screenshot at each position (in quarter notes, comma separated; "countin" for the count-in) with
-    /// every panel shown, then quits.
+    /// every panel shown, then quits. <c>-noengine</c> does not look for the audio engine. <c>-parts drums,bass</c>
+    /// gives the band only those parts (for checking them one at a time); <c>-style Rock</c> starts in that band style.
     /// </remarks>
     [RequireComponent(typeof(UIDocument))]
     public sealed class DesktopApp : MonoBehaviour
@@ -34,12 +47,19 @@ namespace GuitarTutor.Runtime.Desktop
 
         DesktopScreen screen;
         SongChart chart;
-        SongClock clock;
+        Arrangement arrangement;
+        BandStyle bandStyle;
         readonly List<string> songs = new List<string>();  // null: the demo song
         int songIndex, pattern;
-        double countInTarget = double.NaN;  // where the count-in ends (NaN: none)
-        int countInBar;
-        double? hold;  // screenshots: keep the clock here, playing
+
+        LocalTransport local;
+        EngineLink link;
+        EngineClock clock;
+        EngineTransport engine;
+        bool engineConnected;  // as last reported on the main thread
+        bool engineReady;      // connected, and has this song
+        ITransport transport;
+        double? hold;      // screenshots: keep the music here
 
         static double Now => Time.realtimeSinceStartupAsDouble;
 
@@ -50,7 +70,7 @@ namespace GuitarTutor.Runtime.Desktop
                 root.styleSheets.Add(style);
             screen = new DesktopScreen();
             root.Add(screen);
-            screen.Strip.SeekToBar += SeekBar;
+            screen.Strip.SeekToBar += bar => Seek(chart.Bars[Mathf.Clamp(bar, 0, chart.Bars.Count - 1)].AtQuarter);
             foreach (var panel in PanelOrder)
                 screen.SetShown(panel, PlayerPrefs.GetInt("panel." + panel, 1) == 1);
 
@@ -66,11 +86,30 @@ namespace GuitarTutor.Runtime.Desktop
             }
             else if (args.Contains("-demo"))
                 songIndex = songs.Count - 1;
+
+            // screenshots are of the chart alone: the band stays out of it
+            if (!args.Contains("-noengine") && Arg("-shot") == null)
+            {
+                link = new EngineLink();
+                clock = new EngineClock();
+                engine = new EngineTransport(link, clock);
+                link.ConnectionChanged += OnEngineConnection;
+                link.Message += OnEngineMessage;
+                link.Start();
+            }
             Load(songIndex);
 
             var shots = Arg("-shot");
             if (shots != null)
                 StartCoroutine(Shots(shots, (Arg("-at") ?? "0").Split(',')));
+        }
+
+        void OnDestroy()
+        {
+            if (engineReady)
+                engine.Pause();
+            link?.Dispose();
+            clock?.Dispose();
         }
 
         void Load(int index)
@@ -87,85 +126,137 @@ namespace GuitarTutor.Runtime.Desktop
                 Debug.LogWarning($"GuitarTutor: could not load {path}, playing the demo song instead: {e.Message}");
                 song = DemoSong.Create();
             }
+            if (transport != null && transport.Playing)
+                transport.Pause();
             chart = new SongChart(song);
-            clock = new SongClock(song.Tempo);
-            countInTarget = double.NaN;
+            local = new LocalTransport(song.Tempo, () => Now);
             pattern = 0;
             screen.SetSong(chart);
+            var styleName = Environment.GetCommandLineArgs().SkipWhile(a => a != "-style").Skip(1).FirstOrDefault();
+            Arrange(styleName != null ? BandStyle.Named(styleName) : Arranger.DefaultStyle(song));
             Debug.Log($"GuitarTutor: {song.Info.Artist} - {song.Info.Title}, {chart.Bars.Count} bars ({path ?? "demo"})");
+        }
+
+        /// <summary>Writes the band's parts in a style and gives them to the engine (which stops playing).</summary>
+        void Arrange(BandStyle style)
+        {
+            bandStyle = style;
+            arrangement = Arranger.Arrange(chart, style);
+            var parts = Environment.GetCommandLineArgs().SkipWhile(a => a != "-parts").Skip(1).FirstOrDefault();
+            if (parts != null)
+                arrangement.Notes.RemoveAll(n => !parts.Split(',').Contains(n.Part.ToString().ToLowerInvariant()));
+            engineReady = false;
+            transport = local;
+            if (engineConnected)  // otherwise it goes when the engine connects
+                SendSong();
+        }
+
+        void SendSong()
+        {
+            link.Send(EngineProtocol.Load(chart.Song.Info.Title, chart.Song.Tempo, arrangement, bandStyle.KeysSound));
+            link.Send(EngineProtocol.Mix(BandPart.Keys, bandStyle.KeysGain));
+        }
+
+        void OnEngineConnection(bool connected)
+        {
+            Debug.Log("GuitarTutor: audio engine " + (connected ? "connected" : "gone"));
+            engineConnected = connected;
+            if (connected)
+            {
+                local.Pause();
+                SendSong();
+            }
+            else
+            {
+                // carry on silently from where the music was
+                var at = engineReady ? Math.Max(0, engine.Quarter) : local.Quarter;
+                engineReady = false;
+                transport = local;
+                local.Seek(at);
+            }
+        }
+
+        void OnEngineMessage(string type, JObject message)
+        {
+            if (type == "loaded")
+            {
+                // the band has the song: from here the engine's clock is the music
+                var at = Math.Max(0, transport.Quarter);
+                var wasPlaying = transport.Playing;
+                local.Pause();
+                engineReady = true;
+                transport = engine;
+                engine.Refresh();
+                if (wasPlaying)
+                    engine.Play(at, 0);
+                else
+                    engine.Seek(at);
+                if (Math.Abs(local.Speed - 1) > 1e-6)
+                    engine.SetSpeed(local.Speed);
+                Debug.Log($"GuitarTutor: the band has {chart.Song.Info.Title} ({(int)message["notes"]} notes, keys {(string)message["keys"]})");
+            }
+            else if (type == "command" && Enum.TryParse((string)message["command"] switch
+                     {
+                         "playPause" => "PlayPause",
+                         "restart" => "Restart",
+                         "sectionPrevious" => "SectionBack",
+                         "sectionNext" => "SectionOn",
+                         _ => "",
+                     }, out Command command))
+                Execute(command);
         }
 
         void Update()
         {
             if (chart == null)
                 return;
+            link?.Poll();
+            if (engineReady)
+                engine.Refresh();
             HandleKeys();
-            var now = Now;
-            if (hold != null)
-                clock.Seek(hold.Value, now);
-            var quarter = clock.QuarterAt(now);
-            if (clock.Playing && quarter >= chart.EndQuarter)
+            if (hold != null && !transport.Playing)
+                transport.Play(hold.Value, 0);
+            var quarter = hold ?? transport.Quarter;
+            if (transport.Playing && quarter >= chart.EndQuarter && hold == null)
             {
-                clock.Pause(now);
-                clock.Seek(chart.EndQuarter - 1e-6, now);
-                quarter = clock.QuarterAt(now);
+                transport.Pause();
+                transport.Seek(chart.EndQuarter - 1e-6);
             }
-            screen.Show(quarter, CountInAt(quarter), new TransportState(clock.Playing, clock.Speed, clock.SongSecondsAt(now)), pattern);
+            var status = link == null ? "" : engineReady ? $"band: {bandStyle.Name}" : engineConnected ? "band: loading" : "no band (engine not running)";
+            screen.Show(quarter, CountInAt(quarter), new TransportState(transport.Playing, transport.Speed, chart.Song.Tempo.SecondsAt(Math.Max(0, quarter)), status), pattern);
         }
 
         CountIn? CountInAt(double quarter)
         {
-            if (double.IsNaN(countInTarget))
+            var until = hold == null ? transport.CountInUntil : countInShot;
+            if (double.IsNaN(until) || quarter >= until)
                 return null;
-            if (quarter >= countInTarget)
-            {
-                countInTarget = double.NaN;
-                return null;
-            }
-            var signature = chart.Song.Tempo.SignatureAtBar(countInBar);
-            var into = Math.Max(0, quarter - (countInTarget - signature.QuartersPerBar));
+            var target = chart.BarOf(until) ?? chart.Bars[0];
+            var signature = target.Signature;
+            var into = Math.Max(0, quarter - (until - signature.QuartersPerBar));
             var beat = (int)Math.Min(signature.Numerator - 1, Math.Floor(into / (4.0 / signature.Denominator)));
-            return new CountIn(beat, into / signature.QuartersPerBar, signature, countInBar);
+            return new CountIn(beat, into / signature.QuartersPerBar, signature, target.Index);
         }
 
         // ------------------------------------------------------------ transport
         int CurrentBar()
         {
-            if (!double.IsNaN(countInTarget))
-                return countInBar;
-            return chart.BarOf(Math.Max(0, clock.QuarterAt(Now)))?.Index ?? 0;
+            var until = transport.CountInUntil;
+            if (!double.IsNaN(until))
+                return chart.BarOf(until)?.Index ?? 0;
+            return chart.BarOf(Math.Max(0, transport.Quarter))?.Index ?? 0;
         }
 
         /// <summary>Plays from the start of a bar, after a bar of count-in.</summary>
         void PlayFrom(int bar)
         {
-            bar = Mathf.Clamp(bar, 0, chart.Bars.Count - 1);
-            var target = chart.Bars[bar];
-            var now = Now;
-            clock.Seek(target.AtQuarter - target.Quarters, now);
-            countInTarget = target.AtQuarter;
-            countInBar = bar;
-            clock.Play(now);
+            var target = chart.Bars[Mathf.Clamp(bar, 0, chart.Bars.Count - 1)];
+            transport.Play(target.AtQuarter, target.Quarters);
         }
 
-        void SeekBar(int bar)
-        {
-            bar = Mathf.Clamp(bar, 0, chart.Bars.Count - 1);
-            countInTarget = double.NaN;
-            clock.Seek(chart.Bars[bar].AtQuarter, Now);
-        }
+        void Seek(double quarter) => transport.Seek(Math.Max(0, Math.Min(quarter, chart.EndQuarter - 1e-6)));
 
-        void TogglePlay()
-        {
-            if (clock.Playing)
-            {
-                clock.Pause(Now);
-                countInTarget = double.NaN;
-                return;
-            }
-            var atEnd = clock.QuarterAt(Now) >= chart.EndQuarter - 1e-3;
-            PlayFrom(atEnd ? 0 : CurrentBar());
-        }
+        void SeekBar(int bar) => Seek(chart.Bars[Mathf.Clamp(bar, 0, chart.Bars.Count - 1)].AtQuarter);
 
         void StepSection(int direction)
         {
@@ -176,13 +267,47 @@ namespace GuitarTutor.Runtime.Desktop
                 SeekBar(direction > 0 ? chart.Sections.FirstOrDefault().FirstBar : 0);
                 return;
             }
-            // back: to the start of this section, or the one before if already near its start
+            // back: to the start of this section, or the one before if already at its start
             if (direction < 0 && bar - chart.Sections[index].FirstBar > 0)
                 SeekBar(chart.Sections[index].FirstBar);
             else
+                SeekBar(chart.Sections[Mathf.Clamp(index + direction, 0, chart.Sections.Count - 1)].FirstBar);
+        }
+
+        void Execute(Command command)
+        {
+            switch (command)
             {
-                var to = Mathf.Clamp(index + direction, 0, chart.Sections.Count - 1);
-                SeekBar(chart.Sections[to].FirstBar);
+                case Command.PlayPause:
+                    if (transport.Playing)
+                        transport.Pause();
+                    else
+                        PlayFrom(transport.Quarter >= chart.EndQuarter - 1e-3 ? 0 : CurrentBar());
+                    break;
+                case Command.Restart: PlayFrom(0); break;
+                case Command.Home: SeekBar(0); break;
+                case Command.BarBack: SeekBar(CurrentBar() - 1); break;
+                case Command.BarOn: SeekBar(CurrentBar() + 1); break;
+                case Command.SectionBack: StepSection(-1); break;
+                case Command.SectionOn: StepSection(1); break;
+                case Command.Faster:
+                case Command.Slower:
+                    var speed = Math.Round(transport.Speed * 20 + (command == Command.Faster ? 1 : -1)) / 20;
+                    transport.SetSpeed(Math.Max(0.5, Math.Min(1.5, speed)));
+                    break;
+                case Command.NextPattern: ++pattern; break;
+                case Command.NextSong: Load(songIndex + 1); break;
+                case Command.NextStyle:
+                    var i = BandStyle.All.ToList().IndexOf(bandStyle);
+                    var playing = transport.Playing;
+                    var at = transport.Quarter;
+                    Arrange(BandStyle.All[(i + 1) % BandStyle.All.Count]);
+                    local.Seek(Math.Max(0, at));
+                    if (playing)
+                        local.Play(Math.Max(0, at), 0);
+                    break;
+                case Command.Help: screen.ToggleHelp(); break;
+                case Command.Quit: Application.Quit(); break;
             }
         }
 
@@ -191,25 +316,18 @@ namespace GuitarTutor.Runtime.Desktop
             var k = Keyboard.current;
             if (k == null)
                 return;
-            if (k.spaceKey.wasPressedThisFrame)
-                TogglePlay();
-            if (k.rKey.wasPressedThisFrame)
-                PlayFrom(0);
-            if (k.homeKey.wasPressedThisFrame)
-                SeekBar(0);
-            if (k.leftArrowKey.wasPressedThisFrame)
-                SeekBar(CurrentBar() - 1);
-            if (k.rightArrowKey.wasPressedThisFrame)
-                SeekBar(CurrentBar() + 1);
-            if (k.pageUpKey.wasPressedThisFrame)
-                StepSection(-1);
-            if (k.pageDownKey.wasPressedThisFrame)
-                StepSection(1);
-            if (k.upArrowKey.wasPressedThisFrame || k.downArrowKey.wasPressedThisFrame)
+            (Key key, Command command)[] keys =
             {
-                var speed = Math.Round(clock.Speed * 20 + (k.upArrowKey.wasPressedThisFrame ? 1 : -1)) / 20;
-                clock.SetSpeed(Math.Max(0.5, Math.Min(1.5, speed)), Now);
-            }
+                (Key.Space, Command.PlayPause), (Key.R, Command.Restart), (Key.Home, Command.Home),
+                (Key.LeftArrow, Command.BarBack), (Key.RightArrow, Command.BarOn),
+                (Key.PageUp, Command.SectionBack), (Key.PageDown, Command.SectionOn),
+                (Key.UpArrow, Command.Faster), (Key.DownArrow, Command.Slower),
+                (Key.P, Command.NextPattern), (Key.L, Command.NextSong), (Key.B, Command.NextStyle),
+                (Key.H, Command.Help), (Key.Escape, Command.Quit),
+            };
+            foreach (var (key, command) in keys)
+                if (k[key].wasPressedThisFrame)
+                    Execute(command);
             Key[] panelKeys = { Key.Digit1, Key.Digit2, Key.Digit3, Key.Digit4 };
             for (int i = 0; i < panelKeys.Length; ++i)
                 if (k[panelKeys[i]].wasPressedThisFrame || k[Key.Numpad1 + i].wasPressedThisFrame)
@@ -218,17 +336,11 @@ namespace GuitarTutor.Runtime.Desktop
                     screen.SetShown(panel, !screen.IsShown(panel));
                     PlayerPrefs.SetInt("panel." + panel, screen.IsShown(panel) ? 1 : 0);
                 }
-            if (k.pKey.wasPressedThisFrame)
-                ++pattern;
-            if (k.lKey.wasPressedThisFrame)
-                Load(songIndex + 1);
-            if (k.hKey.wasPressedThisFrame)
-                screen.ToggleHelp();
-            if (k.escapeKey.wasPressedThisFrame)
-                Application.Quit();
         }
 
         // ------------------------------------------------------------ screenshots
+        double countInShot = double.NaN;
+
         IEnumerator Shots(string folder, string[] positions)
         {
             Directory.CreateDirectory(folder);
@@ -237,18 +349,16 @@ namespace GuitarTutor.Runtime.Desktop
             Screen.SetResolution(1920, 1080, FullScreenMode.Windowed);
             for (int i = 0; i < 10; ++i)
                 yield return null;
-            clock.Play(Now);
             foreach (var position in positions)
             {
                 if (position == "countin")
                 {
-                    countInTarget = 0;
-                    countInBar = 0;
+                    countInShot = 0;
                     hold = -2.5;
                 }
                 else
                 {
-                    countInTarget = double.NaN;
+                    countInShot = double.NaN;
                     hold = double.Parse(position, System.Globalization.CultureInfo.InvariantCulture);
                 }
                 for (int i = 0; i < 6; ++i)

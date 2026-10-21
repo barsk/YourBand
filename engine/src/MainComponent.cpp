@@ -6,6 +6,8 @@ namespace gt
 namespace
 {
     const char* const defaultPlugin = "C:\\Program Files\\Common Files\\VST3\\TONE3000.vst3";
+    const char* const defaultKeysPlugin = "C:\\Program Files\\Common Files\\VST3\\Numa Player.vst3";
+    const char* const defaultKeysSound = "2 - E_PIANO/1 - EP-Mark I";
 
     const char* slotKey (EngineCore::Slot slot)
     {
@@ -33,13 +35,29 @@ namespace
     };
 }
 
-MainComponent::MainComponent()
+EngineOptions EngineOptions::fromCommandLine (const juce::StringArray& args)
 {
-    juce::PropertiesFile::Options options;
-    options.applicationName = "GuitarTutor Engine";
-    options.folderName = "GuitarTutor";
-    options.filenameSuffix = ".settings";
-    settings = std::make_unique<juce::PropertiesFile> (options);
+    EngineOptions o;
+    for (int i = 0; i < args.size(); ++i)
+    {
+        if (args[i] == "--silent")
+            o.silent = true;
+        else if (args[i] == "--record" && i + 1 < args.size())
+            o.recording = juce::File::getCurrentWorkingDirectory().getChildFile (args[++i].unquoted());
+        else if (args[i] == "--run-for" && i + 1 < args.size())
+            o.runFor = args[++i].getDoubleValue();
+    }
+    return o;
+}
+
+MainComponent::MainComponent (const EngineOptions& startOptions)
+    : options (startOptions)
+{
+    juce::PropertiesFile::Options fileOptions;
+    fileOptions.applicationName = "GuitarTutor Engine";
+    fileOptions.folderName = "GuitarTutor";
+    fileOptions.filenameSuffix = ".settings";
+    settings = std::make_unique<juce::PropertiesFile> (fileOptions);
     settings->getFile().getParentDirectory().createDirectory();
     settings->getFile().getSiblingFile ("engine.log").appendText ("\n--- " + juce::Time::getCurrentTime().toString (true, true) + "\n");
 
@@ -50,8 +68,10 @@ MainComponent::MainComponent()
 
     // audio device
     auto saved = settings->getXmlValue ("devices");
-    if (const auto error = engine.openDevice (saved.get()); error.isNotEmpty())
+    if (const auto error = options.silent ? engine.openSilentDevice (options.recording) : engine.openDevice (saved.get()); error.isNotEmpty())
         log ("Audio device: " + error);
+    if (options.silent)
+        log ("Silent: no audio interface" + (options.recording != juce::File() ? ", recording to " + options.recording.getFullPathName() : juce::String()));
     log (engine.deviceSummary());
     selector = std::make_unique<juce::AudioDeviceSelectorComponent> (engine.devices(), 1, 2, 2, 2, false, false, false, false);
     addAndMakeVisible (*selector);
@@ -86,27 +106,33 @@ MainComponent::MainComponent()
             engine.setPluginState (slot, state);
     }
 
+    // the band's keys
+    if (const auto error = engine.loadKeys (juce::File (settings->getValue ("keysPlugin", defaultKeysPlugin))); error.isNotEmpty())
+        log (error + " (the band plays without keys)");
+    else if (const auto soundError = engine.setKeysSound (settings->getValue ("keysSound", defaultKeysSound)); soundError.isNotEmpty())
+        log ("Keys: " + soundError);
+    else
+        log ("Keys: Numa Player, " + engine.keysSound());
+
     for (auto* c : std::initializer_list<juce::Component*> { &guitarButton, &bassButton, &presetLabel, &presetBox,
-                                                             &previousButton, &nextButton, &bassSwitch })
+                                                             &previousButton, &nextButton })
         addAndMakeVisible (*c);
     guitarButton.onClick = [this] { showPlugin (EngineCore::Slot::guitar, "Guitar tone"); };
     bassButton.onClick = [this] { showPlugin (EngineCore::Slot::bass, "Bass amp"); };
     previousButton.onClick = [this] { stepPreset (-1); };
     nextButton.onClick = [this] { stepPreset (1); };
     presetBox.onChange = [this] { selectPreset (presetBox.getSelectedId() - 1); };
-    bassSwitch.onClick = [this] { setBass (! engine.bassLinePlaying()); };
     refreshPresets();
     log (juce::String ((int) presetList.size()) + " presets saved in TONE3000");
-    setBass (false);
 
-    for (auto* l : { &latencyLabel, &cpuLabel, &footLabel })
+    for (auto* l : { &latencyLabel, &cpuLabel, &footLabel, &gameLabel, &bandLabel })
     {
         l->setFont (juce::Font (juce::FontOptions (15.0f)));
         addAndMakeVisible (*l);
     }
     footLabel.setText ("Footswitch: none found (any HID game controller works)", juce::dontSendNotification);
 
-    // footswitch: button 1 next preset, button 2 previous preset, button 3 starts and stops the bass line
+    // footswitch: buttons 1 and 2 step through the tone presets here; the others are the game's to act on
     footswitch.onDevice = [this] (const juce::String& name)
     {
         footLabel.setText ("Footswitch: " + (name.isEmpty() ? juce::String ("none found") : name), juce::dontSendNotification);
@@ -122,9 +148,32 @@ MainComponent::MainComponent()
         else if (button == 2)
             stepPreset (-1);
         else if (button == 3)
-            setBass (! engine.bassLinePlaying());
+            sendCommand ("playPause");
+        else if (button == 4)
+            sendCommand ("sectionPrevious");
+        else if (button == 5)
+            sendCommand ("sectionNext");
+        else if (button == 6)
+            sendCommand ("restart");
     };
     footswitch.start();
+
+    // the game
+    gameLabel.setText ("Game: waiting on port " + juce::String (GameLink::port), juce::dontSendNotification);
+    game.onConnection = [this] (bool connected)
+    {
+        if (! connected && ! game.isListening())
+            log ("Cannot listen for the game on port " + juce::String (GameLink::port) + " (another engine running?)");
+        gameLabel.setText (connected ? "Game: connected" : "Game: waiting on port " + juce::String (GameLink::port), juce::dontSendNotification);
+        log (connected ? "Game connected" : "Game gone");
+        if (! connected)
+            engine.band().pause();
+    };
+    game.onMessage = [this] (const juce::var& message) { handle (message); };
+    game.start();
+
+    if (options.runFor > 0.0)
+        juce::Timer::callAfterDelay ((int) (options.runFor * 1000.0), [] { juce::JUCEApplication::getInstance()->systemRequestedQuit(); });
 
     setSize (760, 760);
     startTimerHz (4);
@@ -139,8 +188,65 @@ MainComponent::~MainComponent()
     engine.shutdown();
 }
 
+void MainComponent::handle (const juce::var& message)
+{
+    const auto type = message["type"].toString();
+    auto& band = engine.band();
+    if (type == "hello")
+    {
+        auto* answer = new juce::DynamicObject();
+        answer->setProperty ("type", "hello");
+        answer->setProperty ("engine", JUCE_APPLICATION_NAME_STRING);
+        answer->setProperty ("protocol", 1);
+        answer->setProperty ("sampleRate", engine.latency().sampleRate);
+        answer->setProperty ("clock", "Local\\GuitarTutorClock");
+        game.send (juce::var (answer));
+    }
+    else if (type == "load")
+    {
+        juce::String error;
+        auto score = Score::fromMessage (message, error);
+        if (score == nullptr)
+        {
+            log ("Game sent a song the band cannot read: " + error);
+            return;
+        }
+        if (score->keys.isNotEmpty())
+            if (const auto keysError = engine.setKeysSound (score->keys); keysError.isNotEmpty())
+                log ("Keys: " + keysError);
+        log ("Song: " + score->title + ", " + score->style + ", " + juce::String ((int) score->notes.size()) + " notes");
+        const auto notes = (int) score->notes.size();
+        band.load (std::move (score));
+        auto* answer = new juce::DynamicObject();
+        answer->setProperty ("type", "loaded");
+        answer->setProperty ("notes", notes);
+        answer->setProperty ("keys", engine.keysSound());
+        game.send (juce::var (answer));
+    }
+    else if (type == "play")
+        band.play ((double) message["from"], (double) message["countIn"]);
+    else if (type == "pause")
+        band.pause();
+    else if (type == "seek")
+        band.seek ((double) message["to"]);
+    else if (type == "speed")
+        band.setSpeed ((double) message["value"]);
+    else if (type == "mix")
+        engine.setPartGain (message["part"].toString(), (float) (double) message["gain"]);
+}
+
+void MainComponent::sendCommand (const juce::String& command)
+{
+    auto* message = new juce::DynamicObject();
+    message->setProperty ("type", "command");
+    message->setProperty ("command", command);
+    game.send (juce::var (message));
+}
+
 void MainComponent::saveSettings()
 {
+    if (engine.isSilent())
+        return;  // a test run leaves your settings as they are
     if (auto xml = engine.deviceState())
         settings->setValue ("devices", xml.get());
     settings->setValue ("guitarInput", engine.guitarInput());
@@ -223,12 +329,6 @@ void MainComponent::showPlugin (EngineCore::Slot slot, const juce::String& title
         });
 }
 
-void MainComponent::setBass (bool on)
-{
-    engine.setBassLine (on);
-    bassSwitch.setButtonText (on ? "Stop test bass line" : "Start test bass line (Bm A E E, 112 BPM)");
-}
-
 void MainComponent::timerCallback()
 {
     const auto l = engine.latency();
@@ -239,7 +339,14 @@ void MainComponent::timerCallback()
     const auto cpu = juce::String::formatted ("Audio CPU: %.0f %%", 100.0 * engine.cpuLoad());
     latencyLabel.setText (latency, juce::dontSendNotification);
     cpuLabel.setText (cpu, juce::dontSendNotification);
-    if (++ticks == 8)  // once, two seconds after start: into the log file too
+    auto& band = engine.band();
+    const auto* score = band.score();
+    bandLabel.setText (score == nullptr ? juce::String ("Band: no song yet")
+                                        : "Band: " + score->title + " (" + score->style + "), " + (band.isPlaying() ? "playing" : "stopped")
+                                              + " at quarter " + juce::String (band.position(), 1),
+                       juce::dontSendNotification);
+    // into the log file too: two seconds after start, then every ten seconds while the band plays
+    if (++ticks == 8 || (band.isPlaying() && ticks % 40 == 0))
         log (latency + ", " + cpu);
 }
 
@@ -279,12 +386,13 @@ void MainComponent::resized()
     presetBox.setBounds (row.reduced (3, 0));
     r.removeFromTop (6);
 
-    bassSwitch.setBounds (r.removeFromTop (30).reduced (3, 0));
-    r.removeFromTop (10);
+    r.removeFromTop (4);
 
     latencyLabel.setBounds (r.removeFromTop (24));
     cpuLabel.setBounds (r.removeFromTop (24));
     footLabel.setBounds (r.removeFromTop (24));
+    gameLabel.setBounds (r.removeFromTop (24));
+    bandLabel.setBounds (r.removeFromTop (24));
     r.removeFromTop (6);
     logView.setBounds (r);
 }

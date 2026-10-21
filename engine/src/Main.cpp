@@ -10,9 +10,13 @@ class EngineApplication final : public juce::JUCEApplication
 public:
     const juce::String getApplicationName() override { return JUCE_APPLICATION_NAME_STRING; }
     const juce::String getApplicationVersion() override { return JUCE_APPLICATION_VERSION_STRING; }
-    bool moreThanOneInstanceAllowed() override { return false; }  // one program owns the audio interface
+    // one program owns the audio interface; a silent test run can go next to it
+    bool moreThanOneInstanceAllowed() override { return getCommandLineParameters().contains ("--silent"); }
 
-    void initialise (const juce::String&) override { window = std::make_unique<MainWindow> (getApplicationName()); }
+    void initialise (const juce::String&) override
+    {
+        window = std::make_unique<MainWindow> (getApplicationName(), EngineOptions::fromCommandLine (getCommandLineParameterArray()));
+    }
     void shutdown() override { window.reset(); }
     void systemRequestedQuit() override { quit(); }
 
@@ -20,11 +24,11 @@ private:
     class MainWindow final : public juce::DocumentWindow
     {
     public:
-        explicit MainWindow (const juce::String& name)
-            : DocumentWindow (name, juce::Colours::darkgrey, DocumentWindow::allButtons)
+        MainWindow (const juce::String& name, const EngineOptions& options)
+            : DocumentWindow (name + (options.silent ? " (silent)" : ""), juce::Colours::darkgrey, DocumentWindow::allButtons)
         {
             setUsingNativeTitleBar (true);
-            setContentOwned (new MainComponent(), true);
+            setContentOwned (new MainComponent (options), true);
             setResizable (true, true);
             centreWithSize (getWidth(), getHeight());
             setVisible (true);

@@ -296,3 +296,11 @@ to recordings.
   stroke lit, tab for the current and next bar, song info), internal clock with count-in, practice speed,
   keyboard transport. Checked by screenshots from the built player (`-shot`, `-keys`), with the demo song and
   Wicked Game. 34 core tests.
+- 2026-10-21: M2 done: the band at a fixed tempo. The game arranges drums, bass and keys from the chart in
+  three styles (Ballad, Rock, Pop). The engine plays them on the song's tempo map with a count-in on sticks,
+  and owns the transport (play, pause, seek, speed); the game reads its clock from shared memory
+  (`schema/engine-protocol.md`). Drums and bass are synthesized for now (bass through the TONE3000 bass amp);
+  keys are Numa Player with a sound per style. Band mixer with a soft limiter. Footswitch buttons 3-6 go
+  to the game. Checked without a sound (`engine --silent --record`, `tools/band_session.py`): hits on the
+  beat grid, count-in, pause, seek, resume, 110 % speed, style switches while playing; audio CPU 2-4 %. Still
+  open: a sampled drum kit and bass, the band guitar, and the band rendered ahead on its own thread.

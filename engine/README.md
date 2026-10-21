@@ -1,10 +1,16 @@
 # GuitarTutor audio engine
 
 The C++ audio engine (see [../docs/plan.md](../docs/plan.md)). It owns the audio interface, hosts the TONE3000
-plugin for your guitar and the band, and will grow the band's sound, the listener and the recorder.
+plugin for your guitar and the band's bass amp, plays the band, and will grow the listener and the recorder.
 
-Right now it is experiment E1: your guitar through TONE3000, switching between TONE3000's own presets, a test
-bass line through a second TONE3000 instance, latency readouts, and the footswitch.
+What it does now:
+- Your guitar through TONE3000, with TONE3000's own presets switched from the footswitch (E1).
+- The band (M2): it plays the parts the game arranges, on the song's tempo map, with a count-in. Drums are
+  synthesized, the bass is a plucked string through the second TONE3000 instance (your bass amp capture),
+  and the keys are Numa Player. The band owns the song's transport. The game asks it to play, pause, seek
+  and change speed over a local connection, and reads its clock from shared memory
+  ([../schema/engine-protocol.md](../schema/engine-protocol.md)).
+- Latency and CPU readouts, the footswitch, and a log.
 
 ## Build
 
@@ -15,7 +21,7 @@ Needs the Visual Studio Build Tools (C++ workload; CMake and Ninja come with the
 engine\build.cmd            (Release; or: build.cmd Debug)
 ```
 
-The program is `buildRelease\gt_engine_artefacts\Release\GuitarTutor Engine.exe`.
+The program is `build\Release\gt_engine_artefacts\Release\GuitarTutor Engine.exe`.
 
 ## Trying experiment E1
 
@@ -24,9 +30,11 @@ The program is `buildRelease\gt_engine_artefacts\Release\GuitarTutor Engine.exe`
    device panel at the top). The guitar input is input 2, the Scarlett Solo's instrument jack.
 3. "Guitar tone..." opens the guitar's TONE3000 window. Its saved presets (shared with the standalone app)
    appear in the preset list; step through them with the buttons or the footswitch.
-4. "Bass amp..." opens the second instance: load a bass amp capture, then "Start test bass line".
-5. Footswitch: button 1 next preset, button 2 previous preset, button 3 starts and stops the bass line.
-   Any game controller works as a footswitch until the Arduino pedal exists.
+4. "Bass amp..." opens the second instance: load a bass amp capture there, and the band's bass plays
+   through it.
+5. Footswitch: button 1 next preset, button 2 previous preset. Buttons 3-6 go to the game: play / pause,
+   previous section, next section, restart. Any game controller works as a footswitch until the Arduino
+   pedal exists.
 
 Tone switching uses TONE3000's presets: it builds the new model in the background and fades its output across
 the swap (25 ms fades), so a switch in a pause between phrases is not heard. An instance runs its amp model
@@ -51,6 +59,51 @@ quick and not disturbing.
 
 Still to measure: the true round trip with a loopback cable.
 
+## The band (M2)
+
+Start the engine, then the game (`game/Builds/Desktop/GuitarTutor.exe`). The game connects by itself, and the
+engine's window shows "Game: connected" and the song. Play from the game (Space) or the footswitch. Each play
+starts with a bar of count-in on sticks.
+
+- The game writes the parts (`game/Assets/GuitarTutor/Core/Band/Arranger.cs`) in one of three styles:
+  Ballad (the default below 120 BPM), Rock and Pop. B switches style in the game.
+- Drums: a synthesized kit (`src/Instruments.*`): kick, snare, side stick, hats, crash, ride, toms, sticks.
+  It stands in for a sampled kit; finding one is still open.
+- Bass: a plucked string (Karplus-Strong) as a clean DI signal, into the "Bass amp" TONE3000 instance.
+- Keys: Numa Player, its sound chosen by the style (Rhodes for Ballad, B3 organ for Rock, grand piano for
+  Pop), made into a plugin state from the Numa Player app's last state (`src/NumaKeys.*`). Without Numa
+  Player installed, the band plays without keys.
+- Mixer: drums 0.8, bass 0.5 after its amp, keys per style, then a soft limiter on the band's sum (peaks
+  above 0.7 bend towards 1). The game sets the keys level per style; the `mix` message sets any part.
+
+Measured with the band playing (silent mode, 48 kHz, 64 samples): audio CPU 2-4 %; the mix at about -21 dB
+RMS, peak 0.8.
+
+## Testing without a sound
+
+```
+"GuitarTutor Engine.exe" --silent --record out\band.wav --run-for 40
+```
+
+`--silent` replaces the audio interface with a pretend one (`src/SilentDevice.*`). It runs the engine at real
+time (48 kHz, 64-sample blocks) and records what the engine plays. A silent engine may run next to a normal
+one, and it leaves your settings as they are.
+
+```
+python tools\band_session.py <out-folder> --keys "3:Space,20:quit" --seconds 30 -demo
+.venv\Scripts\python.exe tools\wav_check.py <out-folder>\band.wav --bpm 96
+```
+
+`band_session.py` starts a silent engine and the game, and plays the game by key script (its `-keys`
+option). Its other options go to the game: `-song <file>`, `-demo`, `-style Rock`, `-parts drums`.
+`wav_check.py` prints the levels and the onsets against the beat grid.
+
+Checked this way (2026-10-21):
+- Count-in sticks exactly a beat apart, the band in on the next beat, and every drum hit on the eighth-note
+  grid.
+- Pause, a bar on, play again (it counts in again from that bar); 110 % speed (123 BPM for Wicked Game).
+- Switching styles while playing: the band picks up where it was.
+
 ## Checking an instrument plugin
 
 ```
@@ -65,12 +118,20 @@ CPU at 64 samples, peaks 6-18 %.
 
 | File | Contents |
 |---|---|
-| `src/EngineCore.*` | Audio device, the processing graph, the hosted plugins |
-| `src/Processors.*` | Test bass line |
+| `src/EngineCore.*` | Audio device, the processing graph, the hosted plugins, the band's mixer |
+| `src/Band.*` | The band: the song's notes and tempo map, the transport, the count-in, the clock |
+| `src/Instruments.*` | Synthesized drum kit and plucked bass |
+| `src/NumaKeys.*` | Numa Player states for a sound |
+| `src/GameLink.*` | The connection to the game (TCP on 127.0.0.1:47800, JSON lines) |
+| `src/SharedClock.*` | The clock in shared memory |
+| `src/SilentDevice.*` | The pretend audio interface for `--silent` |
+| `src/Processors.*` | Small processors: the mixer's volume controls and the limiter |
 | `src/Footswitch.*` | HID joystick reader (Windows joystick API, 500 Hz polling) |
-| `src/MainComponent.*`, `src/Main.cpp` | The window |
+| `src/MainComponent.*`, `src/Main.cpp` | The window, the command line, the game's messages |
 | `tools/PluginProbe.cpp` | `plugin_probe`: loads a plugin without a window, lists what it offers, plays a keyboard phrase in 64-sample blocks at real-time pace, reports audio CPU and writes WAVs |
 | `tools/numa_state.py` | Numa Player states: list its sounds, take the standalone's state, make a state for any sound |
+| `tools/band_session.py` | A silent test session: engine and game, the game played by key script |
+| `tools/wav_check.py` | Levels and onsets of a recording, against the beat grid |
 
 ## Licences
 

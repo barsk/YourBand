@@ -5,7 +5,8 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include <atomic>
-#include <vector>
+#include <cmath>
+
 
 namespace gt
 {
@@ -31,34 +32,45 @@ public:
     void setStateInformation (const void*, int) override {}
 };
 
-/** A test bass line for the band's bass: plucked strings (Karplus-Strong) playing quarter-note roots of
-    Bm - A - E - E at a fixed tempo. It stands in for sampled clean bass notes until the band engine exists,
-    and feeds a TONE3000 instance loaded with a bass amp capture. */
-class TestBassLine final : public SimpleProcessor
+/** A volume control in the graph: one channel of the band's mixer. Changes are ramped over a block. With
+    `limit`, peaks above 0.7 are bent softly towards 1 instead of clipping (the band's sum, to spare your ears). */
+class GainProcessor final : public SimpleProcessor
 {
 public:
-    TestBassLine();
+    GainProcessor (const juce::String& channelName, float initialGain, bool limit = false)
+        : SimpleProcessor (BusesProperties().withInput ("In", juce::AudioChannelSet::stereo(), true)
+                                            .withOutput ("Out", juce::AudioChannelSet::stereo(), true)),
+          name (channelName), gain (initialGain), applied (initialGain), limiting (limit)
+    {
+    }
 
-    const juce::String getName() const override { return "Test bass line"; }
-    void prepareToPlay (double sampleRate, int samplesPerBlock) override;
-    void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    const juce::String getName() const override { return name; }
+    void prepareToPlay (double, int) override { applied = gain.load(); }
+    void processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override
+    {
+        const auto target = gain.load();
+        buffer.applyGainRamp (0, buffer.getNumSamples(), applied, target);
+        applied = target;
+        if (! limiting)
+            return;
+        for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+        {
+            auto* x = buffer.getWritePointer (ch);
+            for (int i = 0; i < buffer.getNumSamples(); ++i)
+                if (const auto a = std::abs (x[i]); a > knee)
+                    x[i] = std::copysign (knee + (1.0f - knee) * std::tanh ((a - knee) / (1.0f - knee)), x[i]);
+        }
+    }
 
-    void setPlaying (bool on) { playing.store (on); }
-    bool isPlaying() const { return playing.load(); }
-    void setTempo (double bpm) { tempo.store (bpm); }
+    void setGain (float g) { gain.store (juce::jlimit (0.0f, 4.0f, g)); }
+    float getGain() const { return gain.load(); }
 
 private:
-    void pluck (double frequency);
-
-    std::atomic<bool> playing { false };
-    std::atomic<double> tempo { 112.0 };
-    double sampleRate = 48000.0;
-    double samplesToNextBeat = 0.0;
-    int beat = 0;
-    std::vector<float> line;  // the string's delay line
-    size_t length = 1, pos = 0;
-    float damping = 0.996f, tone = 0.0f;
-    juce::Random random;
+    static constexpr float knee = 0.7f;
+    juce::String name;
+    std::atomic<float> gain;
+    float applied;
+    bool limiting;
 };
 
 } // namespace gt

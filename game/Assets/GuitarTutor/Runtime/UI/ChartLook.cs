@@ -86,7 +86,8 @@ namespace GuitarTutor.Runtime.UI
     {
         readonly VisualElement layer;
         readonly List<(Label label, double at)> items = new List<(Label, double)>();
-        const float Gap = 8;
+        const float Gap = 8, SmallestScale = 0.55f;
+        float scale = 1, baseSize;
 
         public SpreadRow(VisualElement layer)
         {
@@ -98,6 +99,7 @@ namespace GuitarTutor.Runtime.UI
         {
             items.Clear();
             layer.Clear();
+            scale = 1;
         }
 
         public Label Add(string text, double at, string className)
@@ -124,6 +126,15 @@ namespace GuitarTutor.Runtime.UI
                     label.style.left = left;
                 var w = label.layout.width;
                 right = left + (float.IsNaN(w) ? 0 : w);
+            }
+            // too many to fit (a busy line in a small bar): smaller text, until they do
+            if (items.Count > 0 && right > width + 1 && scale > SmallestScale)
+            {
+                if (scale == 1)
+                    baseSize = items[0].label.resolvedStyle.fontSize;
+                scale = Mathf.Max(SmallestScale, scale * width / right * 0.98f);
+                foreach (var (label, _) in items)
+                    label.style.fontSize = baseSize * scale;
             }
         }
     }

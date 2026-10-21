@@ -13,12 +13,15 @@ namespace GuitarTutor.Runtime.UI
         public bool Playing { get; }
         public double Speed { get; }
         public double SongSeconds { get; }
+        /// <summary>What the band is doing, in a few words ("band: Ballad", "no band").</summary>
+        public string Band { get; }
 
-        public TransportState(bool playing, double speed, double songSeconds)
+        public TransportState(bool playing, double speed, double songSeconds, string band)
         {
             Playing = playing;
             Speed = speed;
             SongSeconds = songSeconds;
+            Band = band;
         }
     }
 
@@ -69,7 +72,7 @@ namespace GuitarTutor.Runtime.UI
 
             Strip = new ChartStrip();
             Add(Strip);
-            ChartLook.Label(string.Join("   ·   ", "Space play / pause", "R restart", "Left / Right bar", "PgUp / PgDn section", "Up / Down speed", "1-4 panels", "P pattern", "H help"),
+            ChartLook.Label(string.Join("   ·   ", "Space play / pause", "R restart", "Left / Right bar", "PgUp / PgDn section", "Up / Down speed", "1-4 panels", "P pattern", "B band style", "H help"),
                 "gt-hint", this);
 
             help = ChartLook.Box("gt-help", this);
@@ -83,6 +86,7 @@ namespace GuitarTutor.Runtime.UI
                          ("Up / Down", "speed up / slow down by 5%"),
                          ("1  2  3  4", "chords, strumming, tab, song panels"),
                          ("P", "next strumming pattern"),
+                         ("B", "next band style"),
                          ("L", "next song"),
                          ("H", "this help"),
                          ("Esc", "quit"),
@@ -164,7 +168,8 @@ namespace GuitarTutor.Runtime.UI
             var speed = Math.Abs(transport.Speed - 1) > 1e-6 ? $" at {transport.Speed * 100:0}%" : "";
             status.text = $"{section?.Name ?? "-"}   ·   bar {(bar?.Index ?? 0) + 1} of {chart.Bars.Count}   ·   "
                           + $"{song.Tempo.BpmAt(at) * transport.Speed:0} BPM{speed}   ·   "
-                          + $"{Clock(transport.SongSeconds)} / {Clock(song.Tempo.SecondsAt(chart.EndQuarter))}   ·   {state}";
+                          + $"{Clock(transport.SongSeconds)} / {Clock(song.Tempo.SecondsAt(chart.EndQuarter))}   ·   {state}"
+                          + (string.IsNullOrEmpty(transport.Band) ? "" : "   ·   " + transport.Band);
             status.EnableInClassList("gt-status--playing", transport.Playing);
 
             Strip.Show(quarter, countIn);

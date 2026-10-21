@@ -1,17 +1,20 @@
 #pragma once
 
-// The audio engine's core: the audio interface, and a processing graph with the hosted TONE3000 instances.
+// The audio engine's core: the audio interface, and a processing graph with the hosted plugins and the band.
 //
-//   instrument input --> TONE3000 (guitar) ----+
-//                                              +--> outputs
-//   test bass line ----> TONE3000 (bass amp) --+
+//   instrument input --> TONE3000 (guitar) -----------------------------+
+//   band: drums -----------------------------------+                    +--> outputs
+//         bass DI -----> TONE3000 (bass amp) --> volume --+--> band bus --+
+//         keys MIDI ---> Numa Player ---------> volume --+    (limiter)
 //
 // Tones are switched with TONE3000's own presets: it builds the new model in the background and fades its
 // output across the swap, so a switch in a pause between phrases is not heard.
 
 #include <juce_audio_utils/juce_audio_utils.h>
 
+#include "Band.h"
 #include "Processors.h"
+#include "SharedClock.h"
 
 namespace gt
 {
@@ -44,12 +47,20 @@ public:
     /** Opens the audio interface from saved settings, or the first ASIO driver found (Focusrite's own first,
         then ASIO4ALL). Returns an error message, or empty on success. */
     juce::String openDevice (const juce::XmlElement* saved);
+    /** Instead of an audio interface: a silent one that keeps real time, recording to `recording` if given. */
+    juce::String openSilentDevice (const juce::File& recording);
     std::unique_ptr<juce::XmlElement> deviceState() const { return deviceManager.createStateXml(); }
     juce::AudioDeviceManager& devices() { return deviceManager; }
     juce::String deviceSummary() const;
+    bool isSilent() const { return silent; }
 
     /** Loads two instances of the plugin (guitar and bass amp). Returns an error message, or empty. */
     juce::String loadPlugins (const juce::File& pluginFile);
+    /** Loads the keyboard plugin (Numa Player) for the band's keys. Returns an error message, or empty. */
+    juce::String loadKeys (const juce::File& pluginFile);
+    /** Gives the keyboard plugin a sound ("2 - E_PIANO/1 - EP-Mark I"). Returns an error message, or empty. */
+    juce::String setKeysSound (const juce::String& sound);
+    juce::String keysSound() const { return currentKeysSound; }
     juce::AudioProcessor* plugin (Slot) const;
     juce::MemoryBlock pluginState (Slot) const;
     void setPluginState (Slot, const juce::MemoryBlock&);
@@ -65,8 +76,10 @@ public:
     int guitarInput() const { return inputChannel; }
     juce::StringArray inputChannelNames() const;
 
-    void setBassLine (bool on) { if (bass != nullptr) bass->setPlaying (on); }
-    bool bassLinePlaying() const { return bass != nullptr && bass->isPlaying(); }
+    BandProcessor& band() { return *bandProcessor; }
+
+    /** The band's mixer: "drums", "bass" or "keys", as a gain (1: as played). False if there is no such part. */
+    bool setPartGain (const juce::String& part, float gain);
 
     Latency latency() const;
     double cpuLoad() const { return deviceManager.getCpuUsage(); }
@@ -88,9 +101,12 @@ private:
     std::unique_ptr<juce::AudioProcessorGraph> graph;
     juce::AudioProcessorPlayer player;
 
-    Node::Ptr input, output, guitarTone, bassLine, bassTone;
-    TestBassLine* bass = nullptr;
+    SharedClock clock;
+    Node::Ptr input, output, guitarTone, bandNode, bassTone, keysNode, bassMix, keysMix, bandBus;
+    BandProcessor* bandProcessor = nullptr;
+    juce::String currentKeysSound;
     int inputChannel = 1;
+    bool silent = false;
 };
 
 } // namespace gt
