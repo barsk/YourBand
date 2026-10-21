@@ -23,6 +23,8 @@ namespace GuitarTutor.Core.Songs
         public List<StrumPattern> Strumming { get; set; } = new List<StrumPattern>();
         public List<Voicing> Voicings { get; set; } = new List<Voicing>();
         public List<Riff> Riffs { get; set; } = new List<Riff>();
+        /// <summary>Where sources disagree: the chords another source gives for a stretch (the chart editor offers them).</summary>
+        public List<ChordAlternative> Alternatives { get; set; } = new List<ChordAlternative>();
         public List<Source> Sources { get; set; } = new List<Source>();
 
         /// <summary>The chord sounding at a position (null before the first chord or in a gap).</summary>
@@ -140,6 +142,15 @@ namespace GuitarTutor.Core.Songs
         public double Quarters { get; set; }
         /// <summary>As written in tab: "b" bend, "s" slide, "h" hammer-on, "p" pull-off, "~" vibrato; empty if none.</summary>
         public string Technique { get; set; } = "";
+    }
+
+    /// <summary>Another source's chords for a stretch of the song (as names, in order).</summary>
+    public sealed class ChordAlternative
+    {
+        public double AtQuarter { get; set; }
+        public double Quarters { get; set; }
+        public List<string> Chords { get; set; } = new List<string>();
+        public string Source { get; set; } = "";
     }
 
     /// <summary>Where a part of the song came from, and which parts it supplied.</summary>

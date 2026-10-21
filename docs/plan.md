@@ -283,3 +283,7 @@ to recordings.
 - 2026-10-21: URP chosen. `game/` created (Unity 6.6, URP, agent package): `GuitarTutor.Core` assembly without
   Unity references holding the tempo map and the layered song model with JSON files, and 13 passing EditMode
   tests (`game/run_tests.cmd`).
+- 2026-10-21: E3 done: Ultimate Guitar importer in `GuitarTutor.Core` (`Import/UltimateGuitar/`), command line
+  `tools/songtool`. Wicked Game from both pages: 133 bars, 4:45 against the album's ~4:49; the intro's guessed
+  0:34 matches the tabs page's 0:00-0:34; all lyric lines matched, 25 riffs placed. 20 tests pass. Imported songs
+  and saved pages live in `songs-local/` (not in git).
