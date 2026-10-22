@@ -88,7 +88,11 @@ namespace GuitarTutor.Runtime.UI
             tape.Clear();
             noteTimes.Clear();
             tape.style.width = (float)((end - tapeStart) * PixelsPerQuarter);
-            Riff lastRiff = null;
+            // riffs that overlap (the same fill placed twice) show their notes once, and a name only where
+            // there is room for it
+            var drawn = new HashSet<(int, int, long)>();
+            var named = new HashSet<Riff>();
+            var nameRight = float.MinValue;
             for (int b = from; b <= to; ++b)
             {
                 var bar = chart.Bars[b];
@@ -96,15 +100,17 @@ namespace GuitarTutor.Runtime.UI
                 {
                     var at = bar.AtQuarter + n.Offset;
                     var x = (float)((at - tapeStart) * PixelsPerQuarter);
+                    if (!drawn.Add((n.Note.StringIndex, n.Note.Fret, (long)Math.Round(at * 960))))
+                        continue;
                     noteTimes.Add(at);
                     var label = ChartLook.Label(n.Note.Fret + n.Note.Technique, "gt-tape__fret", tape);
                     label.style.left = x;
                     label.style.top = LineY(n.Note.StringIndex) - 11;
                     label.style.translate = new Translate(Length.Percent(-50), 0);
-                    if (n.Riff != lastRiff)
+                    if (named.Add(n.Riff) && x > nameRight)
                     {
-                        lastRiff = n.Riff;
                         ChartLook.Label(n.Riff.Name, "gt-tape__riff", tape).style.left = x;
+                        nameRight = x + n.Riff.Name.Length * 8 + 16;  // about the name's width at 14 px
                     }
                 }
             }

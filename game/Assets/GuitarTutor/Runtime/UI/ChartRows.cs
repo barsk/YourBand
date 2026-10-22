@@ -13,25 +13,103 @@ namespace GuitarTutor.Runtime.UI
     /// row comes in at the bottom. Where the rows stand is worked out from the music's position alone
     /// (<see cref="SongChart.RowPosition"/>), so a jump simply shows the rows at the new place.
     /// </summary>
+    /// <remarks>
+    /// The lyrics have one size for the whole song: as large as lets the words of every bar sit at their beats,
+    /// from the style's size down to <see cref="SmallestLyrics"/> of it. Bars that would need smaller text than
+    /// that are left out of the choice: their words are pushed along, into the next bar's space if they must, and
+    /// only a row that runs out of room even so has its words made smaller.
+    /// </remarks>
     public sealed class ChartRows : VisualElement
     {
         public const int InView = 2;
+        public const float SmallestLyrics = 0.75f;
+        /// <summary>The space between two words, and a bar's padding left and right (as in Chart.uss).</summary>
+        public const float WordGap = 10, CellPadding = 18;
 
         readonly RowView[] views = new RowView[InView + 1];
+        readonly Label probe;  // measures words in the lyrics' style
+        readonly Dictionary<string, float> widths = new Dictionary<string, float>();
         SongChart chart;
+        float fittedWidth = -1;
 
         public ChartRows()
         {
             AddToClassList("gt-rows");
             for (int i = 0; i < views.Length; ++i)
                 Add(views[i] = new RowView());
+            probe = ChartLook.Label("", "gt-cell__word", this);
+            probe.style.visibility = Visibility.Hidden;
+            RegisterCallback<GeometryChangedEvent>(_ => FitLyrics());
         }
 
         public void SetSong(SongChart songChart)
         {
             chart = songChart;
+            fittedWidth = -1;
             foreach (var v in views)
                 v.Clear(chart);
+            schedule.Execute(FitLyrics);
+        }
+
+        /// <summary>The lyrics' size for this song at this width: the largest that fits every bar, within limits.</summary>
+        void FitLyrics()
+        {
+            var width = layout.width;
+            if (chart == null || float.IsNaN(width) || width <= 0 || Math.Abs(width - fittedWidth) < 1)
+                return;
+            var full = probe.resolvedStyle.fontSize;
+            if (float.IsNaN(full) || full <= 0)
+                return;
+            fittedWidth = width;
+            widths.Clear();
+            float Width(string word)
+            {
+                if (!widths.TryGetValue(word, out var w))
+                    widths[word] = w = probe.MeasureTextSize(word, 0, MeasureMode.Undefined, 0, MeasureMode.Undefined).x;
+                return w;
+            }
+            // laid out at their beats, pushed along where they would touch: do they end inside the bar?
+            bool Fits(ChartBar bar, float barWidth, float scale)
+            {
+                var right = float.MinValue;
+                foreach (var w in bar.Words)
+                    right = Math.Max((float)(w.Offset / bar.Quarters) * barWidth, right + WordGap) + Width(w.Word.Text) * scale;
+                return right <= barWidth + 0.5f;
+            }
+            // the size each bar needs
+            var needs = new List<float>();
+            foreach (var bar in chart.Bars)
+            {
+                if (bar.Words.Count == 0)
+                    continue;
+                var barWidth = (float)(width * bar.Quarters / (SongChart.BarsPerRow * chart.TypicalBarQuarters)) - CellPadding;
+                float low = 0.3f, high = 1f;
+                if (Fits(bar, barWidth, high))
+                    low = high;
+                else
+                    for (int i = 0; i < 12; ++i)
+                    {
+                        var mid = (low + high) / 2;
+                        if (Fits(bar, barWidth, mid))
+                            low = mid;
+                        else
+                            high = mid;
+                    }
+                needs.Add(low);
+            }
+            needs.Sort();
+            // the bars that fit at a readable size choose it; the others push their words along
+            var size = 1f;
+            foreach (var need in needs)
+                if (need >= SmallestLyrics)
+                {
+                    size = need;
+                    break;
+                }
+            Debug.Log($"GuitarTutor: lyrics at {full * size:0} px for {chart.Song.Info.Title}; "
+                      + $"{needs.FindAll(n => n < size).Count} of {needs.Count} bars with words push them along");
+            foreach (var v in views)
+                v.SetLyricSize(full * size);
         }
 
         /// <param name="lead">How long before a row's end the rows start moving on (quarter notes).</param>
@@ -69,6 +147,8 @@ namespace GuitarTutor.Runtime.UI
         readonly List<BarCell> pool = new List<BarCell>();
         SongChart chart;
         int inUse;  // cells showing a bar
+        float lyricSize;
+        float rowScale = 1;  // below 1 only for a row whose words run out of room even pushed along
 
         public int RowIndex { get; private set; } = -1;
 
@@ -77,6 +157,84 @@ namespace GuitarTutor.Runtime.UI
             AddToClassList("gt-row");
             section = ChartLook.Label("", "gt-row__section", this);
             cells = ChartLook.Box("gt-row__cells", this);
+            RegisterCallback<GeometryChangedEvent>(_ => LayoutWords());
+        }
+
+        public void SetLyricSize(float size)
+        {
+            lyricSize = size;
+            rowScale = 1;
+            ApplyLyricSize();
+        }
+
+        void ApplyLyricSize()
+        {
+            for (int i = 0; i < inUse; ++i)
+                pool[i].SetLyricSize(lyricSize * rowScale);
+            LayoutWords();
+        }
+
+        /// <summary>
+        /// The row's words on one line: each at its beat, or pushed along if the word before it is still there
+        /// (into the next bar's space if it must). Words that would run past the row's end are moved back just
+        /// enough to end there; only if the row's words do not fit side by side at all do they get smaller.
+        /// </summary>
+        void LayoutWords()
+        {
+            if (inUse == 0)
+                return;
+            var placed = new List<(Label label, float origin, float left, float width)>();
+            var right = float.MinValue;
+            for (int i = 0; i < inUse; ++i)
+            {
+                var cell = pool[i];
+                var layer = cell.WordLayer;
+                var width = layer.layout.width;
+                if (float.IsNaN(width) || width <= 0)
+                    return;
+                var origin = cell.layout.x + layer.layout.x;
+                foreach (var (label, at) in cell.Words)
+                {
+                    var w = label.layout.width;
+                    w = float.IsNaN(w) ? 0 : w;
+                    var left = Math.Max(origin + (float)at * width, right + ChartRows.WordGap);
+                    placed.Add((label, origin, left, w));
+                    right = left + w;
+                }
+            }
+            if (placed.Count == 0)
+                return;
+            var first = pool[0].layout.x + pool[0].WordLayer.layout.x;
+            var last = pool[inUse - 1];
+            var end = last.layout.x + last.WordLayer.layout.x + last.WordLayer.layout.width;
+
+            // the last words back from the row's end, as far as they must
+            var limit = end;
+            for (int k = placed.Count - 1; k >= 0 && placed[k].left + placed[k].width > limit + 0.5f; --k)
+            {
+                var p = placed[k];
+                p.left = limit - p.width;
+                placed[k] = p;
+                limit = p.left - ChartRows.WordGap;
+            }
+
+            if (placed[0].left < first - 0.5f)
+            {
+                // more words than the row holds: smaller, decided on widths measured at the size they have now
+                var size = lyricSize * rowScale;
+                if (lyricSize <= 0 || rowScale <= 0.5f || placed.Exists(p => Math.Abs(p.label.resolvedStyle.fontSize - size) > 0.5f))
+                    return;
+                var needed = 0f;
+                foreach (var p in placed)
+                    needed += p.width + ChartRows.WordGap;
+                rowScale = Math.Max(0.5f, rowScale * (end - first) / needed * 0.98f);
+                for (int i = 0; i < inUse; ++i)
+                    pool[i].SetLyricSize(lyricSize * rowScale);
+                return;  // the new sizes lay the row out again
+            }
+            foreach (var (label, origin, left, _) in placed)
+                if (Math.Abs(label.resolvedStyle.left - (left - origin)) > 0.5f)
+                    label.style.left = left - origin;
         }
 
         public void Clear(SongChart songChart)
@@ -90,11 +248,12 @@ namespace GuitarTutor.Runtime.UI
         {
             RowIndex = row.Index;
             inUse = row.Bars;
+            rowScale = 1;
             section.text = row.Section?.Name.ToUpperInvariant() ?? "";
             section.EnableInClassList("gt-row__section--start", row.StartsSection);
             while (pool.Count < row.Bars)
             {
-                var cell = new BarCell();
+                var cell = new BarCell(LayoutWords);
                 pool.Add(cell);
                 cells.Add(cell);
             }
@@ -112,6 +271,7 @@ namespace GuitarTutor.Runtime.UI
                 cell.style.width = Length.Percent((float)(100.0 * bar.Quarters / (SongChart.BarsPerRow * chart.TypicalBarQuarters)));
                 cell.Show(chart, bar);
             }
+            ApplyLyricSize();
         }
 
         public void SetState(double quarter, CountIn? countIn)
@@ -129,15 +289,20 @@ namespace GuitarTutor.Runtime.UI
     {
         readonly Label number, count;
         readonly VisualElement beats, track, overlay;
-        readonly SpreadRow chords, words;
+        readonly SpreadRow chords;
+        readonly VisualElement wordLayer;
+        readonly List<(Label label, double at)> words = new List<(Label, double)>();
+        readonly Action relayout;
         SongChart chart;
         ChartBar bar;
         bool current;
         float cursor = -1;  // 0..1 through the bar, -1: not here
         int beatNow = -1;
 
-        public BarCell()
+        /// <param name="wordsMoved">Called when the words change size: the row lays them out again.</param>
+        public BarCell(Action wordsMoved)
         {
+            relayout = wordsMoved;
             AddToClassList("gt-cell");
             // the beat numbers over the beat ticks, the bar's number at the right
             var head = ChartLook.Box("gt-cell__head", this);
@@ -146,7 +311,7 @@ namespace GuitarTutor.Runtime.UI
             chords = new SpreadRow(ChartLook.Box("gt-cell__chords", this));
             track = ChartLook.Box("gt-cell__track", this);
             track.generateVisualContent += DrawTrack;
-            words = new SpreadRow(ChartLook.Box("gt-cell__words", this));
+            wordLayer = ChartLook.Box("gt-cell__words", this);
             overlay = ChartLook.Box("gt-cell__overlay", this);
             overlay.pickingMode = PickingMode.Ignore;
             overlay.generateVisualContent += DrawOverlay;
@@ -166,6 +331,7 @@ namespace GuitarTutor.Runtime.UI
                 ChartLook.Label((b + 1).ToString(), "gt-cell__beat", beats).style.left = Length.Percent(100f * b / bar.Signature.Numerator);
             beatNow = -1;
             chords.Clear();
+            wordLayer.Clear();
             words.Clear();
             foreach (var c in bar.Chords)
                 if (!c.CarriedIn)
@@ -173,13 +339,29 @@ namespace GuitarTutor.Runtime.UI
                 else if (bar.Chords.Count == 1 || c.Quarters >= 1)
                     chords.Add(c.Chord.Name, 0, "gt-cell__chord").AddToClassList("gt-cell__chord--held");
             foreach (var w in bar.Words)
-                words.Add(w.Word.Text, w.Offset / bar.Quarters, "gt-cell__word");
+            {
+                var label = ChartLook.Label(w.Word.Text, "gt-cell__word", wordLayer);
+                label.RegisterCallback<GeometryChangedEvent>(_ => relayout());
+                words.Add((label, w.Offset / bar.Quarters));
+            }
             current = false;
             cursor = -1;
             EnableInClassList("gt-cell--now", false);
             count.text = "";
             track.MarkDirtyRepaint();
             overlay.MarkDirtyRepaint();
+        }
+
+        /// <summary>The words and where in the bar they are sung (0..1); the row places them.</summary>
+        public IReadOnlyList<(Label label, double at)> Words => words;
+        public VisualElement WordLayer => wordLayer;
+
+        public void SetLyricSize(float size)
+        {
+            if (size <= 0)
+                return;
+            foreach (var (label, _) in words)
+                label.style.fontSize = size;
         }
 
         public void SetState(double quarter, CountIn? countIn)
@@ -214,7 +396,7 @@ namespace GuitarTutor.Runtime.UI
             if (count.text != counting)
                 count.text = counting;
             var sungUpTo = countIn != null ? double.MinValue : quarter;
-            foreach (var (label, at) in words.Items)
+            foreach (var (label, at) in words)
                 label.EnableInClassList("gt-cell__word--sung", bar.AtQuarter + at * bar.Quarters <= sungUpTo + 1e-4);
         }
 
