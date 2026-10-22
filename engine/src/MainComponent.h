@@ -1,6 +1,6 @@
 #pragma once
 
-// The engine's window: audio device settings, the TONE3000 windows, preset switching, the connection to the
+// The engine's window, the control panel: audio device settings, the TONE3000 windows, preset switching, the connection to the
 // game and what the band is doing, with live latency, CPU and footswitch readouts. Settings and tones are
 // remembered in %APPDATA%\GuitarTutor\GuitarTutor Engine.settings, next to a log (engine.log).
 

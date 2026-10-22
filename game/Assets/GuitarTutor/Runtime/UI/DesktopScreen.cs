@@ -72,7 +72,7 @@ namespace GuitarTutor.Runtime.UI
 
             Strip = new ChartStrip();
             Add(Strip);
-            ChartLook.Label(string.Join("   ·   ", "Space play / pause", "R restart", "Left / Right bar", "PgUp / PgDn section", "Up / Down speed", "1-4 panels", "P pattern", "B band style", "E engine", "T tone", "H help"),
+            ChartLook.Label(string.Join("   ·   ", "Space play / pause", "R restart", "Left / Right bar", "PgUp / PgDn section", "Up / Down speed", "1-4 panels", "P pattern", "B band style", "C control panel", "T tone", "H help"),
                 "gt-hint", this);
 
             help = ChartLook.Box("gt-help", this);
@@ -88,7 +88,7 @@ namespace GuitarTutor.Runtime.UI
                          ("P", "next strumming pattern"),
                          ("B", "next band style"),
                          ("L", "next song"),
-                         ("E", "the engine's window: audio device, band faders"),
+                         ("C", "control panel: audio device, band faders"),
                          ("T", "your guitar's tone (TONE3000)"),
                          ("H", "this help"),
                          ("Esc", "quit"),

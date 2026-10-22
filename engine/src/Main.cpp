@@ -15,7 +15,8 @@ public:
 
     void initialise (const juce::String&) override
     {
-        window = std::make_unique<MainWindow> (getApplicationName(), EngineOptions::fromCommandLine (getCommandLineParameterArray()));
+        // the program is the engine; its window is the control panel
+        window = std::make_unique<MainWindow> ("GuitarTutor Control Panel", EngineOptions::fromCommandLine (getCommandLineParameterArray()));
     }
     void shutdown() override { window.reset(); }
     void systemRequestedQuit() override { quit(); }

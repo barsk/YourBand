@@ -22,7 +22,7 @@ namespace GuitarTutor.Runtime.Desktop
     public enum Command
     {
         PlayPause, Restart, Home, BarBack, BarOn, SectionBack, SectionOn, Faster, Slower,
-        NextPattern, NextSong, NextStyle, EngineWindow, ToneWindow, Help, Quit,
+        NextPattern, NextSong, NextStyle, ControlPanel, ToneWindow, Help, Quit,
     }
 
     /// <summary>
@@ -383,10 +383,10 @@ namespace GuitarTutor.Runtime.Desktop
                     if (playing)
                         local.Play(Math.Max(0, at), 0);
                     break;
-                case Command.EngineWindow:
+                case Command.ControlPanel:
                 case Command.ToneWindow:
                     if (engineConnected)
-                        link.Send(EngineProtocol.ShowWindow(command == Command.EngineWindow ? "engine" : "guitar"));
+                        link.Send(EngineProtocol.ShowWindow(command == Command.ControlPanel ? "controlPanel" : "guitar"));
                     break;
                 case Command.Help: screen.ToggleHelp(); break;
                 case Command.Quit: Application.Quit(); break;
@@ -405,7 +405,7 @@ namespace GuitarTutor.Runtime.Desktop
                 (Key.PageUp, Command.SectionBack), (Key.PageDown, Command.SectionOn),
                 (Key.UpArrow, Command.Faster), (Key.DownArrow, Command.Slower),
                 (Key.P, Command.NextPattern), (Key.L, Command.NextSong), (Key.B, Command.NextStyle),
-                (Key.E, Command.EngineWindow), (Key.T, Command.ToneWindow),
+                (Key.C, Command.ControlPanel), (Key.T, Command.ToneWindow),
                 (Key.H, Command.Help), (Key.Escape, Command.Quit),
             };
             foreach (var (key, command) in keys)

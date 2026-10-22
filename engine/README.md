@@ -62,10 +62,13 @@ Still to measure: the true round trip with a loopback cable.
 ## The band (M2)
 
 Start the game (`game/Builds/Desktop/GuitarTutor.exe`). It starts the engine itself, hidden, with
-`--parent <the game's process>`: the engine then closes when the game does, even if the game crashes. E in
-the game shows the engine's window, and T shows the guitar's TONE3000. Closing those windows only hides them.
-You can also start the engine yourself first, as before; the game then uses it and leaves it running. Play from the game (Space) or the footswitch. Each play
-starts with a bar of count-in on sticks.
+`--parent <the game's process>`: the engine then closes when the game does, even if the game crashes. C in
+the game shows the engine's window, the control panel, and T shows the guitar's TONE3000. Closing those
+windows only hides them. You can also start the engine yourself first, as before; the game then uses it and
+leaves it running.
+
+Play from the game (Space) or the footswitch. Playing from the start, or from wherever you moved to, begins
+with a bar of count-in on sticks; after a pause the band plays on from where it stopped.
 
 - The game writes the parts (`game/Assets/GuitarTutor/Core/Band/Arranger.cs`) in one of three styles:
   Ballad (the default below 120 BPM), Rock and Pop. B switches style in the game.
@@ -80,7 +83,7 @@ starts with a bar of count-in on sticks.
   Player installed, the band plays without keys.
 - Mixer: drums 0.8, bass 0.8 after its amp, keys per style, then a soft limiter on the band's sum (peaks
   above 0.7 bend towards 1). The game sets the keys level per style; the `mix` message sets any part, and the
-  engine window has a fader for each (not remembered yet).
+  control panel has a fader for each (not remembered yet).
 
 Measured with the band playing (silent mode, 48 kHz, 64 samples): audio CPU 2-4 %; the mix at about -21 dB
 RMS, peak 0.8.

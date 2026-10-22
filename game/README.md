@@ -69,7 +69,7 @@ Keys:
 - P: the next strumming pattern.
 - B: the next band style.
 - L: the next song.
-- E: the engine's window (audio device, band faders, log). T: your guitar's tone (TONE3000).
+- C: the control panel (audio device, band faders, log). T: your guitar's tone (TONE3000).
 - H: help. Esc: quit.
 
 The footswitch's buttons 3-6 (play / pause, previous section, next section, restart) come through the engine.

@@ -283,7 +283,7 @@ void MainComponent::handle (const juce::var& message)
             showPlugin (EngineCore::Slot::guitar, "Guitar tone");
         else if (which == "bass")
             showPlugin (EngineCore::Slot::bass, "Bass amp");
-        else if (auto* window = getTopLevelComponent())
+        else if (auto* window = getTopLevelComponent())  // "controlPanel": this window
         {
             window->setVisible (true);
             window->toFront (true);
