@@ -31,13 +31,24 @@ namespace GuitarTutor.Runtime.Testing
             InputSystem.settings.backgroundBehavior = InputSettings.BackgroundBehavior.IgnoreFocus;
             var runner = new GameObject("Key script").AddComponent<KeyScript>();
             runner.folder = Arg("-keyshots") ?? ".";
-            runner.steps = script.Split(',').Select(s => s.Split(':'))
-                .Select(p => (float.Parse(p[0], System.Globalization.CultureInfo.InvariantCulture), p[1].Trim()))
-                .OrderBy(s => s.Item1).ToList();
+            try
+            {
+                runner.steps = script.Split(',').Select(s => s.Split(':'))
+                    .Select(p => (float.Parse(p[0], System.Globalization.CultureInfo.InvariantCulture), p[1].Trim()))
+                    .OrderBy(s => s.Item1).ToList();
+            }
+            catch (Exception e) when (e is FormatException || e is IndexOutOfRangeException)
+            {
+                // a script that cannot be read would leave the game running with nobody at the keys
+                Debug.LogError($"KeyScript: cannot read \"{script}\" ({e.Message}); quitting");
+                Application.Quit();
+            }
         }
 
         IEnumerator Start()
         {
+            if (steps == null)
+                yield break;
             var keyboard = Keyboard.current ?? InputSystem.AddDevice<Keyboard>();
             Directory.CreateDirectory(folder);
             int shot = 0;

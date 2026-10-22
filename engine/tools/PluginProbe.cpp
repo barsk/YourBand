@@ -118,6 +118,35 @@ void mapNotes (juce::AudioPluginInstance& plugin, int velocity)
     }
 }
 
+/** A middle C, played for 0.4 s at real-time pace: its level in dB (silence: -100). */
+double noteLevel (juce::AudioPluginInstance& plugin)
+{
+    const auto outs = juce::jmax (1, plugin.getTotalNumOutputChannels());
+    juce::AudioBuffer<float> buffer (juce::jmax (outs, plugin.getTotalNumInputChannels()), block);
+    const int length = (int) (0.4 * rate);
+    double total = 0;
+    const auto began = juce::Time::getMillisecondCounterHiRes();
+    for (int start = 0; start < length; start += block)
+    {
+        juce::MidiBuffer events;
+        if (start == 0)
+            events.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 0);
+        buffer.clear();
+        plugin.processBlock (buffer, events);
+        for (int ch = 0; ch < outs; ++ch)
+            for (int i = 0; i < block; ++i)
+                total += buffer.getSample (ch, i) * buffer.getSample (ch, i);
+        const auto wait = began + (start + block) / rate * 1000.0 - juce::Time::getMillisecondCounterHiRes();
+        if (wait > 2)
+            juce::MessageManager::getInstance()->runDispatchLoopUntil ((int) wait);
+    }
+    juce::MidiBuffer off;
+    off.addEvent (juce::MidiMessage::allNotesOff (1), 0);
+    buffer.clear();
+    plugin.processBlock (buffer, off);
+    return 10.0 * std::log10 (total / length + 1e-10);
+}
+
 struct Take
 {
     double meanLoad = 0, peakLoad = 0;
@@ -204,7 +233,7 @@ int main (int argc, char* argv[])
     const juce::File outFolder (argc > 2 ? juce::String (argv[2]) : juce::File::getCurrentWorkingDirectory().getFullPathName());
     juce::StringArray filters;
     juce::Array<juce::File> states;
-    bool map = false;
+    bool map = false, loadTime = false;
     int velocity = 110;
     for (int i = 3; i < argc; ++i)
     {
@@ -212,6 +241,8 @@ int main (int argc, char* argv[])
             states.add (juce::File (juce::String (argv[++i])));
         else if (juce::String (argv[i]) == "--map")
             map = true;
+        else if (juce::String (argv[i]) == "--load-time")
+            loadTime = true;
         else if (juce::String (argv[i]) == "--velocity" && i + 1 < argc)
             velocity = juce::jlimit (1, 127, juce::String (argv[++i]).getIntValue());
         else
@@ -318,6 +349,38 @@ int main (int argc, char* argv[])
                   << juce::String (take.peak, 2) << ", RMS " << juce::String (take.rms, 3) << " -> "
                   << file.getFullPathName() << "\n";
     };
+
+    // how long a sound takes to load: another sound first, then this one, then a note after a wait
+    auto setState = [&plugin] (const juce::File& stateFile)
+    {
+        juce::MemoryBlock component;
+        stateFile.loadFileAsData (component);
+        juce::XmlElement wrapper ("VST3PluginState");
+        wrapper.createNewChildElement ("IComponent")->addTextElement (component.toBase64Encoding());
+        juce::MemoryBlock wrapped;
+        juce::AudioProcessor::copyXmlToBinary (wrapper, wrapped);
+        plugin->setStateInformation (wrapped.getData(), (int) wrapped.getSize());
+    };
+    if (loadTime && states.size() >= 2)
+    {
+        for (int i = 0; i < states.size(); ++i)
+        {
+            std::cout << "Loading '" << states[i].getFileNameWithoutExtension() << "' (after '"
+                      << states[(i + 1) % states.size()].getFileNameWithoutExtension() << "'):";
+            for (int delay : { 100, 250, 500, 1000, 2000, 3000 })
+            {
+                setState (states[(i + 1) % states.size()]);
+                juce::MessageManager::getInstance()->runDispatchLoopUntil (4000);
+                setState (states[i]);
+                juce::MessageManager::getInstance()->runDispatchLoopUntil (delay);
+                std::cout << "  " << delay << " ms: " << juce::String (noteLevel (*plugin), 1) << " dB" << std::flush;
+            }
+            std::cout << "\n";
+        }
+        editor.reset();
+        plugin->releaseResources();
+        return 0;
+    }
 
     if (! states.isEmpty())
     {

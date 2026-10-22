@@ -86,7 +86,9 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   fundamental leads, with the next harmonics about 3, 7 and 13 dB under it.
 - Keys: Numa Player, its sound chosen by the style (Rhodes for Ballad, B3 organ for Rock, grand piano for
   Pop), made into a plugin state from the Numa Player app's last state (`src/NumaKeys.*`). Without Numa
-  Player installed, the band plays without keys.
+  Player installed, the band plays without keys. A new sound mutes the keys for half a second: Numa Player
+  loads it in the background and once crashed the engine when it played during the load, so the engine
+  pauses a plugin's audio whenever it gives it a new state.
 - Mixer: each part's sound has a level (drums 0.8, bass 0.8 after its amp, keys set by the game per style),
   then your fader in the control panel (0 dB is the balanced mix; double-click for 0 dB again; remembered
   between runs), then a soft limiter on the band's sum (peaks above 0.7 bend towards 1).
@@ -127,6 +129,8 @@ build\Release\plugin_probe_artefacts\Release\plugin_probe.exe <plugin.vst3> out\
 
 With `--map [--velocity n]` (and a `--state` file per sound) it plays every note from 24 to 96 on its own and
 lists the ones that sound, how loud, and how much of each is low, mid and high: a drum kit's note layout.
+With `--load-time` (and two or more `--state` files) it switches between the sounds and plays a note 100 ms to
+3 s after each switch: how long the plugin takes to load a sound.
 
 MONSTER Drums v3 (2026-10-22): VST3, 32 outputs (16 stereo pairs; many kits put each drum on its own pair, so
 the engine mixes all of them), no latency, about 1 % audio CPU. The kits tried (Acoustica Hits, Sonic Rock,
@@ -135,7 +139,8 @@ A kit is a state that starts with the path of its `.mse` file.
 
 Numa Player (2026-10-21): VST3 instrument, 0 in / 2 out, no latency, no program list. A new instance is silent
 until it gets a state with a sound (`tools/numa_state.py`). Grand, upright, Rhodes and rock B3: 1-3 % mean audio
-CPU at 64 samples, peaks 6-18 %.
+CPU at 64 samples, peaks 6-18 %. A new sound plays at full level 100 ms after the state (2026-10-22,
+`--load-time`).
 
 ## Layout
 

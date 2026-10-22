@@ -326,16 +326,22 @@ void MainComponent::handle (const juce::var& message)
             log ("Game sent a song the band cannot read: " + error);
             return;
         }
-        if (score->keys.isNotEmpty())
-            if (const auto keysError = engine.setKeysSound (score->keys); keysError.isNotEmpty())
-                log ("Keys: " + keysError);
         log ("Song: " + score->title + ", " + score->style + ", " + juce::String ((int) score->notes.size()) + " notes");
         const auto notes = (int) score->notes.size();
+        const auto keys = score->keys.isNotEmpty() ? score->keys : engine.keysSound();
         band.load (std::move (score));
+        // a new keys sound once the band has let go of the old one's notes (on its next block)
+        if (keys != engine.keysSound())
+            juce::Timer::callAfterDelay (50, [self = juce::Component::SafePointer<MainComponent> (this), keys]
+            {
+                if (self != nullptr)
+                    if (const auto keysError = self->engine.setKeysSound (keys); keysError.isNotEmpty())
+                        self->log ("Keys: " + keysError);
+            });
         auto* answer = new juce::DynamicObject();
         answer->setProperty ("type", "loaded");
         answer->setProperty ("notes", notes);
-        answer->setProperty ("keys", engine.keysSound());
+        answer->setProperty ("keys", keys);
         game.send (juce::var (answer));
     }
     else if (type == "play")

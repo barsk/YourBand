@@ -17,6 +17,8 @@
 #include "SharedClock.h"
 
 #include <array>
+#include <map>
+#include <memory>
 
 namespace gt
 {
@@ -111,6 +113,10 @@ private:
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void connect();
     Node::Ptr slotNode (Slot) const;
+    /** Gives a plugin in the graph a new state with its audio paused: from before the change until it has had
+        `settleMs` to load what the state names (Numa Player loads a sound in the background, and crashed when it
+        played while doing so). */
+    void changeState (juce::AudioProcessor&, const juce::MemoryBlock& state, int settleMs);
     static int partIndex (const juce::String& part);
     void applyMix (int part);
 
@@ -128,6 +134,8 @@ private:
     int inputChannel = 1;
     bool silent = false;
     bool bassThroughAmp = false;
+    std::map<juce::AudioProcessor*, int> stateChanges;  // the latest change per plugin: only it resumes the audio
+    std::shared_ptr<bool> alive = std::make_shared<bool> (true);
 };
 
 } // namespace gt

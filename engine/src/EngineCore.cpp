@@ -245,7 +245,9 @@ juce::String EngineCore::setKeysSound (const juce::String& sound)
     const auto state = numa::stateFor (sound, error);
     if (state.isEmpty())
         return error;
-    keysNode->getProcessor()->setStateInformation (state.getData(), (int) state.getSize());
+    // the keys are silent while Numa Player loads the sound: it takes up to a quarter of a second
+    // (measured with plugin_probe --load-time), so half a second
+    changeState (*keysNode->getProcessor(), state, 500);
     currentKeysSound = sound;
     return {};
 }
@@ -279,7 +281,20 @@ juce::MemoryBlock EngineCore::pluginState (Slot slot) const
 void EngineCore::setPluginState (Slot slot, const juce::MemoryBlock& state)
 {
     if (auto* p = plugin (slot); p != nullptr && state.getSize() > 0)
-        p->setStateInformation (state.getData(), (int) state.getSize());
+        changeState (*p, state, 2000);
+}
+
+void EngineCore::changeState (juce::AudioProcessor& p, const juce::MemoryBlock& state, int settleMs)
+{
+    // waits for the block being played to finish; from then on the graph plays silence for this plugin
+    p.suspendProcessing (true);
+    p.setStateInformation (state.getData(), (int) state.getSize());
+    const auto change = ++stateChanges[&p];
+    juce::Timer::callAfterDelay (settleMs, [this, flag = alive, plugin = &p, change]
+    {
+        if (*flag && stateChanges[plugin] == change)
+            plugin->suspendProcessing (false);
+    });
 }
 
 std::vector<Preset> EngineCore::presets() const
@@ -419,6 +434,7 @@ Latency EngineCore::latency() const
 
 void EngineCore::shutdown()
 {
+    *alive = false;  // no plugin's audio is resumed after this
     if (graph == nullptr)
         return;
     deviceManager.removeChangeListener (this);

@@ -34,7 +34,12 @@ def main(args):
     time.sleep(7)  # plugins load, Numa Player loads its sound
     game = subprocess.Popen([GAME, "-keys", keys, "-keyshots", out, "-screen-width", "1920", "-screen-height", "1080",
                              "-screen-fullscreen", "0", "-logFile", os.path.join(out, "game.log")] + rest)
-    game.wait(timeout=600)
+    # the game quits by its key script; if it does not (a script it could not read), it is stopped
+    try:
+        game.wait(timeout=float(seconds) + 30)
+    except subprocess.TimeoutExpired:
+        game.kill()
+        print("the game did not quit by its key script: stopped it")
     engine.wait(timeout=600)
     print("game exit %d, engine exit %d, results in %s" % (game.returncode, engine.returncode, out))
 

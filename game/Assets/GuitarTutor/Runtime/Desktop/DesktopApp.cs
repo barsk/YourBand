@@ -71,6 +71,8 @@ namespace GuitarTutor.Runtime.Desktop
 
         void Start()
         {
+            // smooth enough for the scrolling chart, and leaves the processor to the audio engine
+            Application.targetFrameRate = 120;
             var root = GetComponent<UIDocument>().rootVisualElement;
             if (style != null)
                 root.styleSheets.Add(style);
