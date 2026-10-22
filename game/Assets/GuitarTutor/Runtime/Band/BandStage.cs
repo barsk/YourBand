@@ -63,6 +63,17 @@ namespace GuitarTutor.Runtime.Band
                 m.SetSong(chart, arrangement);
         }
 
+        /// <summary>Whether the band guitarist plays (strums the rhythm) or rests.</summary>
+        public bool GuitarPlays
+        {
+            set
+            {
+                foreach (var m in musicians)
+                    if (m is GuitarPlayer g && m.role == BandRole.Guitarist)
+                        g.Playing = value;
+            }
+        }
+
         public void Show(double quarter, double seconds)
         {
             foreach (var m in musicians)

@@ -74,6 +74,7 @@ namespace GuitarTutor.Runtime.Desktop
         BandStage band;           // the 3D band, once the band view has been shown
         bool bandView;            // the 3D band behind the chart (V)
         string closeUp;           // screenshots: one musician framed (-cam)
+        bool guitarForShots;      // screenshots: the band guitarist plays (-guitarplays; no engine to say so)
 
         static double Now => Time.realtimeSinceStartupAsDouble;
 
@@ -121,6 +122,7 @@ namespace GuitarTutor.Runtime.Desktop
                 screen.style.display = DisplayStyle.None;
             closeUp = Arg("-cam");
             Musician.Logging = args.Contains("-bandlog");
+            guitarForShots = args.Contains("-guitarplays");
 
             var shots = Arg("-shot");
             if (shots != null)
@@ -273,6 +275,7 @@ namespace GuitarTutor.Runtime.Desktop
             screen.Show(quarter, CountInAt(quarter), new TransportState(transport.Playing, transport.Speed, chart.Song.Tempo.SecondsAt(Math.Max(0, quarter)), status), pattern);
             if (bandView && band != null)
             {
+                band.GuitarPlays = bandGuitarPlays || guitarForShots;
                 band.Show(quarter, chart.Song.Tempo.SecondsAt(Math.Max(0, quarter)));
                 if (closeUp != null && Camera.main != null)
                     band.Frame(Camera.main, closeUp);
