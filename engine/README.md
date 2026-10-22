@@ -61,8 +61,10 @@ Still to measure: the true round trip with a loopback cable.
 
 ## The band (M2)
 
-Start the engine, then the game (`game/Builds/Desktop/GuitarTutor.exe`). The game connects by itself, and the
-engine's window shows "Game: connected" and the song. Play from the game (Space) or the footswitch. Each play
+Start the game (`game/Builds/Desktop/GuitarTutor.exe`). It starts the engine itself, hidden, with
+`--parent <the game's process>`: the engine then closes when the game does, even if the game crashes. E in
+the game shows the engine's window, and T shows the guitar's TONE3000. Closing those windows only hides them.
+You can also start the engine yourself first, as before; the game then uses it and leaves it running. Play from the game (Space) or the footswitch. Each play
 starts with a bar of count-in on sticks.
 
 - The game writes the parts (`game/Assets/GuitarTutor/Core/Band/Arranger.cs`) in one of three styles:
@@ -131,6 +133,7 @@ CPU at 64 samples, peaks 6-18 %.
 | `src/SilentDevice.*` | The pretend audio interface for `--silent` |
 | `src/Processors.*` | Small processors: the mixer's volume controls and the limiter |
 | `src/Footswitch.*` | HID joystick reader (Windows joystick API, 500 Hz polling) |
+| `src/ParentWatch.*` | Started by the game: closes the engine when the game is gone |
 | `src/MainComponent.*`, `src/Main.cpp` | The window, the command line, the game's messages |
 | `tools/PluginProbe.cpp` | `plugin_probe`: loads a plugin without a window, lists what it offers, plays a keyboard phrase in 64-sample blocks at real-time pace, reports audio CPU and writes WAVs |
 | `tools/numa_state.py` | Numa Player states: list its sounds, take the standalone's state, make a state for any sound |

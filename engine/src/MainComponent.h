@@ -9,6 +9,7 @@
 #include "EngineCore.h"
 #include "Footswitch.h"
 #include "GameLink.h"
+#include "ParentWatch.h"
 
 #include <array>
 #include <map>
@@ -22,6 +23,7 @@ struct EngineOptions
     bool silent = false;       // --silent: no audio interface, real time kept by a pretend one
     juce::File recording;      // --record <file.wav>: with --silent, what the engine plays
     double runFor = 0.0;       // --run-for <seconds>: quit after that long (0: run until closed)
+    int parent = 0;            // --parent <process id>: started by the game; hidden, and gone with the game
 
     static EngineOptions fromCommandLine (const juce::StringArray& args);
 };
@@ -52,6 +54,7 @@ private:
     EngineCore engine;
     Footswitch footswitch;
     GameLink game;
+    std::unique_ptr<ParentWatch> parentWatch;
 
     std::unique_ptr<juce::AudioDeviceSelectorComponent> selector;
     juce::Label inputLabel { {}, "Guitar input" }, presetLabel { {}, "Preset" };

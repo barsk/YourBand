@@ -25,7 +25,8 @@ target_sources(gt_engine
         src/NumaKeys.cpp
         src/GameLink.cpp
         src/SharedClock.cpp
-        src/SilentDevice.cpp)
+        src/SilentDevice.cpp
+        src/ParentWatch.cpp)
 
 target_compile_definitions(gt_engine
     PRIVATE

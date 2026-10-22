@@ -53,6 +53,11 @@ namespace GuitarTutor.Core.Engine
 
         public static string Speed(double speed) => Line(new JObject { ["type"] = "speed", ["value"] = speed });
 
+        /// <summary>Brings up one of the engine's windows: "engine", "guitar" or "bass".</summary>
+        public static string ShowWindow(string which) => Line(new JObject { ["type"] = "window", ["show"] = which });
+
+        public static string Quit() => Line(new JObject { ["type"] = "quit" });
+
         /// <summary>A band part's volume (1: as played).</summary>
         public static string Mix(BandPart part, double gain) =>
             Line(new JObject { ["type"] = "mix", ["part"] = part.ToString().ToLowerInvariant(), ["gain"] = gain });

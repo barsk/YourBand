@@ -54,11 +54,13 @@ settings, the Desktop scene, player settings) and builds the Windows player (Mon
 Editor: menu GuitarTutor > Set up project, then play `Assets/GuitarTutor/Scenes/Desktop.unity`.
 
 The game plays the first song in the repository's `songs-local/` (imported with `tools/songtool`), or the demo
-song. Start the audio engine (`engine/`) first, or any time later, for the band. The game connects by itself;
-the header says "band: Ballad" once the band has the song, and "no band" without the engine.
+song. The band needs the audio engine (`engine/`, built). The game starts it by itself, hidden, and closes it
+when it closes (also if the game crashes). An engine you started yourself is used as it is, and left
+running. The header says "band: starting the engine", then "band: Ballad" once the band has the song.
 
 Keys:
-- Space: play or pause. Playing again counts you in from the start of the bar.
+- Space: play or pause. After a pause it plays on from where it stopped; from the start, or after moving
+  somewhere else, it counts you in first.
 - R: restart with a count-in.
 - Left / Right: a bar back or on.
 - PgUp / PgDn: a section back or on (or click it in the section map).
@@ -67,6 +69,7 @@ Keys:
 - P: the next strumming pattern.
 - B: the next band style.
 - L: the next song.
+- E: the engine's window (audio device, band faders, log). T: your guitar's tone (TONE3000).
 - H: help. Esc: quit.
 
 The footswitch's buttons 3-6 (play / pause, previous section, next section, restart) come through the engine.
@@ -79,6 +82,8 @@ Command line:
 | `-demo` | play the demo song |
 | `-shot <folder> -at 1.75,17.75,countin` | screenshots at those positions (quarter notes), every panel shown, then quit (without the band) |
 | `-noengine` | do not look for the audio engine |
+| `-engine <file>` | the engine program to start (otherwise next to the game in `Engine/`, or the repository's build) |
+| `-engineargs "..."` | more for the started engine's command line, for example `"--silent --record band.wav"` |
 | `-style Rock` | start in that band style |
 | `-parts drums,bass` | give the band only those parts (to check them one at a time) |
 | `-keys "2:Space,6:DownArrow,7:shot,9:quit" -keyshots <folder>` | presses keys on the game's own keyboard at those seconds (never the desktop's), screenshots on "shot": tests the controls end to end |

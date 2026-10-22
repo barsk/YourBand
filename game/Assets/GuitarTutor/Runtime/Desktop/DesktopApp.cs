@@ -22,7 +22,7 @@ namespace GuitarTutor.Runtime.Desktop
     public enum Command
     {
         PlayPause, Restart, Home, BarBack, BarOn, SectionBack, SectionOn, Faster, Slower,
-        NextPattern, NextSong, NextStyle, Help, Quit,
+        NextPattern, NextSong, NextStyle, EngineWindow, ToneWindow, Help, Quit,
     }
 
     /// <summary>
@@ -36,6 +36,8 @@ namespace GuitarTutor.Runtime.Desktop
     /// renders a screenshot at each position (in quarter notes, comma separated; "countin" for the count-in) with
     /// every panel shown, then quits. <c>-noengine</c> does not look for the audio engine. <c>-parts drums,bass</c>
     /// gives the band only those parts (for checking them one at a time); <c>-style Rock</c> starts in that band style.
+    /// Without a running engine the game starts one (<c>-engine &lt;file&gt;</c>: which; <c>-engineargs "..."</c>: more
+    /// for its command line) and closes it when it closes.
     /// </remarks>
     [RequireComponent(typeof(UIDocument))]
     public sealed class DesktopApp : MonoBehaviour
@@ -57,9 +59,13 @@ namespace GuitarTutor.Runtime.Desktop
         EngineClock clock;
         EngineTransport engine;
         bool engineConnected;  // as last reported on the main thread
+        System.Diagnostics.Process startedEngine;  // the engine this game started, if it did
+        bool startingEngine;   // started, not connected yet
         bool engineReady;      // connected, and has this song
         ITransport transport;
         double? hold;      // screenshots: keep the music here
+        double? resumeFrom;  // where playing again goes, when not where the music stopped
+        bool countInNext = true;  // the next play starts somewhere new: count in
 
         static double Now => Time.realtimeSinceStartupAsDouble;
 
@@ -96,6 +102,7 @@ namespace GuitarTutor.Runtime.Desktop
                 link.ConnectionChanged += OnEngineConnection;
                 link.Message += OnEngineMessage;
                 link.Start();
+                StartCoroutine(StartEngineIfNeeded(Arg("-engine"), Arg("-engineargs") ?? ""));
             }
             Load(songIndex);
 
@@ -108,8 +115,21 @@ namespace GuitarTutor.Runtime.Desktop
         {
             if (engineReady)
                 engine.Pause();
+            // an engine the game started goes with it (it also notices the game is gone, should this not arrive)
+            if (startedEngine != null && engineConnected)
+                link.Send(EngineProtocol.Quit());
             link?.Dispose();
             clock?.Dispose();
+        }
+
+        /// <summary>Starts the audio engine if there is none: give a running one a moment to answer first.</summary>
+        IEnumerator StartEngineIfNeeded(string program, string extraArguments)
+        {
+            yield return new WaitForSecondsRealtime(1.0f);
+            if (engineConnected || EngineProcess.IsRunning())
+                yield break;
+            startedEngine = EngineProcess.Start(EngineProcess.Find(program), extraArguments);
+            startingEngine = startedEngine != null;
         }
 
         void Load(int index)
@@ -131,6 +151,8 @@ namespace GuitarTutor.Runtime.Desktop
             chart = new SongChart(song);
             local = new LocalTransport(song.Tempo, () => Now);
             pattern = 0;
+            countInNext = true;
+            resumeFrom = null;
             screen.SetSong(chart);
             var styleName = Environment.GetCommandLineArgs().SkipWhile(a => a != "-style").Skip(1).FirstOrDefault();
             Arrange(styleName != null ? BandStyle.Named(styleName) : Arranger.DefaultStyle(song));
@@ -161,6 +183,7 @@ namespace GuitarTutor.Runtime.Desktop
         {
             Debug.Log("GuitarTutor: audio engine " + (connected ? "connected" : "gone"));
             engineConnected = connected;
+            startingEngine = false;
             if (connected)
             {
                 local.Pause();
@@ -222,7 +245,8 @@ namespace GuitarTutor.Runtime.Desktop
                 transport.Pause();
                 transport.Seek(chart.EndQuarter - 1e-6);
             }
-            var status = link == null ? "" : engineReady ? $"band: {bandStyle.Name}" : engineConnected ? "band: loading" : "no band (engine not running)";
+            var status = link == null ? "" : engineReady ? $"band: {bandStyle.Name}" : engineConnected ? "band: loading"
+                : startingEngine ? "band: starting the engine" : "no band (engine not running)";
             screen.Show(quarter, CountInAt(quarter), new TransportState(transport.Playing, transport.Speed, chart.Song.Tempo.SecondsAt(Math.Max(0, quarter)), status), pattern);
         }
 
@@ -251,10 +275,63 @@ namespace GuitarTutor.Runtime.Desktop
         void PlayFrom(int bar)
         {
             var target = chart.Bars[Mathf.Clamp(bar, 0, chart.Bars.Count - 1)];
-            transport.Play(target.AtQuarter, target.Quarters);
+            Play(target.AtQuarter, target);
         }
 
-        void Seek(double quarter) => transport.Seek(Math.Max(0, Math.Min(quarter, chart.EndQuarter - 1e-6)));
+        /// <summary>
+        /// Plays again: after a pause it carries on from exactly where the music stopped; from a new place (moved
+        /// there, or the start) it counts in first.
+        /// </summary>
+        void Resume()
+        {
+            var at = resumeFrom ?? transport.Quarter;
+            var bar = at < 0 ? null : chart.BarOf(at);
+            if (bar == null || at >= chart.EndQuarter - 1e-3)
+                PlayFrom(0);
+            else if (resumeFrom != null || countInNext)
+                Play(at, bar);
+            else
+            {
+                Debug.Log($"GuitarTutor: play on from {Where(at)}");
+                transport.Play(at, 0);
+            }
+        }
+
+        void Play(double from, ChartBar bar)
+        {
+            resumeFrom = null;
+            countInNext = false;
+            Debug.Log($"GuitarTutor: play from {Where(from)}, after a count-in of {bar.Signature.Numerator} beats");
+            transport.Play(from, bar.Quarters);
+        }
+
+        void Pause()
+        {
+            var until = transport.CountInUntil;
+            // paused during a count-in: playing again counts in to where it was going
+            resumeFrom = double.IsNaN(until) ? (double?)null : until;
+            transport.Pause();
+            Debug.Log($"GuitarTutor: pause at {Where(transport.Quarter)}");
+        }
+
+        void Seek(double quarter)
+        {
+            resumeFrom = null;
+            countInNext = true;
+            quarter = Math.Max(0, Math.Min(quarter, chart.EndQuarter - 1e-6));
+            Debug.Log($"GuitarTutor: go to {Where(quarter)}");
+            transport.Seek(quarter);
+        }
+
+        /// <summary>A position as bar and beat, counted from 1 as the chart shows them.</summary>
+        string Where(double quarter)
+        {
+            var bar = chart.BarOf(Math.Max(0, quarter));
+            if (bar == null)
+                return $"quarter {quarter:0.##}";
+            var beat = (quarter - bar.AtQuarter) / (4.0 / bar.Signature.Denominator);
+            return $"bar {bar.Index + 1} beat {Math.Floor(beat) + 1}" + (quarter < 0 ? " (count-in)" : "");
+        }
 
         void SeekBar(int bar) => Seek(chart.Bars[Mathf.Clamp(bar, 0, chart.Bars.Count - 1)].AtQuarter);
 
@@ -280,9 +357,9 @@ namespace GuitarTutor.Runtime.Desktop
             {
                 case Command.PlayPause:
                     if (transport.Playing)
-                        transport.Pause();
+                        Pause();
                     else
-                        PlayFrom(transport.Quarter >= chart.EndQuarter - 1e-3 ? 0 : CurrentBar());
+                        Resume();
                     break;
                 case Command.Restart: PlayFrom(0); break;
                 case Command.Home: SeekBar(0); break;
@@ -306,6 +383,11 @@ namespace GuitarTutor.Runtime.Desktop
                     if (playing)
                         local.Play(Math.Max(0, at), 0);
                     break;
+                case Command.EngineWindow:
+                case Command.ToneWindow:
+                    if (engineConnected)
+                        link.Send(EngineProtocol.ShowWindow(command == Command.EngineWindow ? "engine" : "guitar"));
+                    break;
                 case Command.Help: screen.ToggleHelp(); break;
                 case Command.Quit: Application.Quit(); break;
             }
@@ -323,6 +405,7 @@ namespace GuitarTutor.Runtime.Desktop
                 (Key.PageUp, Command.SectionBack), (Key.PageDown, Command.SectionOn),
                 (Key.UpArrow, Command.Faster), (Key.DownArrow, Command.Slower),
                 (Key.P, Command.NextPattern), (Key.L, Command.NextSong), (Key.B, Command.NextStyle),
+                (Key.E, Command.EngineWindow), (Key.T, Command.ToneWindow),
                 (Key.H, Command.Help), (Key.Escape, Command.Quit),
             };
             foreach (var (key, command) in keys)

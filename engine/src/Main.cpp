@@ -25,16 +25,27 @@ private:
     {
     public:
         MainWindow (const juce::String& name, const EngineOptions& options)
-            : DocumentWindow (name + (options.silent ? " (silent)" : ""), juce::Colours::darkgrey, DocumentWindow::allButtons)
+            : DocumentWindow (name + (options.silent ? " (silent)" : ""), juce::Colours::darkgrey, DocumentWindow::allButtons),
+              startedByGame (options.parent > 0)
         {
             setUsingNativeTitleBar (true);
             setContentOwned (new MainComponent (options), true);
             setResizable (true, true);
             centreWithSize (getWidth(), getHeight());
-            setVisible (true);
+            // started by the game: hidden until the game asks for it
+            setVisible (! startedByGame);
         }
 
-        void closeButtonPressed() override { juce::JUCEApplication::getInstance()->systemRequestedQuit(); }
+        void closeButtonPressed() override
+        {
+            if (startedByGame)
+                setVisible (false);  // the game closes the engine when it closes
+            else
+                juce::JUCEApplication::getInstance()->systemRequestedQuit();
+        }
+
+    private:
+        bool startedByGame;
     };
 
     std::unique_ptr<MainWindow> window;

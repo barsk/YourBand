@@ -46,6 +46,8 @@ EngineOptions EngineOptions::fromCommandLine (const juce::StringArray& args)
             o.recording = juce::File::getCurrentWorkingDirectory().getChildFile (args[++i].unquoted());
         else if (args[i] == "--run-for" && i + 1 < args.size())
             o.runFor = args[++i].getDoubleValue();
+        else if (args[i] == "--parent" && i + 1 < args.size())
+            o.parent = args[++i].getIntValue();
     }
     return o;
 }
@@ -190,6 +192,20 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
     if (options.runFor > 0.0)
         juce::Timer::callAfterDelay ((int) (options.runFor * 1000.0), [] { juce::JUCEApplication::getInstance()->systemRequestedQuit(); });
 
+    // started by the game: it lives as long as the game does
+    if (options.parent > 0)
+    {
+        parentWatch = std::make_unique<ParentWatch> (options.parent, [this]
+        {
+            log ("The game that started the engine is gone");
+            juce::JUCEApplication::getInstance()->systemRequestedQuit();
+        });
+        log ("Started by the game (process " + juce::String (options.parent) + ")"
+             + (parentWatch->isWatching() ? juce::String() : ", which is already gone"));
+        if (! parentWatch->isWatching())
+            juce::MessageManager::callAsync ([] { juce::JUCEApplication::getInstance()->systemRequestedQuit(); });
+    }
+
     setSize (760, 760);
     startTimerHz (4);
 }
@@ -239,15 +255,45 @@ void MainComponent::handle (const juce::var& message)
         game.send (juce::var (answer));
     }
     else if (type == "play")
+    {
+        log ("Play from quarter " + juce::String ((double) message["from"], 2) + ", count-in " + juce::String ((double) message["countIn"], 2));
         band.play ((double) message["from"], (double) message["countIn"]);
+    }
     else if (type == "pause")
+    {
+        log ("Pause at quarter " + juce::String (band.position(), 2));
         band.pause();
+    }
     else if (type == "seek")
+    {
+        log ("Go to quarter " + juce::String ((double) message["to"], 2));
         band.seek ((double) message["to"]);
+    }
     else if (type == "speed")
+    {
+        log ("Speed " + juce::String ((double) message["value"], 2));
         band.setSpeed ((double) message["value"]);
+    }
     else if (type == "mix")
         engine.setPartGain (message["part"].toString(), (float) (double) message["gain"]);
+    else if (type == "window")
+    {
+        const auto which = message["show"].toString();
+        if (which == "guitar")
+            showPlugin (EngineCore::Slot::guitar, "Guitar tone");
+        else if (which == "bass")
+            showPlugin (EngineCore::Slot::bass, "Bass amp");
+        else if (auto* window = getTopLevelComponent())
+        {
+            window->setVisible (true);
+            window->toFront (true);
+        }
+    }
+    else if (type == "quit")
+    {
+        log ("The game asked the engine to close");
+        juce::JUCEApplication::getInstance()->systemRequestedQuit();
+    }
 }
 
 void MainComponent::sendCommand (const juce::String& command)

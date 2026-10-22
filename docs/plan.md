@@ -25,7 +25,7 @@ It is for personal use first and may be published later, so licences are kept cl
 |---|---|---|
 | Game type | Practice and jam partner; no scoring | Your call |
 | Game client | Unity, C# | Mecanim retargets Mixamo clips onto Rocketbox avatars; IK, OpenXR and UI are mature |
-| Audio engine | Separate C++ process, built on JUCE | ASIO, VST3 hosting and the amp model engine are all C++; audio stays glitch-free whatever Unity does |
+| Audio engine | Separate C++ process, built on JUCE, started and closed by the game (2026-10-22) | ASIO, VST3 hosting and the amp model engine are all C++; audio stays glitch-free whatever Unity does. Not inside the game: a plugin crash would take the game down, the Editor would lock the engine's DLL, and linking JUCE would put the game under JUCE's licence |
 | Offline tools | Python | Import, alignment and the Blender asset pipeline already live there |
 | Guitar tone | The engine hosts the TONE3000 plugin (VST3); one instance, tones switched with its own presets | Same tones as the standalone app, one program owns the audio interface; TONE3000 swaps presets with a short fade, which a pause between phrases hides |
 | Audio driver | Focusrite's own ASIO driver, not ASIO4ALL | Lower latency |
