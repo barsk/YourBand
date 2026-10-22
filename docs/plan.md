@@ -187,10 +187,11 @@ on fixed spots; room layouts let you place them yourself. Moving a station never
 - Quest 3 through Virtual Desktop, on Wi-Fi or its USB mode. Virtual Desktop's audio streaming is off;
   you hear everything through the Scarlett.
 - Passthrough by chroma key:
-  - the band renders on a transparent background; a final pass after all post-processing paints the empty
-    pixels exactly the key colour;
-  - every pixel is either fully model or fully key (no blending), hair uses cutout transparency, and a
-    despill step removes key tint from edges;
+  - the camera clears to exactly the key colour, and nothing blends into it: no post-processing, no
+    anti-aliasing, hair in cutout transparency, so every pixel is fully model or fully key and no despill is
+    needed (E2's desktop check: no edge pixel tinted);
+  - the game starts OpenXR itself, only in VR mode, with Virtual Desktop's runtime (VDXR), and without
+    OpenXR's pre-initialisation, which would open the system's runtime (SteamVR) at every launch;
   - the key colour is configurable; a check tool renders the band, highlights pixels near the key and
     suggests the safest colour, and shows the values to enter in Virtual Desktop.
 - Limits: no shadows on the real floor, opaque panels only, no real-world occlusion.
@@ -312,3 +313,17 @@ to recordings.
   to the game. Checked without a sound (`engine --silent --record`, `tools/band_session.py`): hits on the
   beat grid, count-in, pause, seek, resume, 110 % speed, style switches while playing; audio CPU 2-4 %. Still
   open: a sampled drum kit and bass, the band guitar, and the band rendered ahead on its own thread.
+- 2026-10-22: the band on plugins: MONSTER Drums, MONSTER Bass or Ample Bass P Lite (the user installs it:
+  private use only), chosen and switched in the control panel without a gap in the band. The band guitarist
+  strums the song's patterns on its chord shapes (G in the game, or the control panel) through its own amp
+  tone, on MONSTER Guitar, Kontakt with Shreddage 3 Stratus FREE, or a synthesized guitar.
+- 2026-10-22: M6 under way: the band as 3D musicians in a band view on the desktop (V; the chart alone stays
+  the default). Rocketbox avatars on the Mixamo playing clips, locked to the beat; the instruments from the
+  Blender mockup with their playing geometry (`tools/band_assets`). Computed in C# from the arrangement: the
+  drummer's sticking and strokes onto the drums and cymbals, pedals; the guitarist's grips fretted and strums
+  over the strings; the bassist's frets and plucks; the keyboardist's fingers pressing the keys.
+- 2026-10-23: M7 started: VR mode (`-vr`, or X). The band in your room by default, the chart on an opaque
+  board like a music stand; the trigger moves the board or the band, the stick sizes or turns them, A / B /
+  sticks run the transport, floor calibration and key colour on the left controller, all remembered.
+  Checked on the desktop: without a headset VDXR answers "no headset" at once and the room is shown on the
+  desktop; every background pixel exactly #FF00FF, no edge pixel tinted. Headset test: yours.

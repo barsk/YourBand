@@ -3,7 +3,11 @@
     "rootNamespace": "GuitarTutor.EditorTools",
     "references": [
         "GuitarTutor.Core",
-        "GuitarTutor.Runtime"
+        "GuitarTutor.Runtime",
+        "Unity.XR.Management",
+        "Unity.XR.Management.Editor",
+        "Unity.XR.OpenXR",
+        "Unity.XR.OpenXR.Editor"
     ],
     "includePlatforms": [
         "Editor"

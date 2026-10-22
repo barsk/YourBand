@@ -38,8 +38,9 @@ namespace GuitarTutor.Runtime.UI
 
         public ChartStrip Strip { get; }
 
-        readonly Label title, artist, status;
-        readonly VisualElement help;
+        readonly Label title, artist, status, hint, vrHint;
+        readonly VisualElement help, vrHelp;
+        bool vr;
         readonly Dictionary<Panel, VisualElement> panels = new Dictionary<Panel, VisualElement>();
         readonly Dictionary<Panel, Label> panelTitles = new Dictionary<Panel, Label>();
         readonly VisualElement chordRow, info;
@@ -75,11 +76,13 @@ namespace GuitarTutor.Runtime.UI
 
             Strip = new ChartStrip();
             Add(Strip);
-            ChartLook.Label(string.Join("   ·   ", "Space play / pause", "R restart", "Left / Right bar", "PgUp / PgDn section", "Up / Down speed", "1-4 panels", "P pattern", "B band style", "G band guitarist", "V band view", "C control panel", "T tone", "H help"),
+            hint = ChartLook.Label(string.Join("   ·   ", "Space play / pause", "R restart", "Left / Right bar", "PgUp / PgDn section", "Up / Down speed", "1-4 panels", "P pattern", "B band style", "G band guitarist", "V band view", "X VR", "C control panel", "T tone", "H help"),
                 "gt-hint", this);
+            vrHint = ChartLook.Label(string.Join("   ·   ", "A play / pause", "B restart", "right stick: bar, speed", "left stick: section", "trigger: move the chart or the band", "stick click: in front of you", "left stick up: help"),
+                "gt-hint", this);
+            vrHint.AddToClassList("gt-hidden");
 
-            help = ChartLook.Box("gt-help", this);
-            foreach (var (keys, what) in new[]
+            help = Help(new[]
                      {
                          ("Space", "play or pause; after a pause it plays on from where it stopped"),
                          ("R", "restart from the top, with a count-in"),
@@ -92,18 +95,39 @@ namespace GuitarTutor.Runtime.UI
                          ("B", "next band style"),
                          ("G", "band guitarist plays the rhythm, or rests (also in the control panel)"),
                          ("V", "band view: the band in 3D behind the chart, or the chart alone"),
+                         ("X", "VR mode: the band in your room, in the headset (Virtual Desktop)"),
                          ("L", "next song"),
                          ("C", "control panel: audio device, band faders"),
                          ("T", "your guitar's tone (TONE3000)"),
                          ("H", "this help"),
                          ("Esc", "quit"),
-                     })
+                     });
+            vrHelp = Help(new[]
+                     {
+                         ("A", "play or pause"),
+                         ("B", "restart from the top, with a count-in"),
+                         ("Right stick", "left / right: a bar back / on; up / down: speed"),
+                         ("Left stick", "left / right: the section before / after; up: this help"),
+                         ("Trigger", "hold, aimed at the chart or at a musician's feet, to move it"),
+                         ("", "meanwhile the stick: up / down sizes the chart, left / right turns the band"),
+                         ("Stick click", "the band and the chart back in front of you"),
+                         ("X", "next key colour for the passthrough (magenta, green, blue, black)"),
+                         ("Y", "with the left controller resting on the floor: the floor's height"),
+                         ("Keyboard X", "back to the desktop"),
+                     });
+        }
+
+        VisualElement Help((string keys, string what)[] rows)
+        {
+            var box = ChartLook.Box("gt-help", this);
+            foreach (var (keys, what) in rows)
             {
-                var row = ChartLook.Box("gt-help__row", help);
+                var row = ChartLook.Box("gt-help__row", box);
                 ChartLook.Label(keys, "gt-help__keys", row);
                 ChartLook.Label(what, "gt-help__what", row);
             }
-            help.AddToClassList("gt-hidden");
+            box.AddToClassList("gt-hidden");
+            return box;
         }
 
         VisualElement AddPanel(Panel which, string heading, VisualElement parent)
@@ -118,7 +142,17 @@ namespace GuitarTutor.Runtime.UI
 
         public void SetShown(Panel which, bool shown) => panels[which].EnableInClassList("gt-hidden", !shown);
 
-        public void ToggleHelp() => help.ToggleInClassList("gt-hidden");
+        public void ToggleHelp() => (vr ? vrHelp : help).ToggleInClassList("gt-hidden");
+
+        /// <summary>The controllers' hints and help (VR mode), or the keyboard's.</summary>
+        public void SetVr(bool on)
+        {
+            vr = on;
+            hint.EnableInClassList("gt-hidden", on);
+            vrHint.EnableInClassList("gt-hidden", !on);
+            help.AddToClassList("gt-hidden");
+            vrHelp.AddToClassList("gt-hidden");
+        }
 
         public void SetSong(SongChart songChart)
         {

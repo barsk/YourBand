@@ -29,6 +29,11 @@ Controls, right controller:
 The key colour, the floor offset and where the musician stands are remembered in
 `%USERPROFILE%\AppData\LocalLow\DefaultCompany\E2 Passthrough\e2-settings.json`.
 
+Found later (2026-10-23, in the game): this app has OpenXR's usual loader, which opens the system's OpenXR
+runtime (here SteamVR) at every launch to choose the graphics adapter, `-noxr` included. The game's VR mode
+uses the loader without that, and Virtual Desktop's runtime; it does everything this app does, with the whole
+band, so the headset test can be done in the game instead (`game/README.md`, "VR mode").
+
 ## Desktop check (done)
 
 `python run_e2.py check` renders a frame without XR and counts pixels (2026-10-21):

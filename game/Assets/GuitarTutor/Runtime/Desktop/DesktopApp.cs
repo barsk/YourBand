@@ -12,6 +12,7 @@ using GuitarTutor.Runtime.Band;
 using GuitarTutor.Runtime.Engine;
 using GuitarTutor.Runtime.Songs;
 using GuitarTutor.Runtime.UI;
+using GuitarTutor.Runtime.Vr;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -23,7 +24,7 @@ namespace GuitarTutor.Runtime.Desktop
     public enum Command
     {
         PlayPause, Restart, Home, BarBack, BarOn, SectionBack, SectionOn, Faster, Slower,
-        NextPattern, NextSong, NextStyle, BandGuitar, BandView, ControlPanel, ToneWindow, Help, Quit,
+        NextPattern, NextSong, NextStyle, BandGuitar, BandView, Vr, ControlPanel, ToneWindow, Help, Quit,
     }
 
     /// <summary>
@@ -39,7 +40,8 @@ namespace GuitarTutor.Runtime.Desktop
     /// gives the band only those parts (for checking them one at a time); <c>-style Rock</c> starts in that band style.
     /// <c>-view band</c> starts in the band view (the 3D band behind the chart; V switches it); <c>-nopanels</c>
     /// hides the panels in screenshots, <c>-nochart</c> the whole screen; <c>-cam guitarist</c> (or another
-    /// role, optionally <c>:left</c>, <c>:right</c>, <c>:hands</c>) frames one musician.
+    /// role, optionally <c>:left</c>, <c>:right</c>, <c>:hands</c>) frames one musician. <c>-vr</c> starts in VR
+    /// mode (X switches it; see VrMode for <c>-noxr</c> and <c>-xrruntime</c>).
     /// Without a running engine the game starts one (<c>-engine &lt;file&gt;</c>: which; <c>-engineargs "..."</c>: more
     /// for its command line) and closes it when it closes.
     /// </remarks>
@@ -75,6 +77,8 @@ namespace GuitarTutor.Runtime.Desktop
         bool bandView;            // the 3D band behind the chart (V)
         string closeUp;           // screenshots: one musician framed (-cam)
         bool guitarForShots;      // screenshots: the band guitarist plays (-guitarplays; no engine to say so)
+        VrMode vr;
+        bool bandViewBeforeVr;    // the band view as it was on the desktop
 
         static double Now => Time.realtimeSinceStartupAsDouble;
 
@@ -115,9 +119,13 @@ namespace GuitarTutor.Runtime.Desktop
                 link.Start();
                 StartCoroutine(StartEngineIfNeeded(Arg("-engine"), Arg("-engineargs") ?? ""));
             }
+            vr = gameObject.AddComponent<VrMode>();
+            vr.Commanded += Execute;
             Load(songIndex);
             if (Arg("-view") == "band")
                 SetBandView(true);
+            if (args.Contains("-vr"))
+                SetVr(true);
             if (args.Contains("-nochart"))
                 screen.style.display = DisplayStyle.None;
             closeUp = Arg("-cam");
@@ -272,12 +280,14 @@ namespace GuitarTutor.Runtime.Desktop
             }
             var status = link == null ? "" : engineReady ? $"band: {bandStyle.Name}" + (bandGuitarPlays ? ", guitarist strums" : "") : engineConnected ? "band: loading"
                 : startingEngine ? "band: starting the engine" : "no band (engine not running)";
+            if (vr.Active)
+                status += (status == "" ? "" : "   ") + vr.Status;
             screen.Show(quarter, CountInAt(quarter), new TransportState(transport.Playing, transport.Speed, chart.Song.Tempo.SecondsAt(Math.Max(0, quarter)), status), pattern);
             if (bandView && band != null)
             {
                 band.GuitarPlays = bandGuitarPlays || guitarForShots;
                 band.Show(quarter, chart.Song.Tempo.SecondsAt(Math.Max(0, quarter)));
-                if (closeUp != null && Camera.main != null)
+                if (closeUp != null && Camera.main != null && !vr.Active)
                     band.Frame(Camera.main, closeUp);
             }
         }
@@ -299,13 +309,32 @@ namespace GuitarTutor.Runtime.Desktop
             if (band != null)
                 band.gameObject.SetActive(on);
             var eye = Camera.main;
-            if (eye != null)
+            if (eye != null && !vr.Active)  // in VR the headset has the camera
             {
                 eye.transform.position = on ? BandStage.ViewFrom : new Vector3(0, 1.6f, -4);
                 eye.transform.rotation = on ? Quaternion.LookRotation(BandStage.ViewAt - BandStage.ViewFrom) : Quaternion.identity;
                 eye.fieldOfView = 50;
             }
             Debug.Log("GuitarTutor: " + (on ? "band view" : "chart view"));
+        }
+
+        /// <summary>VR mode: the band in your room and the chart on a board, in the headset; or the desktop.</summary>
+        void SetVr(bool on)
+        {
+            if (on == vr.Active)
+                return;
+            if (on)
+            {
+                bandViewBeforeVr = bandView;
+                SetBandView(true);  // the band is what VR is for
+                vr.Enter(band, GetComponent<UIDocument>());
+            }
+            else
+            {
+                vr.Leave();
+                SetBandView(bandViewBeforeVr);
+            }
+            screen.SetVr(on);
         }
 
         CountIn? CountInAt(double quarter)
@@ -455,6 +484,7 @@ namespace GuitarTutor.Runtime.Desktop
                     }
                     break;
                 case Command.BandView: SetBandView(!bandView); break;
+                case Command.Vr: SetVr(!vr.Active); break;
                 case Command.Help: screen.ToggleHelp(); break;
                 case Command.Quit: Application.Quit(); break;
             }
@@ -471,7 +501,7 @@ namespace GuitarTutor.Runtime.Desktop
                 (Key.LeftArrow, Command.BarBack), (Key.RightArrow, Command.BarOn),
                 (Key.PageUp, Command.SectionBack), (Key.PageDown, Command.SectionOn),
                 (Key.UpArrow, Command.Faster), (Key.DownArrow, Command.Slower),
-                (Key.P, Command.NextPattern), (Key.L, Command.NextSong), (Key.B, Command.NextStyle), (Key.G, Command.BandGuitar), (Key.V, Command.BandView),
+                (Key.P, Command.NextPattern), (Key.L, Command.NextSong), (Key.B, Command.NextStyle), (Key.G, Command.BandGuitar), (Key.V, Command.BandView), (Key.X, Command.Vr),
                 (Key.C, Command.ControlPanel), (Key.T, Command.ToneWindow),
                 (Key.H, Command.Help), (Key.Escape, Command.Quit),
             };

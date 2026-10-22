@@ -27,8 +27,39 @@ namespace GuitarTutor.Runtime.Band
         public static readonly Vector3 ViewFrom = new Vector3(0f, 1.55f, -3.2f), ViewAt = new Vector3(0.3f, 1.05f, 1.6f);
 
         readonly List<Musician> musicians = new List<Musician>();
+        GameObject floor;
 
         public IReadOnlyList<Musician> Musicians => musicians;
+
+        /// <summary>The band in your room (VR mode): no stage floor, the room's own floor shows through.</summary>
+        public bool InRoom
+        {
+            set => floor.SetActive(!value);
+        }
+
+        /// <summary>The middle of the band, on the floor.</summary>
+        public Vector3 Centre
+        {
+            get
+            {
+                var sum = Vector3.zero;
+                foreach (var m in musicians)
+                    sum += m.transform.position;
+                return musicians.Count > 0 ? sum / musicians.Count : transform.position;
+            }
+        }
+
+        /// <summary>Whether a point on the floor is where one of the musicians is (within <paramref name="reach"/> m).</summary>
+        public bool Covers(Vector3 point, float reach = 0.8f)
+        {
+            foreach (var m in musicians)
+            {
+                var d = m.transform.position - point;
+                if (new Vector2(d.x, d.z).magnitude < reach)
+                    return true;
+            }
+            return false;
+        }
 
         /// <summary>The band, or null (and why) if its assets have not been made (tools/band_assets).</summary>
         public static BandStage Create(out string missing)
@@ -110,7 +141,7 @@ namespace GuitarTutor.Runtime.Band
 
         void Dress()
         {
-            var floor = GameObject.CreatePrimitive(PrimitiveType.Plane);
+            floor = GameObject.CreatePrimitive(PrimitiveType.Plane);
             floor.name = "Floor";
             Destroy(floor.GetComponent<Collider>());
             floor.transform.SetParent(transform, false);

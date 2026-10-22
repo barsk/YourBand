@@ -44,6 +44,15 @@ What is there now:
   it as a tape under a fixed marker. The panels: chord diagrams drawn from the voicings, strumming, song info.
   Look in `Chart.uss`.
 
+- `Core/Performance/`: how each musician plays the band's notes: the drummer's sticking (which hand or foot
+  plays each hit), the guitarist's grips (fingers on frets, barres) and strokes read back from the strummed
+  notes, the bassist's strings and frets (a hand that moves as little as it can), the keyboardist's fingers.
+- `Runtime/Band/`: the band as 3D musicians (Rocketbox avatars on the Mixamo playing clips, made by
+  `tools/band_assets` and GuitarTutor > Set up project; not in git). The clips are locked to the beat; arms
+  and fingers go onto the real targets by IK in `LateUpdate`: sticks onto the drums and cymbals, fingers onto
+  frets and strings, keys pressed down under the fingers.
+- `Runtime/Vr/VrMode.cs`: VR mode (below).
+
 ![The desktop screen with the demo song](../docs/images/m1-desktop-intro.png)
 
 ## Building and running
@@ -73,11 +82,39 @@ Keys:
 - P: the next strumming pattern.
 - B: the next band style.
 - G: the band guitarist plays the rhythm, or rests (the same as the control panel's checkbox).
+- V: the band view: the band in 3D behind the chart (the chart alone is the default).
+- X: VR mode on or off (below).
 - L: the next song.
 - C: the control panel (audio device, band faders, log). T: your guitar's tone (TONE3000).
 - H: help. Esc: quit.
 
 The footswitch's buttons 3-6 (play / pause, previous section, next section, restart) come through the engine.
+
+### VR mode
+
+The band in your room and the chart on a board in front of you, in the Quest through Virtual Desktop
+(docs/plan.md, "VR mode"). Start the game with `-vr`, or press X. The game starts OpenXR itself, with Virtual
+Desktop's runtime (VDXR) when it is installed, so it never starts SteamVR; without a headset it shows the room
+on the desktop and says "VR: no headset". The camera clears to a key colour (magenta, #FF00FF) with nothing
+blended into it; in Virtual Desktop, turn on passthrough by chroma key with that colour (experiment E2's
+settings: `../experiments/e2-passthrough/README.md`). The board is opaque, so it needs no key.
+
+The first time, the band and the board go in front of wherever you are; after that they stay where you put
+them (in `vr-settings.json` in the game's data folder, `%USERPROFILE%\AppData\LocalLow\GuitarTutor\GuitarTutor`).
+
+Controllers:
+- A: play or pause. B: restart with a count-in.
+- Right stick: left / right a bar back or on, up / down the speed. Left stick: left / right a section back or
+  on, up the help.
+- Trigger, held: aimed at the board, it goes with the controller (the stick meanwhile sizes it); aimed at a
+  musician's feet, the band slides along the floor (the stick meanwhile turns it).
+- Right stick click: the band and the board back in front of you.
+- X: the next key colour (magenta, green, blue, black). Y, with the left controller resting on the floor: the
+  floor's height.
+
+The keyboard works too, and K changes the key colour.
+
+![VR mode on the desktop (-noxr): the band and the board on the key colour](../docs/images/m7-vr-room.png)
 
 Command line:
 
@@ -91,6 +128,11 @@ Command line:
 | `-engineargs "..."` | more for the started engine's command line, for example `"--silent --record band.wav"` |
 | `-style Rock` | start in that band style |
 | `-parts drums,bass` | give the band only those parts (to check them one at a time) |
+| `-view band` | start in the band view; `-cam guitarist` (or `drummer`, `bassist`, `keyboardist`, with `:left`, `:right`, `:hands`, `:above`) frames one musician |
+| `-nochart`, `-nopanels` | screenshots without the chart, or without the panels |
+| `-guitarplays` | the band guitarist plays in screenshots (there is no engine to say so) |
+| `-bandlog` | the musicians log what they play |
+| `-vr` | start in VR mode; `-noxr` shows it on the desktop without starting XR; `-xrruntime <json>` uses that OpenXR runtime, `-xrruntime system` the system's |
 | `-keys "2:Space,6:DownArrow,7:shot,9:quit" -keyshots <folder>` | presses keys on the game's own keyboard at those seconds (never the desktop's), screenshots on "shot": tests the controls end to end |
 
 ## Tests

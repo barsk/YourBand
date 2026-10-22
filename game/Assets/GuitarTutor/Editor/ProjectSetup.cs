@@ -12,7 +12,7 @@ namespace GuitarTutor.EditorTools
 {
     /// <summary>
     /// Sets the project up from code, so it can be rebuilt from the command line (build_desktop.cmd): the UI
-    /// Toolkit theme and panel settings, the Desktop scene, the player settings; and builds the desktop player.
+    /// Toolkit theme and panel settings, the Desktop scene, the band, VR, the player settings; and builds the player.
     /// </summary>
     public static class ProjectSetup
     {
@@ -57,6 +57,7 @@ namespace GuitarTutor.EditorTools
             if (rebuildScene || !File.Exists(ScenePath))
                 BuildScene();
             BandSetup.Run();  // the 3D band, if its assets are there (tools/band_assets)
+            VrSetup.Run();
             ConfigurePlayer();
             AssetDatabase.SaveAssets();
             Debug.Log("GuitarTutor setup: done");
@@ -84,6 +85,9 @@ namespace GuitarTutor.EditorTools
         static void ConfigurePlayer()
         {
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Standalone, ScriptingImplementation.Mono2x);
+            // Direct3D 11: what OpenXR on Windows is surest with (experiment E2 ran on it)
+            PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.StandaloneWindows64, false);
+            PlayerSettings.SetGraphicsAPIs(BuildTarget.StandaloneWindows64, new[] { UnityEngine.Rendering.GraphicsDeviceType.Direct3D11 });
             PlayerSettings.fullScreenMode = FullScreenMode.Windowed;
             PlayerSettings.defaultScreenWidth = 1920;
             PlayerSettings.defaultScreenHeight = 1080;

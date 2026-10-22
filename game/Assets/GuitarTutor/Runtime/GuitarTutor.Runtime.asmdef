@@ -3,7 +3,8 @@
     "rootNamespace": "GuitarTutor.Runtime",
     "references": [
         "GuitarTutor.Core",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "Unity.XR.Management"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
