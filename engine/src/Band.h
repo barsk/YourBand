@@ -5,9 +5,11 @@
 // publishes where the music is in the shared clock after every block.
 //
 //   outputs 0-1   drums (stereo): the synthesized kit, and the count-in sticks
-//   output  2     bass DI, synthesized, into the bass amp (a TONE3000 instance)
-//   MIDI out      keys on channel 1 (Numa Player); with instrument plugins for them, the bass on channel 2 and
-//                 the drums on channel 10 (General MIDI drum notes) instead of the synthesized ones
+//   output  2     bass, synthesized (a DI sound)
+//   output  3     rhythm guitar DI, synthesized, into the band guitar's amp (a TONE3000 instance)
+//   MIDI out      keys on channel 1 (Numa Player); with instrument plugins for them, the bass on channel 2, the
+//                 guitar on channel 3 and the drums on channel 10 (General MIDI drum notes) instead of the
+//                 synthesized ones
 //
 // Rendered in the audio callback for now; docs/plan.md has it moving to its own thread, ahead of time, as the
 // band grows.
@@ -53,9 +55,9 @@ struct Score
 class BandProcessor final : public SimpleProcessor
 {
 public:
-    enum Part { drums = 0, bass = 1, keys = 2 };
+    enum Part { drums = 0, bass = 1, keys = 2, guitar = 3 };
     /** The MIDI channel each part plays on when it goes to a plugin. */
-    static int channelOf (int part) { return part == drums ? 10 : part == bass ? 2 : 1; }
+    static int channelOf (int part) { return part == drums ? 10 : part == bass ? 2 : part == guitar ? 3 : 1; }
 
     explicit BandProcessor (SharedClock&);
 
@@ -73,9 +75,12 @@ public:
     const Score* score() const { return latest; }
 
     void setOutputLatency (double seconds) { outputLatency.store (seconds); }
-    /** Plays a part on an instrument plugin (as MIDI) instead of the synthesized one. */
-    void setPluginFor (Part part, bool on) { (part == drums ? drumsOnPlugin : bassOnPlugin).store (on); }
-    bool usesPluginFor (Part part) const { return (part == drums ? drumsOnPlugin : bassOnPlugin).load(); }
+    /** Plays a part (drums, bass, guitar) on an instrument plugin (as MIDI) instead of the synthesized one. */
+    void setPluginFor (Part part, bool on) { onPlugin[(size_t) part].store (on); }
+    bool usesPluginFor (Part part) const { return onPlugin[(size_t) part].load(); }
+    /** Whether the band's guitarist plays (the rhythm: the song's strumming on its chords). */
+    void setGuitarPlays (bool on) { guitarPlays.store (on); }
+    bool guitarIsPlaying() const { return guitarPlays.load(); }
 
     // any thread: for the window
     double position() const { return shownPosition.load(); }
@@ -103,6 +108,7 @@ private:
     SharedClock& clock;
     DrumKit kit;
     BassVoice bassVoice;
+    GuitarVoice guitarVoice;
     double sampleRate = 48000.0;
 
     // message thread -> audio thread
@@ -112,7 +118,8 @@ private:
     std::vector<std::unique_ptr<Score>> owned;  // message thread; freed once neither pending nor in use
     const Score* latest = nullptr;
     std::atomic<double> outputLatency { 0.0 };
-    std::atomic<bool> drumsOnPlugin { false }, bassOnPlugin { false };
+    std::array<std::atomic<bool>, 4> onPlugin {};  // per part; the keys are always on their plugin
+    std::atomic<bool> guitarPlays { false };
 
     // audio thread
     const Score* playingScore = nullptr;

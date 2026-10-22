@@ -1,6 +1,6 @@
 """A test session without a sound: the engine runs silently and records, the game plays a song by key script.
 
-  python band_session.py <out-folder> --keys "4:Space,20:quit" [--seconds 30] [--band-bass ABPL] [game options ...]
+  python band_session.py <out-folder> --keys "4:Space,20:quit" [--seconds 30] [--band-bass ABPL] [--band-guitar synthesized] [game options ...]
 
 Starts `GuitarTutor Engine.exe --silent --record <out>/band.wav --run-for <seconds>`, waits for it to load its
 plugins, starts the game with `-keys <keys> -keyshots <out>` and the other options (for example -demo,
@@ -29,9 +29,10 @@ def main(args):
         seconds = rest[rest.index("--seconds") + 1]
         del rest[rest.index("--seconds"):rest.index("--seconds") + 2]
     engine_args = []
-    if "--band-bass" in rest:  # a bass plugin's file name (ABPL) or synthesized, instead of the one you chose
-        engine_args = ["--band-bass", rest[rest.index("--band-bass") + 1]]
-        del rest[rest.index("--band-bass"):rest.index("--band-bass") + 2]
+    for option in ("--band-bass", "--band-guitar"):  # a plugin's file name (ABPL) or synthesized, not your choice
+        if option in rest:
+            engine_args += [option, rest[rest.index(option) + 1]]
+            del rest[rest.index(option):rest.index(option) + 2]
     os.makedirs(out, exist_ok=True)
 
     engine = subprocess.Popen([ENGINE, "--silent", "--record", os.path.join(out, "band.wav"), "--run-for", seconds]

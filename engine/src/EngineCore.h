@@ -2,10 +2,13 @@
 
 // The audio engine's core: the audio interface, and a processing graph with the hosted plugins and the band.
 //
-//   instrument input --> TONE3000 (guitar) -----------------------------+
-//   band: drums -----------------------------------+                    +--> outputs
-//         bass DI -----> TONE3000 (bass amp) --> volume --+--> band bus --+
-//         keys MIDI ---> Numa Player ---------> volume --+    (limiter)
+//   instrument input --> TONE3000 (guitar) ------------------------------------+
+//   band: drums ---------------------------------------> volume --+            +--> outputs
+//         bass ----------------------------------------> volume --+            |
+//         keys MIDI ---> Numa Player ------------------> volume --+--> band bus --+
+//         guitar DI ---> TONE3000 (band guitar amp) ---> volume --+    (limiter)
+//
+// The drums, bass and guitar play synthesized, or on instrument plugins (MIDI) chosen in the control panel.
 //
 // Tones are switched with TONE3000's own presets: it builds the new model in the background and fades its
 // output across the swap, so a switch in a pause between phrases is not heard.
@@ -44,8 +47,8 @@ struct Preset
 class EngineCore final : private juce::ChangeListener
 {
 public:
-    /** The plugins: your guitar's amp, the band's bass amp, and the band's drum and bass instruments. */
-    enum class Slot { guitar, bass, bandDrums, bandBass };
+    /** The plugins: your guitar's amp, the band guitarist's amp, and the band's drum, bass and guitar instruments. */
+    enum class Slot { guitar, bandAmp, bandDrums, bandBass, bandGuitar };
 
     EngineCore();
     ~EngineCore() override;
@@ -60,24 +63,31 @@ public:
     juce::String deviceSummary() const;
     bool isSilent() const { return silent; }
 
-    /** Loads two instances of the plugin (guitar and bass amp). Returns an error message, or empty. */
+    /** Loads two instances of the plugin (your guitar's amp and the band guitarist's). Returns an error, or empty. */
     juce::String loadPlugins (const juce::File& pluginFile);
     /** Loads the keyboard plugin (Numa Player) for the band's keys. Returns an error message, or empty. */
     juce::String loadKeys (const juce::File& pluginFile);
-    /** Loads an instrument plugin for the band's drums or bass (MONSTER Drums, MONSTER Bass, Ample Bass), in
-        place of the one there before. The band plays it once told to (see useBandInstrument). Returns an
-        error, or empty. */
+    /** Loads an instrument plugin for the band's drums, bass or guitar (MONSTER Drums, MONSTER Bass, Ample Bass,
+        MONSTER Guitar, Kontakt), in place of the one there before. The band plays it once told to (see
+        useBandInstrument). Returns an error, or empty. */
     juce::String loadBandInstrument (Slot, const juce::File& pluginFile);
-    /** Takes the band's drums or bass plugin out (the band plays that part synthesized). Close its window first. */
+    /** Takes a band instrument plugin out (the band plays that part synthesized). Close its window first. */
     void unloadBandInstrument (Slot);
-    /** Whether the band plays the drums or bass on its instrument plugin, or synthesized. */
+    /** Whether the band plays the drums, bass or guitar on its instrument plugin, or synthesized. */
     void useBandInstrument (Slot, bool on);
     bool usesBandInstrument (Slot slot) const;
     /** A band instrument plugin's sound level in the mix, used instead of the part's while the band plays on it. */
     void setBandPluginLevel (Slot, float gain);
-    /** The band's bass plugin through the bass amp (TONE3000), or straight to the mixer (it has its own amp). */
-    void setBassPluginThroughAmp (bool on);
-    bool bassPluginThroughAmp() const { return bassThroughAmp; }
+    /** The band's guitar plugin through the band guitar's amp (TONE3000), or straight to the mixer (with an amp
+        of its own). */
+    void setGuitarPluginThroughAmp (bool on);
+    bool guitarPluginThroughAmp() const { return guitarThroughAmp; }
+    /** The guitar plugin's level into the band guitar's amp: an amp model wants a guitar's level, as from its
+        pickups (the built-in guitar: about -33 dB RMS a note), and some plugins play far louder. */
+    void setGuitarPluginTrim (float gain);
+    /** Whether the band's guitarist plays the rhythm (the song's strumming on its chords). */
+    void setBandGuitarPlays (bool on) { bandProcessor->setGuitarPlays (on); }
+    bool bandGuitarPlays() const { return bandProcessor->guitarIsPlaying(); }
     /** Gives the keyboard plugin a sound ("2 - E_PIANO/1 - EP-Mark I"). Returns an error message, or empty. */
     juce::String setKeysSound (const juce::String& sound);
     juce::String keysSound() const { return currentKeysSound; }
@@ -85,10 +95,11 @@ public:
     juce::MemoryBlock pluginState (Slot) const;
     void setPluginState (Slot, const juce::MemoryBlock&);
 
-    /** The guitar plugin's saved presets, and switching between them (message thread). */
-    std::vector<Preset> presets() const;
-    void selectPreset (int index);
-    int currentPreset() const;
+    /** The saved presets of a TONE3000 instance (your guitar's, or the band guitarist's), and switching between
+        them (message thread). */
+    std::vector<Preset> presets (Slot = Slot::guitar) const;
+    void selectPreset (int index, Slot = Slot::guitar);
+    int currentPreset (Slot = Slot::guitar) const;
 
     /** The device input channel the guitar is plugged into (0-based; on a Scarlett Solo the instrument
         jack is input 2, channel 1). */
@@ -98,7 +109,7 @@ public:
 
     BandProcessor& band() { return *bandProcessor; }
 
-    /** The band's mixer, per part ("drums", "bass" or "keys"). A part plays at the level the game gives its
+    /** The band's mixer, per part ("drums", "bass", "keys" or "guitar"). A part plays at the level the game gives its
         sound (the keys per style: an organ sits lower than a piano) times your fader (1: the balanced mix).
         False if there is no such part. */
     bool setSoundLevel (const juce::String& part, float gain);
@@ -119,6 +130,9 @@ private:
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void connect();
     Node::Ptr slotNode (Slot) const;
+    Node::Ptr& instrumentNode (Slot);
+    /** The band part a band instrument slot plays (BandProcessor::Part, also the mixer's index). */
+    static int partOf (Slot);
     /** The band on a drums or bass plugin if you want it there and the plugin is not paused for a new state. */
     void playBandInstrument (Slot);
     /** Gives a plugin in the graph a new state with its audio paused: from before the change until it has had
@@ -134,16 +148,18 @@ private:
     juce::AudioProcessorPlayer player;
 
     SharedClock clock;
-    Node::Ptr input, output, guitarTone, bandNode, bassTone, keysNode, drumsMix, bassMix, keysMix, bandBus;
-    Node::Ptr drumsPlugin, bassPlugin, keysChannel, drumsChannel, bassChannel;
+    Node::Ptr input, output, guitarTone, bandNode, bandAmp, guitarTrim, keysNode, drumsMix, bassMix, keysMix, guitarMix, bandBus;
+    Node::Ptr drumsPlugin, bassPlugin, guitarPlugin, keysChannel, drumsChannel, bassChannel, guitarChannel;
     BandProcessor* bandProcessor = nullptr;
     juce::String currentKeysSound;
-    std::array<float, 3> soundLevels { 0.8f, 0.8f, 1.3f }, faderLevels { 1.0f, 1.0f, 1.0f };  // drums, bass, keys
-    std::array<float, 2> pluginLevels { 0.8f, 0.8f };  // drums, bass: on their plugins
+    // drums, bass, keys, guitar: the built-in bass a DI sound (as loud as the bass plugins at 1.75, measured), the
+    // guitar after its amp
+    std::array<float, 4> soundLevels { 0.8f, 1.75f, 1.3f, 0.8f }, faderLevels { 1.0f, 1.0f, 1.0f, 1.0f };
+    std::array<float, 4> pluginLevels { 0.8f, 0.8f, 0.8f, 0.8f };  // on their plugins (the keys always are)
     int inputChannel = 1;
     bool silent = false;
-    bool bassThroughAmp = false;
-    std::array<bool, 2> bandWants { false, false };  // drums, bass: on their plugins (useBandInstrument)
+    bool guitarThroughAmp = true;
+    std::array<bool, 4> bandWants {};  // per part: on its plugin (useBandInstrument)
     Node::Ptr spareNode;  // a connection to it or not: a different graph, for one more rebuild (unloadBandInstrument)
     bool spareLinked = false;
     std::map<juce::AudioProcessor*, int> stateChanges;  // the latest change per plugin: only it resumes the audio

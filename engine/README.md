@@ -1,13 +1,13 @@
 # GuitarTutor audio engine
 
 The C++ audio engine (see [../docs/plan.md](../docs/plan.md)). It owns the audio interface, hosts the TONE3000
-plugin for your guitar and the band's bass amp, plays the band, and will grow the listener and the recorder.
+plugin for your guitar and the band guitarist's, plays the band, and will grow the listener and the recorder.
 
 What it does now:
 - Your guitar through TONE3000, with TONE3000's own presets switched from the footswitch (E1).
-- The band (M2): it plays the parts the game arranges, on the song's tempo map, with a count-in. Drums are
-  synthesized, the bass is a finger-played string through the second TONE3000 instance (your bass amp
-  capture), and the keys are Numa Player. The band owns the song's transport. The game asks it to play,
+- The band (M2): it plays the parts the game arranges, on the song's tempo map, with a count-in: drums, bass
+  and a rhythm guitarist (built-in or on instrument plugins), and the keys on Numa Player. The band guitarist
+  plays through the second TONE3000 instance. The band owns the song's transport. The game asks it to play,
   pause, seek and change speed over a local connection, and reads its clock from shared memory
   ([../schema/engine-protocol.md](../schema/engine-protocol.md)).
 - Latency and CPU readouts, the footswitch, and a log.
@@ -30,8 +30,8 @@ The program is `build\Release\gt_engine_artefacts\Release\GuitarTutor Engine.exe
    device panel at the top). The guitar input is input 2, the Scarlett Solo's instrument jack.
 3. "Guitar tone..." opens the guitar's TONE3000 window. Its saved presets (shared with the standalone app)
    appear in the preset list; step through them with the buttons or the footswitch.
-4. "Bass amp..." opens the second instance: load a bass amp capture there, and the band's bass plays
-   through it.
+4. "Band guitar tone..." opens the second instance, the band guitarist's amp: pick its tone there, or in
+   the "Band guitar tone" list (the same presets).
 5. Footswitch: button 1 next preset, button 2 previous preset. Buttons 3-6 go to the game: play / pause,
    previous section, next section, restart. Any game controller works as a footswitch until the Arduino
    pedal exists.
@@ -90,11 +90,20 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   (`bandBass.<plugin file>` in the settings). MONSTER Bass takes about 7 s to load and 5 s to let go of its
   samples; the control panel waits meanwhile, while the band plays on. The band sends each part on its own
   MIDI channel (keys 1, bass 2, drums 10) and each plugin hears only its own.
+- The band guitarist (when "Band guitarist plays rhythm" is ticked, or G in the game; both are the same
+  setting) strums the song's strumming pattern for each section on the chord shapes the chart shows (the
+  game writes it: `Arranger.Strum`): a stroke crosses the strings 12 ms apart down, 9 ms up (the top four
+  strings), and each string rings until it is struck again or the chord changes. It plays through the band
+  guitar's TONE3000 ("Band guitar tone"), the built-in guitar (picked strings built from their harmonics,
+  `GuitarVoice`, about -33 dB RMS a note, a guitar's level) or a plugin: MONSTER Guitar (its "[Notes]"
+  instruments; a "[Chord]" one plays a whole chord for each string's note) or Kontakt with Shreddage 3
+  Stratus FREE. A guitar plugin goes through a trim into the amp (MONSTER Guitar plays about 30 dB louder
+  than a guitar: -30 dB), or straight to the mixer with "through band guitar tone" off. Guitar plugins get
+  the notes as they sound (MONSTER Guitar: note 40 is E2).
 - Bass plugins sound an octave below the note they get (as bass parts are written; MONSTER Bass and Ample
-  Bass both), so the band sends them its bass notes an octave up. The built-in bass goes through the "Bass
-  amp" TONE3000 instance; the plugins have their own amps and effects, so they go straight to the mixer
-  unless you tick "through bass amp". Each known plugin has a level that puts it as loud as the built-in
-  sound (measured straight to the mixer). The first built-in bass (a Karplus-Strong string plucked with
+  Bass both), so the band sends them its bass notes an octave up. The built-in bass is a DI sound, and the
+  plugins have their own amps and effects: all go straight to the mixer. Each known plugin has a level that
+  puts it as loud as the built-in sound (measured straight to the mixer). The first built-in bass (a Karplus-Strong string plucked with
   noise) had almost no fundamental and sounded thin and too high: its strongest partials sat at
   200 Hz-1.3 kHz. Now the fundamental leads, with the next harmonics about 3, 7 and 13 dB under it.
 - Changing plugins: the engine rewires the whole graph in one rebuild, so the audio thread goes from the
@@ -106,8 +115,8 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   Player installed, the band plays without keys. A new sound mutes the keys for half a second: Numa Player
   loads it in the background and once crashed the engine when it played during the load, so the engine
   pauses a plugin's audio whenever it gives it a new state.
-- Mixer: each part's sound has a level (drums 0.8, bass 0.8 after its amp or the bass plugin's own, keys set
-  by the game per style),
+- Mixer: each part's sound has a level (drums 0.8, the built-in bass 1.75 or the bass plugin's own, keys set
+  by the game per style, guitar 0.8 after its amp),
   then your fader in the control panel (0 dB is the balanced mix; double-click for 0 dB again; remembered
   between runs), then a soft limiter on the band's sum (peaks above 0.7 bend towards 1).
 

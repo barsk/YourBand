@@ -25,6 +25,7 @@ struct EngineOptions
     double runFor = 0.0;       // --run-for <seconds>: quit after that long (0: run until closed)
     int parent = 0;            // --parent <process id>: started by the game; hidden, and gone with the game
     juce::String bandBass;     // --band-bass <plugin file name, e.g. ABPL | synthesized>: instead of your choice
+    juce::String bandGuitar;   // --band-guitar <plugin file name, e.g. "Kontakt 8" | synthesized>: the same
     juce::File snapshot;       // --snapshot <file.png>: a picture of the control panel 3 s after the start (tests)
 
     static EngineOptions fromCommandLine (const juce::StringArray& args);
@@ -43,7 +44,7 @@ private:
     void timerCallback() override;
     void log (const juce::String&);
     void showPlugin (EngineCore::Slot, const juce::String& title);
-    // the band's drums and bass: each its built-in sound or an instrument plugin, chosen in a dropdown
+    // the band's drums, bass and guitar: each its built-in sound or an instrument plugin, chosen in a dropdown
     void setUpBandPart (EngineCore::Slot);
     void refreshBandPart (EngineCore::Slot);
     void bandBoxChanged (EngineCore::Slot);
@@ -62,6 +63,10 @@ private:
     void refreshPresets();
     void stepPreset (int step);
     void selectPreset (int index);
+    /** Whether the band guitarist plays the rhythm: from the control panel or the game, kept for next time and
+        told to the game. */
+    void setBandGuitarPlays (bool on);
+    void sendBandGuitar();
     void handle (const juce::var& message);
     void sendCommand (const juce::String& command);
     void saveSettings();
@@ -76,9 +81,12 @@ private:
     std::unique_ptr<juce::AudioDeviceSelectorComponent> selector;
     juce::Label inputLabel { {}, "Guitar input" }, presetLabel { {}, "Tone preset" };
     juce::ComboBox inputBox, presetBox;
-    juce::TextButton guitarButton { "Guitar tone..." }, bassButton { "Bass amp..." };
-    juce::ToggleButton bassThroughAmp { "through bass amp" };
-    struct BandChoice { juce::File file; juce::String name; bool silentUntilChosen; float level; bool added; };
+    juce::TextButton guitarButton { "Guitar tone..." };
+    juce::ToggleButton guitarThroughAmp { "through band guitar tone" }, guitarPlays { "Band guitarist plays rhythm" };
+    juce::Label bandToneLabel { {}, "Band guitar tone" };
+    juce::ComboBox bandToneBox;
+    juce::TextButton bandToneButton { "Band guitar tone..." };
+    struct BandChoice { juce::File file; juce::String name; bool silentUntilChosen; float level, trim; bool added; };
     struct BandPart  // a band part's row: its sound, and its plugin's window
     {
         juce::Label label;
@@ -92,9 +100,9 @@ private:
     std::map<EngineCore::Slot, juce::MemoryBlock> blankStates;  // an instrument plugin's state before a sound is chosen
     juce::TextButton previousButton { "< Previous" }, nextButton { "Next >" };
     juce::Label latencyLabel, cpuLabel, footLabel, gameLabel, bandLabel;
-    // the band's mixer: drums, bass, keys
-    std::array<juce::Slider, 3> faders;
-    std::array<juce::Label, 3> faderLabels;
+    // the band's mixer: drums, bass, keys, guitar
+    std::array<juce::Slider, 4> faders;
+    std::array<juce::Label, 4> faderLabels;
     juce::TextEditor logView;
 
     std::map<EngineCore::Slot, std::unique_ptr<juce::DocumentWindow>> windows;

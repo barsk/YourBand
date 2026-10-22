@@ -20,15 +20,16 @@ the message set settles.
 | `type` | Fields | Meaning |
 |---|---|---|
 | `hello` | `client`, `protocol` | First message after connecting |
-| `load` | `title`, `style`, `tempos` [[atQuarter, bpm]...], `meters` [[atBar, numerator, denominator]...], `notes` [[part, pitch, at, length, velocity]...], `keys` | The song's tempo map and the band's parts (replaces what was loaded; stops playing). `part`: 0 drums (General MIDI drum notes), 1 bass, 2 keys. `keys`: the keyboard sound, a Numa Player sound name such as `2 - E_PIANO/1 - EP-Mark I` (empty: the engine's default) |
+| `load` | `title`, `style`, `tempos` [[atQuarter, bpm]...], `meters` [[atBar, numerator, denominator]...], `notes` [[part, pitch, at, length, velocity]...], `keys` | The song's tempo map and the band's parts (replaces what was loaded; stops playing). `part`: 0 drums (General MIDI drum notes), 1 bass, 2 keys, 3 guitar (the band guitarist's rhythm, played while `bandGuitar` is on). `keys`: the keyboard sound, a Numa Player sound name such as `2 - E_PIANO/1 - EP-Mark I` (empty: the engine's default) |
 | `play` | `from`, `countIn` | Play from `from`, after a count-in of `countIn` quarter notes (0: none). The drummer counts in on sticks; band notes inside the count-in are not played |
 | `pause` | | Stop; sounding notes are released |
 | `seek` | `to` | Move to `to`; keeps playing if playing |
 | `speed` | `value` | Practice speed: 1 is the song's tempo |
-| `window` | `show` | Brings up a window of the engine: `controlPanel` (devices, faders, log), `guitar` (the guitar's TONE3000), `bass` (the bass amp), `drums` (the band's drum plugin) or `bandBass` (the band's bass plugin) |
+| `window` | `show` | Brings up a window of the engine: `controlPanel` (devices, faders, log), `guitar` (your guitar's TONE3000), `bandGuitarTone` (the band guitarist's TONE3000), `drums`, `bandBass` or `bandGuitar` (the band's instrument plugins) |
 | `quit` | | Close the engine (it saves its settings); the game sends it when it closes an engine it started |
-| `mix` | `part`, `gain` | The level of a band part's sound: `drums`, `bass` or `keys`, 1 as played (defaults: drums 0.8, bass 0.8 after its amp, keys 1.3; the game sets the keys per style). The control panel's faders multiply it and are remembered by the engine |
+| `mix` | `part`, `gain` | The level of a band part's sound: `drums`, `bass`, `keys` or `guitar`, 1 as played (defaults: drums 0.8, bass 1.75 (a DI sound), keys 1.3, guitar 0.8 after its amp; the game sets the keys per style). The control panel's faders multiply it and are remembered by the engine |
 | `bandBass` | `plugin` | The band's bass on an instrument plugin, named by its file name (`MONSTER Bass v2`, `ABPL`), or `synthesized`; as chosen in the control panel, and kept for next time |
+| `bandGuitar` | `plays` | Whether the band guitarist plays the rhythm (G in the game); the engine keeps it for next time, as the control panel's checkbox, and answers with `bandGuitar` |
 
 ## Engine → game
 
@@ -37,6 +38,7 @@ the message set settles.
 | `hello` | `engine`, `protocol`, `sampleRate`, `clock` | Answer to the game's hello; `clock` names the shared memory |
 | `loaded` | `notes`, `keys` | A `load` has been taken over by the audio thread; `keys`: the sound in use, or empty if there is no keyboard plugin |
 | `command` | `command` | A control the engine read (the footswitch): `playPause`, `restart`, `sectionPrevious`, `sectionNext`. Tone presets are switched in the engine and not sent |
+| `bandGuitar` | `plays` | Whether the band guitarist plays the rhythm: after `hello`, and whenever it changes (the control panel's checkbox, or the game's `bandGuitar`) |
 
 ## Clock (shared memory, 64 bytes, little-endian)
 

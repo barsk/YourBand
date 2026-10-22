@@ -365,4 +365,180 @@ void BassVoice::render (float* out, int numSamples)
     }
 }
 
+//==============================================================================
+void GuitarVoice::prepare (double sampleRate)
+{
+    rate = sampleRate;
+    attackStep = (float) (1.0 / (0.002 * rate));  // 2 ms: the pick leaves the string
+    silence();
+}
+
+void GuitarVoice::silence()
+{
+    for (auto& n : notes)
+        n.active = false;
+    numEvents = 0;
+}
+
+void GuitarVoice::noteOn (int note, float velocity, int offset)
+{
+    if (numEvents < (int) events.size())
+        events[(size_t) numEvents++] = { true, note, velocity, offset };
+}
+
+void GuitarVoice::noteOff (int note, int offset)
+{
+    if (numEvents < (int) events.size())
+        events[(size_t) numEvents++] = { false, note, 0.0f, offset };
+}
+
+void GuitarVoice::releaseAll()
+{
+    for (auto& n : notes)
+        if (n.active)
+            release (n, 0.05);
+}
+
+void GuitarVoice::release (Note& note, double seconds)
+{
+    const auto fast = decayFor (rate, seconds);
+    for (int k = 0; k < note.count; ++k)
+        note.partials[(size_t) k].decay = juce::jmin (note.partials[(size_t) k].decay, fast);
+    note.pitch = -1;  // no longer held: a note off or a new pick leaves it to die away
+}
+
+void GuitarVoice::pick (int note, float velocity)
+{
+    // the same note struck again: the string sounding stops quickly
+    for (auto& n : notes)
+        if (n.active && n.pitch == note)
+            release (n, 0.02);
+    // a free string, else the quietest one dying away, else the oldest
+    Note* voice = nullptr;
+    for (auto& n : notes)
+        if (! n.active)
+        {
+            voice = &n;
+            break;
+        }
+    if (voice == nullptr)
+    {
+        auto quietest = 1.0e9f;
+        for (auto& n : notes)
+        {
+            auto level = 0.0f;
+            for (int k = 0; k < n.count; ++k)
+                level += std::abs (n.partials[(size_t) k].level);
+            if ((n.pitch < 0 ? level : level + 1.0e6f) < quietest)
+            {
+                quietest = n.pitch < 0 ? level : level + 1.0e6f;
+                voice = &n;
+            }
+        }
+    }
+    auto& n = *voice;
+
+    const auto v = juce::jlimit (0.0f, 1.0f, velocity);
+    const auto f0 = 440.0 * std::pow (2.0, (note - 69) / 12.0);
+    const auto brightness = 2500.0 + 3500.0 * v;            // a harder pick is brighter
+    const auto sustain = 5.0 * std::pow (82.4 / f0, 0.5);   // seconds to fade 60 dB, the low E longest
+    constexpr double pickedAt = 0.12, pickupAt = 0.09, stiffness = 6.0e-5, pi = juce::MathConstants<double>::pi;
+
+    double sum = 0.0;
+    n.count = 0;
+    for (int k = 1; k <= (int) n.partials.size(); ++k)
+    {
+        const auto f = k * f0 * std::sqrt (1.0 + stiffness * k * k);
+        if (f > 7000.0 || f > 0.45 * rate)
+            break;
+        // what the pick puts into the string, as the pickup hears it, softened above the brightness
+        const auto level = std::sin (k * pi * pickedAt) * std::sin (k * pi * pickupAt) / k
+                         / (1.0 + (f / brightness) * (f / brightness));
+        const auto w = 2.0 * pi * f / rate;
+        n.partials[(size_t) n.count++] = { 1.0f, 0.0f, (float) std::cos (w), (float) std::sin (w), (float) level,
+                                           decayFor (rate, sustain / (1.0 + 0.12 * (k - 1))) };
+        sum += std::abs (level);
+    }
+    const auto scale = (0.06 + 0.14 * v) / juce::jmax (1.0e-9, sum);
+    for (int k = 0; k < n.count; ++k)
+        n.partials[(size_t) k].level *= (float) scale;
+    n.pitch = note;
+    n.attack = 0.0f;
+    n.active = true;
+}
+
+void GuitarVoice::render (float* out, int numSamples)
+{
+    // in time order, a note's end before the next note's start at the same moment
+    for (int i = 1; i < numEvents; ++i)
+        for (int j = i; j > 0; --j)
+        {
+            auto& a = events[(size_t) j - 1];
+            auto& b = events[(size_t) j];
+            if (a.offset < b.offset || (a.offset == b.offset && (! a.on || b.on)))
+                break;
+            std::swap (a, b);
+        }
+
+    int next = 0;
+    for (int i = 0; i < numSamples; ++i)
+    {
+        while (next < numEvents && events[(size_t) next].offset <= i)
+        {
+            const auto& e = events[(size_t) next++];
+            if (e.on)
+                pick (e.note, e.velocity);
+            else
+                for (auto& n : notes)
+                    if (n.active && n.pitch == e.note)
+                        release (n, 0.08);  // the fretting hand lets go
+        }
+        float s = 0.0f;
+        for (auto& n : notes)
+        {
+            if (! n.active)
+                continue;
+            float sum = 0.0f;
+            for (int k = 0; k < n.count; ++k)
+            {
+                auto& p = n.partials[(size_t) k];
+                const auto re = p.re * p.cosStep - p.im * p.sinStep;
+                p.im = p.re * p.sinStep + p.im * p.cosStep;
+                p.re = re;
+                sum += p.level * p.im;
+                p.level *= p.decay;
+            }
+            if (n.attack < 1.0f)
+            {
+                n.attack = juce::jmin (1.0f, n.attack + attackStep);
+                sum *= n.attack * n.attack * (3.0f - 2.0f * n.attack);
+            }
+            s += sum;
+        }
+        out[i] += s;
+    }
+    numEvents = 0;
+
+    // keep the phasors on the unit circle, and let notes go once they have faded
+    for (auto& n : notes)
+    {
+        if (! n.active)
+            continue;
+        float loudest = 0.0f;
+        for (int k = 0; k < n.count; ++k)
+        {
+            auto& p = n.partials[(size_t) k];
+            const auto length = std::sqrt (p.re * p.re + p.im * p.im);
+            if (length > 0.0f)
+            {
+                p.re /= length;
+                p.im /= length;
+            }
+            loudest = juce::jmax (loudest, std::abs (p.level));
+        }
+        if (loudest < 1.0e-5f)
+            n.active = false;
+    }
+}
+
 } // namespace gt

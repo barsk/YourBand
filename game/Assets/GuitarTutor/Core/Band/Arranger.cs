@@ -12,6 +12,8 @@ namespace GuitarTutor.Core.Band
         Drums,
         Bass,
         Keys,
+        /// <summary>The band guitarist's rhythm: the song's strumming on its chord shapes.</summary>
+        Guitar,
     }
 
     /// <summary>A note the band plays: a MIDI note number (drums: the General MIDI drum map), when, how long, how hard.</summary>
@@ -138,7 +140,8 @@ namespace GuitarTutor.Core.Band
     /// Writes the band's parts from the chart (see docs/plan.md, "Song data": the arrangement layer): drums from
     /// the style with a crash at each section's start and a fill into the next section, bass on the chord roots
     /// walking into each change, keys voiced close around middle C, each chord moving as little as it can from
-    /// the one before.
+    /// the one before, and the guitarist strumming the song's patterns on its chord shapes. With a capo the
+    /// chord names are the shapes played above it: the band plays them that much higher.
     /// </summary>
     public static class Arranger
     {
@@ -157,6 +160,7 @@ namespace GuitarTutor.Core.Band
             var random = new Random(1);  // the same small variations every time
             int Humanise(int velocity) => Math.Max(1, Math.Min(127, velocity + random.Next(-5, 6)));
             var chords = chart.Song.Chords.Where(c => Chord.TryParse(c.Name, out _)).OrderBy(c => c.AtQuarter).ToList();
+            var capo = Math.Max(0, chart.Song.Info.Capo);
             List<int> lastVoicing = null;
 
             foreach (var bar in chart.Bars)
@@ -206,7 +210,7 @@ namespace GuitarTutor.Core.Band
                     // walk into the next chord only if it comes at the end of this bar
                     var endsHere = span.AtQuarter + span.Quarters <= bar.AtQuarter + bar.Quarters + 1e-6;
                     var next = endsHere ? chords.FirstOrDefault(c => c.AtQuarter >= span.AtQuarter + span.Quarters - 1e-6) : null;
-                    var pitch = BassPitch(chord, tone, next != null ? Chord.Parse(next.Name) : null);
+                    var pitch = BassPitch(chord, tone, next != null ? Chord.Parse(next.Name) : null) + capo;
                     var end = Math.Min(bar.AtQuarter + at + length, span.AtQuarter + span.Quarters);
                     notes.Add(new BandNote(BandPart.Bass, pitch, bar.AtQuarter + at, end - bar.AtQuarter - at, Humanise(at == 0 ? 100 : 86)));
                 }
@@ -220,11 +224,134 @@ namespace GuitarTutor.Core.Band
                     var end = Math.Min(bar.AtQuarter + at + length, span.AtQuarter + span.Quarters);
                     var velocity = Humanise(style.KeysVelocity + (at == 0 ? 6 : 0));
                     foreach (var pitch in voicing)
-                        notes.Add(new BandNote(BandPart.Keys, pitch, bar.AtQuarter + at, end - bar.AtQuarter - at, velocity));
+                        notes.Add(new BandNote(BandPart.Keys, pitch + capo, bar.AtQuarter + at, end - bar.AtQuarter - at, velocity));
                 }
             }
+            Strum(chart, chords, notes, Humanise);
             notes.Sort((a, b) => a.AtQuarter != b.AtQuarter ? a.AtQuarter.CompareTo(b.AtQuarter) : a.Part.CompareTo(b.Part));
             return arrangement;
+        }
+
+        // ------------------------------------------------------------ guitar
+        /// <summary>A downstroke on every beat: for songs without a strumming pattern.</summary>
+        static readonly StrumPattern Downstrokes = new StrumPattern
+        {
+            Name = "Downstrokes", Subdivision = 8,
+            Strokes = { Stroke.Down, Stroke.Rest, Stroke.Down, Stroke.Rest, Stroke.Down, Stroke.Rest, Stroke.Down, Stroke.Rest },
+        };
+
+        /// <summary>How long a stroke takes to cross one string, in seconds (down, and the lighter up).</summary>
+        const double DownSpread = 0.012, UpSpread = 0.009;
+
+        /// <summary>The open strings' notes, lowest first, with the capo: the song's tuning, else standard.</summary>
+        public static int[] OpenStrings(SongInfo info)
+        {
+            var standard = new[] { 40, 45, 50, 55, 59, 64 };
+            var tuning = info.Tuning?.Select(NoteNumber).ToArray();
+            var open = tuning != null && tuning.Length == 6 && tuning.All(n => n > 0) ? tuning : standard;
+            return open.Select(n => n + Math.Max(0, info.Capo)).ToArray();
+        }
+
+        /// <summary>A note name with its octave ("E2", "F#3", "Bb2") as a MIDI note number; 0 if it is not one.</summary>
+        static int NoteNumber(string name)
+        {
+            if (string.IsNullOrEmpty(name) || "CDEFGAB".IndexOf(char.ToUpperInvariant(name[0])) < 0)
+                return 0;
+            int[] classes = { 0, 2, 4, 5, 7, 9, 11 };
+            var pc = classes["CDEFGAB".IndexOf(char.ToUpperInvariant(name[0]))];
+            var i = 1;
+            for (; i < name.Length && (name[i] == '#' || name[i] == 'b'); ++i)
+                pc += name[i] == '#' ? 1 : -1;
+            return int.TryParse(name.Substring(i), out var octave) ? 12 * (octave + 1) + pc : 0;
+        }
+
+        /// <summary>
+        /// A chord shape for a chord the song gives none for: the E or the A barre shape (open where it can be),
+        /// major, minor, 7, m7 or maj7 by the chord's third and seventh; a power chord without a third. Frets per
+        /// string from the lowest, -1 not played.
+        /// </summary>
+        public static List<int> GuitarShape(Chord chord)
+        {
+            var hasThird = chord.Intervals.Contains(3) || chord.Intervals.Contains(4);
+            var seventh = chord.Intervals.Contains(10) ? 10 : chord.Intervals.Contains(11) ? 11 : 0;
+            int[] e, a;
+            if (!hasThird)
+            {
+                e = new[] { 0, 2, 2, -1, -1, -1 };
+                a = new[] { -1, 0, 2, 2, -1, -1 };
+            }
+            else if (chord.IsMinor)
+            {
+                e = seventh == 10 ? new[] { 0, 2, 0, 0, 0, 0 } : new[] { 0, 2, 2, 0, 0, 0 };
+                a = seventh == 10 ? new[] { -1, 0, 2, 0, 1, 0 } : new[] { -1, 0, 2, 2, 1, 0 };
+            }
+            else
+            {
+                e = seventh == 10 ? new[] { 0, 2, 0, 1, 0, 0 } : seventh == 11 ? new[] { 0, 2, 1, 1, 0, 0 } : new[] { 0, 2, 2, 1, 0, 0 };
+                a = seventh == 10 ? new[] { -1, 0, 2, 0, 2, 0 } : seventh == 11 ? new[] { -1, 0, 2, 1, 2, 0 } : new[] { -1, 0, 2, 2, 2, 0 };
+            }
+            var eFret = ((chord.Root - 4) % 12 + 12) % 12;  // E is pitch class 4, A 9
+            var aFret = ((chord.Root - 9) % 12 + 12) % 12;
+            var (shape, fret) = eFret <= aFret ? (e, eFret) : (a, aFret);
+            return shape.Select(f => f < 0 ? -1 : f + fret).ToList();
+        }
+
+        /// <summary>
+        /// The band guitarist's rhythm: each section's strumming pattern (or a downstroke on every beat) on the
+        /// chord shapes the chart shows. A stroke crosses the strings as a hand does (down: low to high; up: the
+        /// top four, high to low), and each string rings until it is struck again or the chord changes; a muted
+        /// stroke is a short chuck. The last bar is one chord, held.
+        /// </summary>
+        static void Strum(SongChart chart, List<ChordEvent> chords, List<BandNote> notes, Func<int, int> humanise)
+        {
+            var song = chart.Song;
+            var open = OpenStrings(song.Info);
+            var strikes = new List<(double at, int str, int pitch, int velocity, bool muted, double chordEnd)>();
+            foreach (var bar in chart.Bars)
+            {
+                var last = bar.Index == chart.Bars.Count - 1;
+                var pattern = last ? null : chart.PatternsFor(bar.Section).FirstOrDefault(p => p.Strokes.Count > 0 && p.Subdivision > 0) ?? Downstrokes;
+                var slot = last ? bar.Quarters : 4.0 / pattern.Subdivision;
+                for (int i = 0; i * slot < bar.Quarters - 1e-6; ++i)
+                {
+                    var stroke = last ? Stroke.Down : pattern.Strokes[i % pattern.Strokes.Count];
+                    if (stroke == Stroke.Rest)
+                        continue;
+                    var at = bar.AtQuarter + i * slot;
+                    var chord = ChordAt(chords, at, out var span);
+                    if (chord == null)
+                        continue;
+                    var voicing = song.VoicingFor(span);
+                    var frets = voicing != null && voicing.Frets.Count == 6 ? voicing.Frets : GuitarShape(chord);
+                    var played = Enumerable.Range(0, 6).Where(s => frets[s] >= 0).ToList();
+                    if (played.Count == 0)
+                        continue;
+                    var down = stroke == Stroke.Down || stroke == Stroke.MutedDown;
+                    var muted = stroke == Stroke.MutedDown || stroke == Stroke.MutedUp;
+                    var order = down ? played : (played.Count(s => s >= 2) >= 2 ? played.Where(s => s >= 2) : played).Reverse().ToList();
+                    var onBeat = Math.Abs(i * slot - Math.Round(i * slot)) < 1e-6;
+                    var velocity = muted ? 64 : !down ? 72 : onBeat ? 96 : 84;
+                    var perString = (down ? DownSpread : UpSpread) * song.Tempo.BpmAt(at) / 60.0;  // in quarter notes
+                    var chordEnd = span.AtQuarter + span.Quarters;
+                    for (int k = 0; k < order.Count; ++k)
+                        strikes.Add((at + k * perString, order[k], open[order[k]] + frets[order[k]], humanise(velocity), muted, chordEnd));
+                }
+            }
+            // each string rings until it is struck again, or the chord ends
+            foreach (var onString in strikes.GroupBy(s => s.str))
+            {
+                var list = onString.OrderBy(s => s.at).ToList();
+                for (int k = 0; k < list.Count; ++k)
+                {
+                    var s = list[k];
+                    var end = s.chordEnd;
+                    if (k + 1 < list.Count)
+                        end = Math.Min(end, list[k + 1].at);
+                    var length = s.muted ? Math.Min(0.08, end - s.at) : end - s.at - 0.01;
+                    if (length > 0.01)
+                        notes.Add(new BandNote(BandPart.Guitar, s.pitch, s.at, length, s.velocity));
+                }
+            }
         }
 
         static bool IsQuiet(Section section)

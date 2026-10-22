@@ -88,7 +88,7 @@ std::unique_ptr<Score> Score::fromMessage (const juce::var& message, juce::Strin
         note.at = (double) n[2];
         note.length = (double) n[3];
         note.velocity = juce::jlimit (0.0f, 1.0f, (float) (int) n[4] / 127.0f);
-        if (note.part >= 0 && note.part <= 2 && note.pitch >= 0 && note.pitch < 128)
+        if (note.part >= 0 && note.part <= 3 && note.pitch >= 0 && note.pitch < 128)
             score->notes.push_back (note);
     }
     std::stable_sort (score->notes.begin(), score->notes.end(), [] (const BandNote& a, const BandNote& b) { return a.at < b.at; });
@@ -98,7 +98,8 @@ std::unique_ptr<Score> Score::fromMessage (const juce::var& message, juce::Strin
 //==============================================================================
 BandProcessor::BandProcessor (SharedClock& sharedClock)
     : SimpleProcessor (BusesProperties().withOutput ("Drums", juce::AudioChannelSet::stereo(), true)
-                                        .withOutput ("Bass", juce::AudioChannelSet::mono(), true)),
+                                        .withOutput ("Bass", juce::AudioChannelSet::mono(), true)
+                                        .withOutput ("Guitar", juce::AudioChannelSet::mono(), true)),
       clock (sharedClock)
 {
     countInUntil = none;
@@ -109,6 +110,7 @@ void BandProcessor::prepareToPlay (double newSampleRate, int)
     sampleRate = newSampleRate;
     kit.prepare (sampleRate);
     bassVoice.prepare (sampleRate);
+    guitarVoice.prepare (sampleRate);
 }
 
 void BandProcessor::push (Command command)
@@ -162,10 +164,11 @@ void BandProcessor::releaseAll (juce::MidiBuffer& midi)
 {
     for (int i = 0; i < numOffs; ++i)
         midi.addEvent (juce::MidiMessage::noteOff (channelOf (offs[(size_t) i].part), offs[(size_t) i].pitch), 0);
-    for (auto part : { keys, bass, drums })
+    for (auto part : { keys, bass, guitar, drums })
         midi.addEvent (juce::MidiMessage::allNotesOff (channelOf (part)), 0);
     numOffs = 0;
     bassVoice.noteOff (0);
+    guitarVoice.releaseAll();
 }
 
 void BandProcessor::apply (const Command& c, juce::MidiBuffer& midi)
@@ -252,6 +255,8 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
                     midi.addEvent (juce::MidiMessage::noteOff (channelOf (off.part), off.pitch), offsetOf (off.at));
                 else if (off.part == bass && off.serial == bassSerial)
                     bassVoice.noteOff (offsetOf (off.at));
+                else if (off.part == guitar)
+                    guitarVoice.noteOff (off.pitch, offsetOf (off.at));
                 offs[(size_t) i] = offs[(size_t) --numOffs];
             }
             else
@@ -264,9 +269,10 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
             const auto& note = s->notes[cursor++];
             if (note.at < q0 - 1.0e-9 || (countingIn && note.at < countInUntil - 1.0e-9))
                 continue;
+            if (note.part == guitar && ! guitarPlays.load())
+                continue;
             const auto at = offsetOf (note.at);
-            const auto onPlugin = note.part == keys || (note.part == drums && drumsOnPlugin.load()) || (note.part == bass && bassOnPlugin.load());
-            if (onPlugin)
+            if (note.part == keys || onPlugin[(size_t) note.part].load())
             {
                 // a drum hit is short; a bass note lets go just before the next, as a player's would
                 const auto length = note.part == drums ? juce::jmax (0.1, note.length) : note.part == bass ? note.length * 0.95 : note.length;
@@ -283,6 +289,11 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
                 bassVoice.noteOn (note.pitch, note.velocity, at);
                 addOff ({ bass, note.pitch, ++bassSerial, note.at + note.length * 0.95 });
             }
+            else if (note.part == guitar)
+            {
+                guitarVoice.noteOn (note.pitch, note.velocity, at);
+                addOff ({ guitar, note.pitch, 0, note.at + note.length });
+            }
         }
 
         quarter = q1;
@@ -292,6 +303,7 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
 
     kit.render (buffer.getWritePointer (0), buffer.getWritePointer (1), n);
     bassVoice.render (buffer.getWritePointer (2), n);
+    guitarVoice.render (buffer.getWritePointer (3), n);
 
     // the block's first sample is heard after the output latency
     const auto heard = started + (int64_t) (outputLatency.load() * (double) SharedClock::ticksPerSecond());

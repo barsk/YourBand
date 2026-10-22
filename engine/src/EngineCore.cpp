@@ -22,13 +22,16 @@ EngineCore::EngineCore()
     bandNode = graph->addNode (std::move (band));
     // the band's mixer: the keys sit a little under the drums and bass
     drumsMix = graph->addNode (std::make_unique<GainProcessor> ("Drums", 0.8f));
-    bassMix = graph->addNode (std::make_unique<GainProcessor> ("Bass", 0.8f));
+    bassMix = graph->addNode (std::make_unique<GainProcessor> ("Bass", 1.75f));
     keysMix = graph->addNode (std::make_unique<GainProcessor> ("Keys", 1.3f));
+    guitarMix = graph->addNode (std::make_unique<GainProcessor> ("Guitar", 0.8f));
+    guitarTrim = graph->addNode (std::make_unique<GainProcessor> ("Guitar plugin into the amp", 1.0f));
     bandBus = graph->addNode (std::make_unique<GainProcessor> ("Band", 1.0f, true));
     // each instrument plugin hears its own MIDI channel of the band
     keysChannel = graph->addNode (std::make_unique<MidiChannelFilter> (BandProcessor::channelOf (BandProcessor::keys)));
     drumsChannel = graph->addNode (std::make_unique<MidiChannelFilter> (BandProcessor::channelOf (BandProcessor::drums)));
     bassChannel = graph->addNode (std::make_unique<MidiChannelFilter> (BandProcessor::channelOf (BandProcessor::bass)));
+    guitarChannel = graph->addNode (std::make_unique<MidiChannelFilter> (BandProcessor::channelOf (BandProcessor::guitar)));
     spareNode = graph->addNode (std::make_unique<MidiChannelFilter> (16));  // nothing plays on channel 16
 
     player.setProcessor (graph.get());
@@ -122,7 +125,7 @@ juce::String EngineCore::loadPlugins (const juce::File& pluginFile)
     const auto rate = d != nullptr ? d->getCurrentSampleRate() : 48000.0;
     const auto block = d != nullptr ? d->getCurrentBufferSizeSamples() : 128;
 
-    for (auto* slot : { &guitarTone, &bassTone })
+    for (auto* slot : { &guitarTone, &bandAmp })
     {
         juce::String error;
         auto instance = formats.createPluginInstance (*types[0], rate, block, error);
@@ -161,15 +164,21 @@ juce::String EngineCore::loadKeys (const juce::File& pluginFile)
 
 int EngineCore::partIndex (const juce::String& part)
 {
-    return part == "drums" ? 0 : part == "bass" ? 1 : part == "keys" ? 2 : -1;
+    return part == "drums" ? 0 : part == "bass" ? 1 : part == "keys" ? 2 : part == "guitar" ? 3 : -1;
+}
+
+int EngineCore::partOf (Slot slot)
+{
+    return slot == Slot::bandDrums ? BandProcessor::drums : slot == Slot::bandBass ? BandProcessor::bass : BandProcessor::guitar;
 }
 
 void EngineCore::applyMix (int part)
 {
-    const auto onPlugin = part < 2 && bandProcessor->usesPluginFor (part == 0 ? BandProcessor::drums : BandProcessor::bass);
+    const auto onPlugin = part != BandProcessor::keys && bandProcessor->usesPluginFor ((BandProcessor::Part) part);
     const auto sound = onPlugin ? pluginLevels[(size_t) part] : soundLevels[(size_t) part];
     const auto gain = sound * faderLevels[(size_t) part];
-    if (const auto& node = part == 0 ? drumsMix : part == 1 ? bassMix : keysMix; node != nullptr)  // none after shutdown
+    const Node::Ptr mixes[] { drumsMix, bassMix, keysMix, guitarMix };
+    if (const auto& node = mixes[part]; node != nullptr)  // none after shutdown
         static_cast<GainProcessor*> (node->getProcessor())->setGain (gain);
 }
 
@@ -219,14 +228,14 @@ juce::String EngineCore::loadBandInstrument (Slot slot, const juce::File& plugin
         return types[0]->name + " takes no notes: it is not an instrument";
     instance->enableAllBuses();
     unloadBandInstrument (slot);
-    (slot == Slot::bandDrums ? drumsPlugin : bassPlugin) = graph->addNode (std::move (instance), std::nullopt, UpdateKind::none);
+    instrumentNode (slot) = graph->addNode (std::move (instance), std::nullopt, UpdateKind::none);
     connect();
     return {};
 }
 
 void EngineCore::unloadBandInstrument (Slot slot)
 {
-    auto& node = slot == Slot::bandDrums ? drumsPlugin : bassPlugin;
+    auto& node = instrumentNode (slot);
     if (node == nullptr)
         return;
     useBandInstrument (slot, false);
@@ -247,7 +256,7 @@ void EngineCore::unloadBandInstrument (Slot slot)
 
 void EngineCore::useBandInstrument (Slot slot, bool on)
 {
-    bandWants[slot == Slot::bandDrums ? 0 : 1] = on;
+    bandWants[(size_t) partOf (slot)] = on;
     playBandInstrument (slot);
 }
 
@@ -255,29 +264,35 @@ void EngineCore::playBandInstrument (Slot slot)
 {
     // a plugin taking a new state is paused, and silent: the band plays the built-in sound until it is back
     const auto node = slotNode (slot);
-    const auto plays = bandWants[slot == Slot::bandDrums ? 0 : 1] && node != nullptr && ! node->getProcessor()->isSuspended();
-    bandProcessor->setPluginFor (slot == Slot::bandDrums ? BandProcessor::drums : BandProcessor::bass, plays);
-    applyMix (slot == Slot::bandDrums ? 0 : 1);
+    const auto part = partOf (slot);
+    const auto plays = bandWants[(size_t) part] && node != nullptr && ! node->getProcessor()->isSuspended();
+    bandProcessor->setPluginFor ((BandProcessor::Part) part, plays);
+    applyMix (part);
 }
 
 void EngineCore::setBandPluginLevel (Slot slot, float gain)
 {
-    const auto part = slot == Slot::bandDrums ? 0 : 1;
+    const auto part = partOf (slot);
     pluginLevels[(size_t) part] = juce::jlimit (0.0f, 4.0f, gain);
     applyMix (part);
 }
 
-void EngineCore::setBassPluginThroughAmp (bool on)
+void EngineCore::setGuitarPluginTrim (float gain)
 {
-    if (on == bassThroughAmp)
+    static_cast<GainProcessor*> (guitarTrim->getProcessor())->setGain (gain);
+}
+
+void EngineCore::setGuitarPluginThroughAmp (bool on)
+{
+    if (on == guitarThroughAmp)
         return;
-    bassThroughAmp = on;
+    guitarThroughAmp = on;
     connect();
 }
 
 bool EngineCore::usesBandInstrument (Slot slot) const
 {
-    return bandWants[slot == Slot::bandDrums ? 0 : 1] && slotNode (slot) != nullptr;
+    return bandWants[(size_t) partOf (slot)] && slotNode (slot) != nullptr;
 }
 
 juce::String EngineCore::setKeysSound (const juce::String& sound)
@@ -301,12 +316,18 @@ EngineCore::Node::Ptr EngineCore::slotNode (Slot slot) const
 {
     switch (slot)
     {
-        case Slot::guitar:    return guitarTone;
-        case Slot::bass:      return bassTone;
-        case Slot::bandDrums: return drumsPlugin;
-        case Slot::bandBass:  return bassPlugin;
+        case Slot::guitar:     return guitarTone;
+        case Slot::bandAmp:    return bandAmp;
+        case Slot::bandDrums:  return drumsPlugin;
+        case Slot::bandBass:   return bassPlugin;
+        case Slot::bandGuitar: return guitarPlugin;
     }
     return nullptr;
+}
+
+EngineCore::Node::Ptr& EngineCore::instrumentNode (Slot slot)
+{
+    return slot == Slot::bandDrums ? drumsPlugin : slot == Slot::bandBass ? bassPlugin : guitarPlugin;
 }
 
 juce::AudioProcessor* EngineCore::plugin (Slot slot) const
@@ -333,7 +354,7 @@ void EngineCore::changeState (juce::AudioProcessor& p, const juce::MemoryBlock& 
 {
     // waits for the block being played to finish; from then on the graph plays silence for this plugin
     p.suspendProcessing (true);
-    for (auto slot : { Slot::bandDrums, Slot::bandBass })
+    for (auto slot : { Slot::bandDrums, Slot::bandBass, Slot::bandGuitar })
         playBandInstrument (slot);
     p.setStateInformation (state.getData(), (int) state.getSize());
     const auto change = ++stateChanges[&p];
@@ -342,31 +363,31 @@ void EngineCore::changeState (juce::AudioProcessor& p, const juce::MemoryBlock& 
         if (*flag && stateChanges[plugin] == change)
         {
             plugin->suspendProcessing (false);
-            for (auto slot : { Slot::bandDrums, Slot::bandBass })
+            for (auto slot : { Slot::bandDrums, Slot::bandBass, Slot::bandGuitar })
                 playBandInstrument (slot);
         }
     });
 }
 
-std::vector<Preset> EngineCore::presets() const
+std::vector<Preset> EngineCore::presets (Slot slot) const
 {
     std::vector<Preset> list;
-    if (auto* p = plugin (Slot::guitar))
+    if (auto* p = plugin (slot))
         for (int i = 0; i < p->getNumPrograms(); ++i)
             if (const auto name = p->getProgramName (i); name.isNotEmpty() && name != "(empty)")
                 list.push_back ({ i, name });
     return list;
 }
 
-void EngineCore::selectPreset (int index)
+void EngineCore::selectPreset (int index, Slot slot)
 {
-    if (auto* p = plugin (Slot::guitar); p != nullptr && index >= 0 && index < p->getNumPrograms())
+    if (auto* p = plugin (slot); p != nullptr && index >= 0 && index < p->getNumPrograms())
         p->setCurrentProgram (index);
 }
 
-int EngineCore::currentPreset() const
+int EngineCore::currentPreset (Slot slot) const
 {
-    auto* p = plugin (Slot::guitar);
+    auto* p = plugin (slot);
     return p != nullptr ? p->getCurrentProgram() : -1;
 }
 
@@ -432,7 +453,8 @@ void EngineCore::connect()
             graph->addConnection ({ { from->nodeID, juce::AudioProcessorGraph::midiChannelIndex },
                                     { to->nodeID, juce::AudioProcessorGraph::midiChannelIndex } }, UpdateKind::none);
     };
-    for (auto [channel, instrument] : { std::pair { keysChannel, keysNode }, std::pair { drumsChannel, drumsPlugin }, std::pair { bassChannel, bassPlugin } })
+    for (auto [channel, instrument] : { std::pair { keysChannel, keysNode }, std::pair { drumsChannel, drumsPlugin },
+                                        std::pair { bassChannel, bassPlugin }, std::pair { guitarChannel, guitarPlugin } })
         if (instrument != nullptr)
         {
             midi (bandNode, channel);
@@ -444,18 +466,32 @@ void EngineCore::connect()
     stereo (bandNode, drumsMix, 0, 2);
     allOutputs (drumsPlugin, drumsMix);
     stereo (drumsMix, bandBus, 0, 2);
-    // bass: the synthesized DI through the bass amp; the bass plugin through it too, or straight to the mixer
-    if (bassTone != nullptr)
-    {
-        for (int c = 0; c < bassTone->getProcessor()->getTotalNumInputChannels(); ++c)
-            link (bandNode, 2, bassTone, c);
-        if (bassThroughAmp)
-            allOutputs (bassPlugin, bassTone);
-    }
-    if (! bassThroughAmp || bassTone == nullptr)
-        allOutputs (bassPlugin, bassMix);
-    stereo (bassTone, bassMix, 0, 2);
+    // bass: the synthesized one (a DI sound) and the bass plugin (with its own amp) straight to the mixer
+    link (bandNode, 2, bassMix, 0);
+    link (bandNode, 2, bassMix, 1);
+    allOutputs (bassPlugin, bassMix);
     stereo (bassMix, bandBus, 0, 2);
+    // guitar: the synthesized DI into the band guitar's amp; the guitar plugin into it too (every output, as one
+    // guitar), or straight to the mixer
+    if (bandAmp != nullptr)
+    {
+        const auto ampInputs = bandAmp->getProcessor()->getTotalNumInputChannels();
+        for (int c = 0; c < ampInputs; ++c)
+            link (bandNode, 3, bandAmp, c);
+        if (guitarThroughAmp && guitarPlugin != nullptr)
+        {
+            allOutputs (guitarPlugin, guitarTrim);
+            for (int c = 0; c < ampInputs; ++c)
+            {
+                link (guitarTrim, 0, bandAmp, c);
+                link (guitarTrim, 1, bandAmp, c);
+            }
+        }
+    }
+    if (! guitarThroughAmp || bandAmp == nullptr)
+        allOutputs (guitarPlugin, guitarMix);
+    stereo (bandAmp, guitarMix, 0, 2);
+    stereo (guitarMix, bandBus, 0, 2);
     // keys
     stereo (keysNode, keysMix, 0, 2);
     stereo (keysMix, bandBus, 0, 2);
@@ -497,8 +533,8 @@ void EngineCore::shutdown()
     deviceManager.removeAudioCallback (&player);
     player.setProcessor (nullptr);
     deviceManager.closeAudioDevice();
-    guitarTone = bassTone = bandNode = keysNode = drumsMix = bassMix = keysMix = bandBus = input = output = nullptr;
-    drumsPlugin = bassPlugin = keysChannel = drumsChannel = bassChannel = spareNode = nullptr;
+    guitarTone = bandAmp = guitarTrim = bandNode = keysNode = drumsMix = bassMix = keysMix = guitarMix = bandBus = input = output = nullptr;
+    drumsPlugin = bassPlugin = guitarPlugin = keysChannel = drumsChannel = bassChannel = guitarChannel = spareNode = nullptr;
     bandProcessor = nullptr;
     graph->clear();
     graph.reset();

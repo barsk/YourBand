@@ -128,6 +128,56 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
+        public void Guitar_StrumsTheSongsPatternOnItsShapes()
+        {
+            var guitar = Demo().Part(BandPart.Guitar).ToList();
+            // the intro's pattern is D-DU-UDU on G (320003): strokes at 0, 1, 1.5, 2.5, 3, 3.5
+            CollectionAssert.AreEqual(new[] { 0, 1, 1.5, 2.5, 3, 3.5 },
+                guitar.Where(n => n.AtQuarter < 4).Select(n => System.Math.Round(n.AtQuarter * 2) / 2).Distinct());
+            // a downstroke: every string of the shape, low to high, 12 ms apart at 96 BPM
+            var down = guitar.Where(n => n.AtQuarter < 0.5).ToList();
+            CollectionAssert.AreEqual(new[] { 43, 47, 50, 55, 59, 67 }, down.Select(n => n.Pitch));
+            Assert.AreEqual(0.012 * 96 / 60, down[1].AtQuarter - down[0].AtQuarter, 1e-9);
+            // an upstroke: the top four strings, high to low, lighter
+            var up = guitar.Where(n => n.AtQuarter >= 1.5 && n.AtQuarter < 2).ToList();
+            CollectionAssert.AreEqual(new[] { 67, 59, 55, 50 }, up.Select(n => n.Pitch));
+            Assert.Less(up.Max(n => n.Velocity), down.Min(n => n.Velocity));
+            // each string rings until it is struck again: the low G from 0 until the downstroke on 1
+            Assert.AreEqual(1 - 0.01, down[0].Quarters, 1e-9);
+            // and no note of a string reaches the next on that string
+            foreach (var onPitch in guitar.GroupBy(n => n.Pitch))
+            {
+                var notes = onPitch.OrderBy(n => n.AtQuarter).ToList();
+                for (int i = 1; i < notes.Count; ++i)
+                    Assert.LessOrEqual(notes[i - 1].AtQuarter + notes[i - 1].Quarters, notes[i].AtQuarter + 1e-9);
+            }
+        }
+
+        [Test]
+        public void Guitar_FindsAShapeForAChordTheSongHasNone()
+        {
+            CollectionAssert.AreEqual(new[] { 2, 4, 4, 2, 2, 2 }, Arranger.GuitarShape(Chord.Parse("F#m")));  // E shape, fret 2
+            CollectionAssert.AreEqual(new[] { -1, 3, 5, 5, 5, 3 }, Arranger.GuitarShape(Chord.Parse("C")));   // A shape, fret 3
+            CollectionAssert.AreEqual(new[] { 0, 2, 2, 1, 0, 0 }, Arranger.GuitarShape(Chord.Parse("E")));     // open
+            CollectionAssert.AreEqual(new[] { -1, 0, 2, 0, 2, 0 }, Arranger.GuitarShape(Chord.Parse("A7")));
+            CollectionAssert.AreEqual(new[] { 40, 45, 50, 55, 59, 64 }, Arranger.OpenStrings(new SongInfo()));
+            CollectionAssert.AreEqual(new[] { 38, 45, 50, 55, 59, 64 },
+                Arranger.OpenStrings(new SongInfo { Tuning = { [0] = "D2" } }));  // drop D
+        }
+
+        [Test]
+        public void Capo_PutsTheWholeBandThatMuchHigher()
+        {
+            var song = DemoSong.Create();
+            var plain = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"));
+            song.Info.Capo = 2;
+            var capo = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"));
+            foreach (var part in new[] { BandPart.Bass, BandPart.Keys, BandPart.Guitar })
+                CollectionAssert.AreEqual(plain.Part(part).Select(n => n.Pitch + 2), capo.Part(part).Select(n => n.Pitch), part.ToString());
+            CollectionAssert.AreEqual(plain.Part(BandPart.Drums).Select(n => n.Pitch), capo.Part(BandPart.Drums).Select(n => n.Pitch));
+        }
+
+        [Test]
         public void Styles_AllArrangeTheDemo()
         {
             foreach (var style in BandStyle.All)
@@ -157,7 +207,11 @@ namespace GuitarTutor.Core.Tests
             Assert.AreEqual(96.0, (double)message["tempos"][0][1]);
             var first = message["notes"][0];
             Assert.AreEqual(5, first.Count());
+            Assert.IsTrue(message["notes"].Any(n => (int)n[0] == 3), "the guitar is part 3");
             Assert.IsNull(EngineProtocol.Read("not json").type);
+            var (guitarType, guitar) = EngineProtocol.Read(EngineProtocol.BandGuitar(true));
+            Assert.AreEqual("bandGuitar", guitarType);
+            Assert.IsTrue((bool)guitar["plays"]);
         }
 
         [Test]

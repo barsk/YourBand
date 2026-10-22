@@ -14,10 +14,11 @@ namespace
     {
         switch (slot)
         {
-            case EngineCore::Slot::guitar:    return "guitarAmp";
-            case EngineCore::Slot::bass:      return "bassAmp";
-            case EngineCore::Slot::bandDrums: return "bandDrums";
-            case EngineCore::Slot::bandBass:  return "bandBass";
+            case EngineCore::Slot::guitar:     return "guitarAmp";
+            case EngineCore::Slot::bandAmp:    return "bandGuitarAmp";
+            case EngineCore::Slot::bandDrums:  return "bandDrums";
+            case EngineCore::Slot::bandBass:   return "bandBass";
+            case EngineCore::Slot::bandGuitar: return "bandGuitar";
         }
         return "";
     }
@@ -28,19 +29,28 @@ namespace
         return juce::String (slotKey (slot)) + "." + plugin.getFileNameWithoutExtension();
     }
 
-    juce::String bandTitle (EngineCore::Slot slot) { return slot == EngineCore::Slot::bandDrums ? "Band drums" : "Band bass"; }
+    juce::String bandTitle (EngineCore::Slot slot)
+    {
+        return slot == EngineCore::Slot::bandDrums ? "Band drums" : slot == EngineCore::Slot::bandBass ? "Band bass" : "Band guitar";
+    }
 
     /** The instrument plugins the band knows, offered when you have them; any other can be added with "Other
-        plugin...". A MONSTER plugin is silent until you choose a sound in it, Ample Bass plays its own from the
-        start. Each has a sound level that puts it as loud as the band's built-in sound (the bass: 0.8 through
-        its amp), measured straight to the mixer with their default sounds. */
-    struct KnownPlugin { EngineCore::Slot slot; const char* pattern; const char* name; bool silentUntilChosen; float level; };
-    const KnownPlugin knownPlugins[] { { EngineCore::Slot::bandDrums, "MONSTER Drums*.vst3", "MONSTER Drums", true, 0.8f },
-                                       { EngineCore::Slot::bandBass, "MONSTER Bass*.vst3", "MONSTER Bass", true, 0.16f },
-                                       { EngineCore::Slot::bandBass, "ABPL*.vst3", "Ample Bass P Lite", false, 0.21f } };
+        plugin...". A MONSTER plugin (and Kontakt) is silent until you choose a sound in it, Ample Bass plays its
+        own from the start. Each has a sound level that puts it as loud as the band's built-in sound, measured
+        straight to the mixer with their default sounds; a guitar also has a trim into the band guitar's amp, to
+        a guitar's level (MONSTER Guitar plays about 30 dB louder than the built-in guitar; Kontakt not measured
+        yet). Through the amp a guitar plugin then plays at the built-in guitar's level. */
+    struct KnownPlugin { EngineCore::Slot slot; const char* pattern; const char* name; bool silentUntilChosen; float level, trim; };
+    const KnownPlugin knownPlugins[] { { EngineCore::Slot::bandDrums, "MONSTER Drums*.vst3", "MONSTER Drums", true, 0.8f, 1.0f },
+                                       { EngineCore::Slot::bandBass, "MONSTER Bass*.vst3", "MONSTER Bass", true, 0.16f, 1.0f },
+                                       { EngineCore::Slot::bandBass, "ABPL*.vst3", "Ample Bass P Lite", false, 0.21f, 1.0f },
+                                       { EngineCore::Slot::bandGuitar, "MONSTER Guitar*.vst3", "MONSTER Guitar", true, 0.03f, 0.03f },
+                                       { EngineCore::Slot::bandGuitar, "Kontakt*.vst3", "Kontakt (Shreddage)", true, 0.8f, 1.0f } };
+    constexpr float guitarLevelThroughAmp = 0.8f;  // as the built-in guitar's
 
-    /** A plugin you add: drums at the kit's level, a bass at about the known basses' (they play loud). */
-    float addedPluginLevel (EngineCore::Slot slot) { return slot == EngineCore::Slot::bandDrums ? 0.8f : 0.2f; }
+    /** A plugin you add: drums and guitar at the built-in sound's level, a bass at about the known basses' (they
+        play loud). */
+    float addedPluginLevel (EngineCore::Slot slot) { return slot == EngineCore::Slot::bandBass ? 0.2f : 0.8f; }
 
     // a band part's dropdown: its built-in sound, then its plugins (ids from 2), then these
     constexpr int builtInId = 1, newSoundId = 900, otherPluginId = 901;
@@ -97,6 +107,8 @@ EngineOptions EngineOptions::fromCommandLine (const juce::StringArray& args)
             o.parent = args[++i].getIntValue();
         else if (args[i] == "--band-bass" && i + 1 < args.size())
             o.bandBass = args[++i].unquoted();
+        else if (args[i] == "--band-guitar" && i + 1 < args.size())
+            o.bandGuitar = args[++i].unquoted();
         else if (args[i] == "--snapshot" && i + 1 < args.size())
             o.snapshot = juce::File::getCurrentWorkingDirectory().getChildFile (args[++i].unquoted());
     }
@@ -141,7 +153,8 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
         refreshInputs();
     };
 
-    // the two TONE3000 instances, with the state they had last time (an older tone A becomes the guitar's)
+    // the two TONE3000 instances, yours and the band guitarist's, with the state they had last time (an older
+    // tone A becomes yours; the band guitarist starts with your tone)
     const juce::File pluginFile (settings->getValue ("plugin", defaultPlugin));
     if (const auto error = engine.loadPlugins (pluginFile); error.isNotEmpty())
         log (error);
@@ -149,19 +162,24 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
         log ("Loaded 2 x " + p->getName() + " (" + juce::String (p->getTotalNumInputChannels()) + " in, "
              + juce::String (p->getTotalNumOutputChannels()) + " out, latency "
              + juce::String (p->getLatencySamples()) + " samples)");
-    for (auto slot : { EngineCore::Slot::guitar, EngineCore::Slot::bass })
+    for (auto slot : { EngineCore::Slot::guitar, EngineCore::Slot::bandAmp })
     {
         auto value = settings->getValue (slotKey (slot));
-        if (value.isEmpty() && slot == EngineCore::Slot::guitar)
-            value = settings->getValue ("toneA");
+        if (value.isEmpty())
+            value = settings->getValue (slot == EngineCore::Slot::guitar ? "toneA" : slotKey (EngineCore::Slot::guitar));
         juce::MemoryBlock state;
         if (state.fromBase64Encoding (value))
             engine.setPluginState (slot, state);
     }
 
-    // the band's drums and bass: their built-in sounds, or instrument plugins chosen in the control panel
+    // the band's drums, bass and guitar: their built-in sounds, or instrument plugins chosen in the control panel
     setUpBandPart (EngineCore::Slot::bandDrums);
     setUpBandPart (EngineCore::Slot::bandBass);
+    setUpBandPart (EngineCore::Slot::bandGuitar);
+    engine.setBandGuitarPlays (settings->getBoolValue ("bandGuitarPlays", false));
+    guitarPlays.setToggleState (engine.bandGuitarPlays(), juce::dontSendNotification);
+    guitarPlays.onClick = [this] { setBandGuitarPlays (guitarPlays.getToggleState()); };
+    addAndMakeVisible (guitarPlays);
 
     // the band's keys
     if (const auto error = engine.loadKeys (juce::File (settings->getValue ("keysPlugin", defaultKeysPlugin))); error.isNotEmpty())
@@ -171,25 +189,33 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
     else
         log ("Keys: Numa Player, " + engine.keysSound());
 
-    for (auto* c : std::initializer_list<juce::Component*> { &guitarButton, &bassButton, &presetLabel, &presetBox,
-                                                             &previousButton, &nextButton })
+    for (auto* c : std::initializer_list<juce::Component*> { &guitarButton, &presetLabel, &presetBox, &previousButton,
+                                                             &nextButton, &bandToneLabel, &bandToneBox, &bandToneButton })
         addAndMakeVisible (*c);
     guitarButton.onClick = [this] { showPlugin (EngineCore::Slot::guitar, "Guitar tone"); };
-    bassButton.onClick = [this] { showPlugin (EngineCore::Slot::bass, "Bass amp"); };
-    // the bass plugin has its own amp and effects: straight to the mixer unless you want the bass amp too
-    engine.setBassPluginThroughAmp (settings->getBoolValue ("bassPluginThroughAmp", false));
-    bassThroughAmp.setToggleState (engine.bassPluginThroughAmp(), juce::dontSendNotification);
-    bassThroughAmp.onClick = [this]
+    bandToneButton.onClick = [this] { showPlugin (EngineCore::Slot::bandAmp, "Band guitar tone"); };
+    // a guitar plugin with an amp of its own can skip the band guitar's
+    engine.setGuitarPluginThroughAmp (settings->getBoolValue ("bandGuitarThroughAmp", true));
+    guitarThroughAmp.setToggleState (engine.guitarPluginThroughAmp(), juce::dontSendNotification);
+    guitarThroughAmp.onClick = [this]
     {
-        engine.setBassPluginThroughAmp (bassThroughAmp.getToggleState());
-        log (juce::String ("Band bass plugin ") + (bassThroughAmp.getToggleState() ? "through the bass amp" : "straight to the mixer"));
+        engine.setGuitarPluginThroughAmp (guitarThroughAmp.getToggleState());
+        if (const auto current = currentChoice (EngineCore::Slot::bandGuitar); current >= 0)
+            engine.setBandPluginLevel (EngineCore::Slot::bandGuitar, guitarThroughAmp.getToggleState() ? guitarLevelThroughAmp
+                                                                    : bandParts[EngineCore::Slot::bandGuitar].choices[(size_t) current].level);
+        log (juce::String ("Band guitar plugin ") + (guitarThroughAmp.getToggleState() ? "through the band guitar tone" : "straight to the mixer"));
         if (! engine.isSilent())
-            settings->setValue ("bassPluginThroughAmp", bassThroughAmp.getToggleState());
+            settings->setValue ("bandGuitarThroughAmp", guitarThroughAmp.getToggleState());
     };
-    addAndMakeVisible (bassThroughAmp);
+    addAndMakeVisible (guitarThroughAmp);
     previousButton.onClick = [this] { stepPreset (-1); };
     nextButton.onClick = [this] { stepPreset (1); };
     presetBox.onChange = [this] { selectPreset (presetBox.getSelectedId() - 1); };
+    bandToneBox.onChange = [this]
+    {
+        engine.selectPreset (bandToneBox.getSelectedId() - 1, EngineCore::Slot::bandAmp);
+        log ("Band guitar tone: " + bandToneBox.getText());
+    };
     refreshPresets();
     log (juce::String ((int) presetList.size()) + " presets saved in TONE3000");
 
@@ -203,7 +229,7 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
     // the band's mixer: your faders, on top of the level the game gives each sound; remembered between runs
     for (size_t i = 0; i < faders.size(); ++i)
     {
-        const juce::String part = i == 0 ? "drums" : i == 1 ? "bass" : "keys";
+        const juce::String part = i == 0 ? "drums" : i == 1 ? "bass" : i == 2 ? "keys" : "guitar";
         faderLabels[i].setText (part.substring (0, 1).toUpperCase() + part.substring (1), juce::dontSendNotification);
         addAndMakeVisible (faderLabels[i]);
         auto& f = faders[i];
@@ -232,7 +258,7 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
         addAndMakeVisible (f);
     }
     log ("Faders: drums " + faders[0].getTextFromValue (faders[0].getValue()) + ", bass " + faders[1].getTextFromValue (faders[1].getValue())
-         + ", keys " + faders[2].getTextFromValue (faders[2].getValue()));
+         + ", keys " + faders[2].getTextFromValue (faders[2].getValue()) + ", guitar " + faders[3].getTextFromValue (faders[3].getValue()));
 
     // footswitch: buttons 1 and 2 step through the tone presets here; the others are the game's to act on
     footswitch.onDevice = [this] (const juce::String& name)
@@ -291,7 +317,7 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
             juce::MessageManager::callAsync ([] { juce::JUCEApplication::getInstance()->systemRequestedQuit(); });
     }
 
-    setSize (760, 760);
+    setSize (760, 820);
     startTimerHz (4);
 
     if (options.snapshot != juce::File())
@@ -328,6 +354,7 @@ void MainComponent::handle (const juce::var& message)
         answer->setProperty ("sampleRate", engine.latency().sampleRate);
         answer->setProperty ("clock", "Local\\GuitarTutorClock");
         game.send (juce::var (answer));
+        sendBandGuitar();  // the game shows whether the band guitarist plays
     }
     else if (type == "load")
     {
@@ -387,17 +414,21 @@ void MainComponent::handle (const juce::var& message)
         else
             log ("The game asked for a bass plugin not found: " + plugin);
     }
+    else if (type == "bandGuitar")
+        setBandGuitarPlays ((bool) message["plays"]);
     else if (type == "window")
     {
         const auto which = message["show"].toString();
         if (which == "guitar")
             showPlugin (EngineCore::Slot::guitar, "Guitar tone");
-        else if (which == "bass")
-            showPlugin (EngineCore::Slot::bass, "Bass amp");
+        else if (which == "bandGuitarTone")
+            showPlugin (EngineCore::Slot::bandAmp, "Band guitar tone");
         else if (which == "drums")
             showPlugin (EngineCore::Slot::bandDrums, "Band drums");
         else if (which == "bandBass")
             showPlugin (EngineCore::Slot::bandBass, "Band bass");
+        else if (which == "bandGuitar")
+            showPlugin (EngineCore::Slot::bandGuitar, "Band guitar");
         else if (auto* window = getTopLevelComponent())  // "controlPanel": this window
             bringToFront (*window);
     }
@@ -423,13 +454,13 @@ void MainComponent::saveSettings()
     if (auto xml = engine.deviceState())
         settings->setValue ("devices", xml.get());
     settings->setValue ("guitarInput", engine.guitarInput());
-    for (auto slot : { EngineCore::Slot::guitar, EngineCore::Slot::bass })
+    for (auto slot : { EngineCore::Slot::guitar, EngineCore::Slot::bandAmp })
     {
         const auto state = engine.pluginState (slot);
         if (state.getSize() > 0)
             settings->setValue (slotKey (slot), state.toBase64Encoding());
     }
-    for (auto slot : { EngineCore::Slot::bandDrums, EngineCore::Slot::bandBass })
+    for (auto slot : { EngineCore::Slot::bandDrums, EngineCore::Slot::bandBass, EngineCore::Slot::bandGuitar })
         keepBandState (slot);
     settings->removeValue ("toneA");
     settings->removeValue ("toneB");
@@ -443,15 +474,17 @@ void MainComponent::setUpBandPart (EngineCore::Slot slot)
     for (const auto& known : knownPlugins)
         if (known.slot == slot)
             if (const auto file = findInstrument ({}, known.pattern); file != juce::File())
-                part.choices.push_back ({ file, known.name, known.silentUntilChosen, known.level, false });
+                part.choices.push_back ({ file, known.name, known.silentUntilChosen, known.level, known.trim, false });
     for (const auto& path : juce::StringArray::fromLines (settings->getValue (juce::String (slotKey (slot)) + "Added")))
         if (path.isNotEmpty() && juce::File (path).exists() && choiceFor (slot, path) < 0)
-            part.choices.push_back ({ juce::File (path), juce::File (path).getFileNameWithoutExtension(), false, addedPluginLevel (slot), true });
+            part.choices.push_back ({ juce::File (path), juce::File (path).getFileNameWithoutExtension(), false, addedPluginLevel (slot), 1.0f, true });
 
     // your choice from last time: a plugin's path, or "synthesized" (else the first plugin found)
     auto last = settings->getValue (juce::String (slotKey (slot)) + "Plugin");
     if (slot == EngineCore::Slot::bandBass && options.bandBass.isNotEmpty())
         last = options.bandBass;
+    if (slot == EngineCore::Slot::bandGuitar && options.bandGuitar.isNotEmpty())
+        last = options.bandGuitar;
     auto choice = choiceFor (slot, last);
     if (choice < 0 && last != "synthesized" && ! part.choices.empty())
         choice = 0;
@@ -479,8 +512,8 @@ void MainComponent::refreshBandPart (EngineCore::Slot slot)
     part.box.addItem ("Other plugin...", otherPluginId);
     part.box.setSelectedId (current + 2, juce::dontSendNotification);  // the built-in sound when none
     part.windowButton.setEnabled (current >= 0);
-    if (slot == EngineCore::Slot::bandBass)
-        bassThroughAmp.setEnabled (current >= 0);
+    if (slot == EngineCore::Slot::bandGuitar)
+        guitarThroughAmp.setEnabled (current >= 0);
 }
 
 void MainComponent::bandBoxChanged (EngineCore::Slot slot)
@@ -521,7 +554,7 @@ void MainComponent::chooseOtherPlugin (EngineCore::Slot slot)
         const auto added = choice < 0;
         if (added)
         {
-            part.choices.push_back ({ file, file.getFileNameWithoutExtension(), false, addedPluginLevel (slot), true });
+            part.choices.push_back ({ file, file.getFileNameWithoutExtension(), false, addedPluginLevel (slot), 1.0f, true });
             choice = (int) part.choices.size() - 1;
         }
         if (! chooseBandInstrument (slot, choice, true, false) && added)
@@ -554,7 +587,9 @@ bool MainComponent::chooseBandInstrument (EngineCore::Slot slot, int choice, boo
     if (choice >= 0)
     {
         auto& c = part.choices[(size_t) choice];
-        engine.setBandPluginLevel (slot, c.level);
+        engine.setBandPluginLevel (slot, slot == EngineCore::Slot::bandGuitar && engine.guitarPluginThroughAmp() ? guitarLevelThroughAmp : c.level);
+        if (slot == EngineCore::Slot::bandGuitar)
+            engine.setGuitarPluginTrim (c.trim);
         playsPlugin = startBandInstrument (slot, c.file, c.silentUntilChosen, ! fresh);
         if (playsPlugin && c.added)
             c.name = engine.plugin (slot)->getName();
@@ -631,6 +666,30 @@ void MainComponent::refreshPresets()
         presetBox.addItem (juce::String (p.index + 1) + ": " + p.name, p.index + 1);
     presetBox.setTextWhenNothingSelected (presetList.empty() ? "No presets saved in TONE3000 yet" : "Choose a preset");
     presetBox.setSelectedId (engine.currentPreset() + 1, juce::dontSendNotification);
+    // the band guitarist's tone: one of the same presets, in the other TONE3000
+    bandToneBox.clear (juce::dontSendNotification);
+    for (const auto& p : engine.presets (EngineCore::Slot::bandAmp))
+        bandToneBox.addItem (juce::String (p.index + 1) + ": " + p.name, p.index + 1);
+    bandToneBox.setTextWhenNothingSelected (bandToneBox.getNumItems() == 0 ? "No presets saved in TONE3000 yet" : "Choose a preset");
+    bandToneBox.setSelectedId (engine.currentPreset (EngineCore::Slot::bandAmp) + 1, juce::dontSendNotification);
+}
+
+void MainComponent::setBandGuitarPlays (bool on)
+{
+    engine.setBandGuitarPlays (on);
+    guitarPlays.setToggleState (on, juce::dontSendNotification);
+    log (on ? "The band guitarist plays the rhythm" : "The band guitarist rests");
+    if (! engine.isSilent())
+        settings->setValue ("bandGuitarPlays", on);
+    sendBandGuitar();
+}
+
+void MainComponent::sendBandGuitar()
+{
+    auto* message = new juce::DynamicObject();
+    message->setProperty ("type", "bandGuitar");
+    message->setProperty ("plays", engine.bandGuitarPlays());
+    game.send (juce::var (message));
 }
 
 void MainComponent::selectPreset (int index)
@@ -729,12 +788,11 @@ void MainComponent::resized()
     selector->setBounds (r.removeFromTop (300));
     r.removeFromTop (6);
 
-    // your guitar: its input, its tone and the bass amp, the tone's presets
+    // your guitar: its input and tone, the tone's presets
     auto row = r.removeFromTop (28);
     inputLabel.setBounds (row.removeFromLeft (100));
     inputBox.setBounds (row.removeFromLeft (260));
     guitarButton.setBounds (row.removeFromLeft (140).reduced (6, 0));
-    bassButton.setBounds (row.removeFromLeft (140).reduced (6, 0));
     r.removeFromTop (6);
 
     row = r.removeFromTop (28);
@@ -744,18 +802,24 @@ void MainComponent::resized()
     nextButton.setBounds (row.removeFromLeft (140).reduced (6, 0));
     r.removeFromTop (10);
 
-    // the band's drums and bass
-    for (auto slot : { EngineCore::Slot::bandDrums, EngineCore::Slot::bandBass })
+    // the band's drums, bass and guitar, and the band guitarist's tone
+    for (auto slot : { EngineCore::Slot::bandDrums, EngineCore::Slot::bandBass, EngineCore::Slot::bandGuitar })
     {
         auto& part = bandParts[slot];
         row = r.removeFromTop (28);
         part.label.setBounds (row.removeFromLeft (100));
         part.box.setBounds (row.removeFromLeft (260));
         part.windowButton.setBounds (row.removeFromLeft (140).reduced (6, 0));
-        if (slot == EngineCore::Slot::bandBass)
-            bassThroughAmp.setBounds (row.reduced (6, 0));
+        if (slot == EngineCore::Slot::bandGuitar)
+            guitarThroughAmp.setBounds (row.reduced (6, 0));
         r.removeFromTop (6);
     }
+    row = r.removeFromTop (28);
+    bandToneLabel.setBounds (row.removeFromLeft (100));
+    bandToneBox.setBounds (row.removeFromLeft (260));
+    bandToneButton.setBounds (row.removeFromLeft (140).reduced (6, 0));
+    guitarPlays.setBounds (row.reduced (6, 0));
+    r.removeFromTop (6);
 
     r.removeFromTop (4);
 
@@ -766,10 +830,10 @@ void MainComponent::resized()
     bandLabel.setBounds (r.removeFromTop (24));
     r.removeFromTop (4);
     row = r.removeFromTop (26);
-    const auto third = row.getWidth() / 3;
+    const auto quarter = row.getWidth() / (int) faders.size();
     for (size_t i = 0; i < faders.size(); ++i)
     {
-        auto cell = row.removeFromLeft (third);
+        auto cell = row.removeFromLeft (quarter);
         faderLabels[i].setBounds (cell.removeFromLeft (50));
         faders[i].setBounds (cell.reduced (2, 0));
     }

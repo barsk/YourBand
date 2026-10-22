@@ -20,7 +20,7 @@ namespace GuitarTutor.Core.Engine
         public const string ClockName = "Local\\GuitarTutorClock";
 
         /// <summary>The parts in the order the engine numbers them in "notes".</summary>
-        public static readonly BandPart[] Parts = { BandPart.Drums, BandPart.Bass, BandPart.Keys };
+        public static readonly BandPart[] Parts = { BandPart.Drums, BandPart.Bass, BandPart.Keys, BandPart.Guitar };
 
         static string Line(JObject message) => message.ToString(Formatting.None);
 
@@ -53,8 +53,12 @@ namespace GuitarTutor.Core.Engine
 
         public static string Speed(double speed) => Line(new JObject { ["type"] = "speed", ["value"] = speed });
 
-        /// <summary>Brings up one of the engine's windows: "controlPanel", "guitar" or "bass".</summary>
+        /// <summary>Brings up one of the engine's windows: "controlPanel", "guitar" (your tone), "bandGuitarTone",
+        /// "drums", "bandBass" or "bandGuitar" (the band's plugins).</summary>
         public static string ShowWindow(string which) => Line(new JObject { ["type"] = "window", ["show"] = which });
+
+        /// <summary>Whether the band's guitarist plays the rhythm (the engine answers with the same message).</summary>
+        public static string BandGuitar(bool plays) => Line(new JObject { ["type"] = "bandGuitar", ["plays"] = plays });
 
         public static string Quit() => Line(new JObject { ["type"] = "quit" });
 

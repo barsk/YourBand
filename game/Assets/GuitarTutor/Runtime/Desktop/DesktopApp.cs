@@ -22,7 +22,7 @@ namespace GuitarTutor.Runtime.Desktop
     public enum Command
     {
         PlayPause, Restart, Home, BarBack, BarOn, SectionBack, SectionOn, Faster, Slower,
-        NextPattern, NextSong, NextStyle, ControlPanel, ToneWindow, Help, Quit,
+        NextPattern, NextSong, NextStyle, BandGuitar, ControlPanel, ToneWindow, Help, Quit,
     }
 
     /// <summary>
@@ -66,6 +66,7 @@ namespace GuitarTutor.Runtime.Desktop
         double? hold;      // screenshots: keep the music here
         double? resumeFrom;  // where playing again goes, when not where the music stopped
         bool countInNext = true;  // the next play starts somewhere new: count in
+        bool bandGuitarPlays;     // the band guitarist plays the rhythm, as the engine last said
 
         static double Now => Time.realtimeSinceStartupAsDouble;
 
@@ -220,6 +221,12 @@ namespace GuitarTutor.Runtime.Desktop
                     engine.SetSpeed(local.Speed);
                 Debug.Log($"GuitarTutor: the band has {chart.Song.Info.Title} ({(int)message["notes"]} notes, keys {(string)message["keys"]})");
             }
+            else if (type == "bandGuitar")
+            {
+                // from the control panel's checkbox, or the answer to G
+                bandGuitarPlays = (bool?)message["plays"] ?? false;
+                Debug.Log("GuitarTutor: the band guitarist " + (bandGuitarPlays ? "plays the rhythm" : "rests"));
+            }
             else if (type == "command" && Enum.TryParse((string)message["command"] switch
                      {
                          "playPause" => "PlayPause",
@@ -247,7 +254,7 @@ namespace GuitarTutor.Runtime.Desktop
                 transport.Pause();
                 transport.Seek(chart.EndQuarter - 1e-6);
             }
-            var status = link == null ? "" : engineReady ? $"band: {bandStyle.Name}" : engineConnected ? "band: loading"
+            var status = link == null ? "" : engineReady ? $"band: {bandStyle.Name}" + (bandGuitarPlays ? ", guitarist strums" : "") : engineConnected ? "band: loading"
                 : startingEngine ? "band: starting the engine" : "no band (engine not running)";
             screen.Show(quarter, CountInAt(quarter), new TransportState(transport.Playing, transport.Speed, chart.Song.Tempo.SecondsAt(Math.Max(0, quarter)), status), pattern);
         }
@@ -385,6 +392,11 @@ namespace GuitarTutor.Runtime.Desktop
                     if (playing)
                         local.Play(Math.Max(0, at), 0);
                     break;
+                case Command.BandGuitar:
+                    // the engine keeps the setting (the control panel has it too) and answers with it
+                    if (engineConnected)
+                        link.Send(EngineProtocol.BandGuitar(!bandGuitarPlays));
+                    break;
                 case Command.ControlPanel:
                 case Command.ToneWindow:
                     if (engineConnected)
@@ -409,7 +421,7 @@ namespace GuitarTutor.Runtime.Desktop
                 (Key.LeftArrow, Command.BarBack), (Key.RightArrow, Command.BarOn),
                 (Key.PageUp, Command.SectionBack), (Key.PageDown, Command.SectionOn),
                 (Key.UpArrow, Command.Faster), (Key.DownArrow, Command.Slower),
-                (Key.P, Command.NextPattern), (Key.L, Command.NextSong), (Key.B, Command.NextStyle),
+                (Key.P, Command.NextPattern), (Key.L, Command.NextSong), (Key.B, Command.NextStyle), (Key.G, Command.BandGuitar),
                 (Key.C, Command.ControlPanel), (Key.T, Command.ToneWindow),
                 (Key.H, Command.Help), (Key.Escape, Command.Quit),
             };

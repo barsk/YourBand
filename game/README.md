@@ -32,7 +32,8 @@ What is there now:
 - `Core/Music/Chord.cs`: chord names read as notes (root, intervals, slash bass).
 - `Core/Band/Arranger.cs`: the band's parts from the chart, in a style (Ballad, Rock, Pop). Drums with crashes
   at section starts and a fill into each new section, bass on the roots walking into changes, keys voiced
-  close and moving as little as they can.
+  close and moving as little as they can, and the guitarist strumming the song's patterns on its chord
+  shapes (the engine plays it while the band guitarist is on). With a capo, the band plays that much higher.
 - `Core/Engine/EngineProtocol.cs`, `Runtime/Engine/`: the connection to the audio engine
   ([../schema/engine-protocol.md](../schema/engine-protocol.md)): messages over TCP, and the engine's clock
   read from shared memory each frame, so the chart moves with the sound.
@@ -71,6 +72,7 @@ Keys:
 - 1-4: the panels.
 - P: the next strumming pattern.
 - B: the next band style.
+- G: the band guitarist plays the rhythm, or rests (the same as the control panel's checkbox).
 - L: the next song.
 - C: the control panel (audio device, band faders, log). T: your guitar's tone (TONE3000).
 - H: help. Esc: quit.

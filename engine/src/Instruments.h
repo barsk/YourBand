@@ -106,4 +106,39 @@ private:
     int numEvents = 0;
 };
 
+/** A clean electric guitar for the band's rhythm, picked strings built from their harmonics like the bass (the
+    pick near the bridge, heard through the bridge pickup), into the band guitar's amp. Polyphonic: each note
+    rings until its end, or until the same note is struck again. */
+class GuitarVoice
+{
+public:
+    void prepare (double sampleRate);
+    void noteOn (int note, float velocity, int offset);
+    void noteOff (int note, int offset);
+    /** Every string muted, now (audio thread, between renders). */
+    void releaseAll();
+    void render (float* out, int numSamples);
+    void silence();
+
+private:
+    struct Event { bool on; int note; float velocity; int offset; };
+    struct Partial { float re, im, cosStep, sinStep, level, decay; };
+    struct Note
+    {
+        std::array<Partial, 32> partials;
+        int count = 0, pitch = -1;
+        float attack = 1.0f;
+        bool active = false;
+    };
+
+    void pick (int note, float velocity);
+    void release (Note&, double seconds);
+
+    double rate = 48000.0;
+    std::array<Note, 12> notes;  // six strings sounding, and as many dying away
+    float attackStep = 1.0f;
+    std::array<Event, 64> events {};
+    int numEvents = 0;
+};
+
 } // namespace gt
