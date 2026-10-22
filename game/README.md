@@ -117,6 +117,18 @@ Controllers:
 
 The keyboard works too, and K changes the key colour.
 
+The first time in the headset:
+1. In the Virtual Desktop Streamer on the PC, the OpenXR runtime is VDXR (the game picks it itself, even when
+   started from the desktop). Virtual Desktop's audio streaming off: the band plays through the Scarlett.
+2. In Virtual Desktop in the headset, passthrough by chroma key with #FF00FF (RGB 255, 0, 255); start with a
+   low similarity and a little smoothness.
+3. Connect, then start `game\Builds\Desktop\GuitarTutor.exe -vr` (or press X in the game). Half a second
+   after the headset is tracked, the band and the board appear in front of you.
+4. Look at: the key's edges (hair, dark clothes), whether the band stands on your floor (Y to calibrate) and
+   fits the room (move the musicians), whether the board reads well at that size, latency against the room.
+5. If the headset loses the connection the game stays open, showing the room; X twice looks for the headset
+   again. The log is `%USERPROFILE%\AppData\LocalLow\GuitarTutor\GuitarTutor\Player.log`.
+
 ![VR mode on the desktop (-noxr): the band and the board on the key colour](../docs/images/m7-vr-room.png)
 
 Command line:

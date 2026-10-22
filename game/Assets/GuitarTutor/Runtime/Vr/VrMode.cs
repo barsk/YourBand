@@ -12,6 +12,7 @@ using UnityEngine.Rendering;
 using UnityEngine.UIElements;
 using UnityEngine.XR;
 using UnityEngine.XR.Management;
+using UnityEngine.XR.OpenXR;
 
 namespace GuitarTutor.Runtime.Vr
 {
@@ -94,6 +95,7 @@ namespace GuitarTutor.Runtime.Vr
         RenderTexture boardTexture;
         Transform board;
         bool xrRunning, recentreWhenTracked;
+        float trackedFor;  // how long the headset has been tracked, for the first placing
 
         InputAction trigger, grip, buttonA, buttonB, buttonX, buttonY, stickClick, rightStick, leftStick, rightTracked, leftTracked, headTracked;
         enum Held { Nothing, Board, Band, Musician }
@@ -128,6 +130,21 @@ namespace GuitarTutor.Runtime.Vr
             headTracked = Button("<XRHMD>/isTracked");
             rightStick = new InputAction(type: InputActionType.Value, binding: "<XRController>{RightHand}/thumbstick");
             leftStick = new InputAction(type: InputActionType.Value, binding: "<XRController>{LeftHand}/thumbstick");
+            OpenXRRuntime.wantsToQuit += HeadsetGone;
+        }
+
+        /// <summary>
+        /// The OpenXR runtime ended the session (Virtual Desktop disconnected, say) and has shut XR down: OpenXR
+        /// would quit the game; instead the room stays on the desktop, and X twice looks for the headset again.
+        /// </summary>
+        bool HeadsetGone()
+        {
+            if (!Active)
+                return true;
+            xrRunning = false;
+            Status = "VR: the headset went (X twice to look for it again)";
+            Debug.LogWarning("GuitarTutor VR: the OpenXR session ended; the room is shown on the desktop");
+            return false;
         }
 
         IEnumerable<InputAction> Actions => new[] { trigger, grip, buttonA, buttonB, buttonX, buttonY, stickClick, rightStick, leftStick, rightTracked, leftTracked, headTracked };
@@ -201,6 +218,7 @@ namespace GuitarTutor.Runtime.Vr
 
         void OnDestroy()
         {
+            OpenXRRuntime.wantsToQuit -= HeadsetGone;
             StopXR();
             foreach (var a in Actions)
                 a.Dispose();
@@ -455,7 +473,8 @@ namespace GuitarTutor.Runtime.Vr
                 return;
             if (Keyboard.current != null && Keyboard.current.kKey.wasPressedThisFrame)
                 NextKey();
-            if (recentreWhenTracked && xrRunning && headTracked.IsPressed())
+            trackedFor = xrRunning && headTracked.IsPressed() ? trackedFor + Time.unscaledDeltaTime : 0;
+            if (recentreWhenTracked && trackedFor > 0.5f)
             {
                 // the first time in VR: everything in front of wherever you are
                 recentreWhenTracked = false;

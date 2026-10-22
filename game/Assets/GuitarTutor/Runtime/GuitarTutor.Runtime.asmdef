@@ -4,7 +4,8 @@
     "references": [
         "GuitarTutor.Core",
         "Unity.InputSystem",
-        "Unity.XR.Management"
+        "Unity.XR.Management",
+        "Unity.XR.OpenXR"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
