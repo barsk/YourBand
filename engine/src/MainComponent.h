@@ -61,6 +61,7 @@ private:
     juce::ComboBox inputBox, presetBox;
     juce::TextButton guitarButton { "Guitar tone..." }, bassButton { "Bass amp..." };
     juce::TextButton bandDrumsButton { "Band drums..." }, bandBassButton { "Band bass..." };
+    juce::ToggleButton bassThroughAmp { "through bass amp" };
     std::map<EngineCore::Slot, juce::MemoryBlock> blankStates;  // an instrument plugin's state before a sound is chosen
     juce::TextButton previousButton { "< Previous" }, nextButton { "Next >" };
     juce::Label latencyLabel, cpuLabel, footLabel, gameLabel, bandLabel;

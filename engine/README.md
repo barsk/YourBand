@@ -80,7 +80,8 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   its library folder), and close the window: from then on the band plays it, and the engine remembers it. The
   band sends each part on its own MIDI channel (keys 1, bass 2, drums 10) and each plugin hears only its own.
 - Bass: MONSTER Bass once you have chosen a bass in it, or a finger-played string built from its harmonics
-  (`BassVoice`), either way into the "Bass amp" TONE3000 instance. The first version (a Karplus-Strong string plucked with noise) had almost
+  (`BassVoice`). The synthesized one goes through the "Bass amp" TONE3000 instance; the plugin has its own amp
+  and effects, so it goes straight to the mixer unless you tick "through bass amp" in the control panel. The first version (a Karplus-Strong string plucked with noise) had almost
   no fundamental and sounded thin and too high: its strongest partials sat at 200 Hz-1.3 kHz. Now the
   fundamental leads, with the next harmonics about 3, 7 and 13 dB under it.
 - Keys: Numa Player, its sound chosen by the style (Rhodes for Ballad, B3 organ for Rock, grand piano for

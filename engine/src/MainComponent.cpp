@@ -174,6 +174,18 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
     bandBassButton.onClick = [this] { showPlugin (EngineCore::Slot::bandBass, "Band bass"); };
     bandDrumsButton.setEnabled (engine.plugin (EngineCore::Slot::bandDrums) != nullptr);
     bandBassButton.setEnabled (engine.plugin (EngineCore::Slot::bandBass) != nullptr);
+    // the bass plugin has its own amp and effects: straight to the mixer unless you want the bass amp too
+    engine.setBassPluginThroughAmp (settings->getBoolValue ("bassPluginThroughAmp", false));
+    bassThroughAmp.setToggleState (engine.bassPluginThroughAmp(), juce::dontSendNotification);
+    bassThroughAmp.setEnabled (bandBassButton.isEnabled());
+    bassThroughAmp.onClick = [this]
+    {
+        engine.setBassPluginThroughAmp (bassThroughAmp.getToggleState());
+        log (juce::String ("Band bass plugin ") + (bassThroughAmp.getToggleState() ? "through the bass amp" : "straight to the mixer"));
+        if (! engine.isSilent())
+            settings->setValue ("bassPluginThroughAmp", bassThroughAmp.getToggleState());
+    };
+    addAndMakeVisible (bassThroughAmp);
     previousButton.onClick = [this] { stepPreset (-1); };
     nextButton.onClick = [this] { stepPreset (1); };
     presetBox.onChange = [this] { selectPreset (presetBox.getSelectedId() - 1); };
@@ -523,11 +535,12 @@ void MainComponent::resized()
     r.removeFromTop (8);
 
     row = r.removeFromTop (30);
-    const auto quarter = row.getWidth() / 4;
-    guitarButton.setBounds (row.removeFromLeft (quarter).reduced (3, 0));
-    bassButton.setBounds (row.removeFromLeft (quarter).reduced (3, 0));
-    bandDrumsButton.setBounds (row.removeFromLeft (quarter).reduced (3, 0));
-    bandBassButton.setBounds (row.reduced (3, 0));
+    const auto fifth = row.getWidth() / 5;
+    guitarButton.setBounds (row.removeFromLeft (fifth).reduced (3, 0));
+    bassButton.setBounds (row.removeFromLeft (fifth).reduced (3, 0));
+    bandDrumsButton.setBounds (row.removeFromLeft (fifth).reduced (3, 0));
+    bandBassButton.setBounds (row.removeFromLeft (fifth).reduced (3, 0));
+    bassThroughAmp.setBounds (row.reduced (3, 0));
     r.removeFromTop (6);
 
     row = r.removeFromTop (30);

@@ -67,6 +67,9 @@ public:
     /** Whether the band plays the drums or bass on its instrument plugin, or synthesized. */
     void useBandInstrument (Slot, bool on);
     bool usesBandInstrument (Slot slot) const;
+    /** The band's bass plugin through the bass amp (TONE3000), or straight to the mixer (it has its own amp). */
+    void setBassPluginThroughAmp (bool on);
+    bool bassPluginThroughAmp() const { return bassThroughAmp; }
     /** Gives the keyboard plugin a sound ("2 - E_PIANO/1 - EP-Mark I"). Returns an error message, or empty. */
     juce::String setKeysSound (const juce::String& sound);
     juce::String keysSound() const { return currentKeysSound; }
@@ -124,6 +127,7 @@ private:
     std::array<float, 3> soundLevels { 0.8f, 0.8f, 1.3f }, faderLevels { 1.0f, 1.0f, 1.0f };  // drums, bass, keys
     int inputChannel = 1;
     bool silent = false;
+    bool bassThroughAmp = false;
 };
 
 } // namespace gt

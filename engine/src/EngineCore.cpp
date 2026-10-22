@@ -222,6 +222,14 @@ void EngineCore::useBandInstrument (Slot slot, bool on)
     bandProcessor->setPluginFor (part, on && slotNode (slot) != nullptr);
 }
 
+void EngineCore::setBassPluginThroughAmp (bool on)
+{
+    if (on == bassThroughAmp)
+        return;
+    bassThroughAmp = on;
+    connect();
+}
+
 bool EngineCore::usesBandInstrument (Slot slot) const
 {
     return bandProcessor->usesPluginFor (slot == Slot::bandDrums ? BandProcessor::drums : BandProcessor::bass);
@@ -355,13 +363,16 @@ void EngineCore::connect()
     stereo (bandNode, drumsMix, 0, 2);
     stereo (drumsPlugin, drumsMix, 0, 2);
     stereo (drumsMix, bandBus, 0, 2);
-    // bass: the synthesized DI and the bass plugin, through the bass amp
+    // bass: the synthesized DI through the bass amp; the bass plugin through it too, or straight to the mixer
     if (bassTone != nullptr)
     {
         for (int c = 0; c < bassTone->getProcessor()->getTotalNumInputChannels(); ++c)
             link (bandNode, 2, bassTone, c);
-        stereo (bassPlugin, bassTone, 0, bassTone->getProcessor()->getTotalNumInputChannels());
+        if (bassThroughAmp)
+            stereo (bassPlugin, bassTone, 0, bassTone->getProcessor()->getTotalNumInputChannels());
     }
+    if (! bassThroughAmp || bassTone == nullptr)
+        stereo (bassPlugin, bassMix, 0, 2);
     stereo (bassTone, bassMix, 0, 2);
     stereo (bassMix, bandBus, 0, 2);
     // keys
