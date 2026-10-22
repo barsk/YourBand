@@ -1,6 +1,9 @@
 // plugin_probe: checks whether a plugin can serve as one of the band's instruments.
 //
-//   plugin_probe <plugin.vst3> [out-folder] [program-name-filter ... | --state <file> ...]
+//   plugin_probe <plugin.vst3> [out-folder] [program-name-filter ... | --state <file> ...] [--map [--velocity n]]
+//
+// With --map, instead of the phrase it plays every note from 24 to 96 on its own and lists the ones that sound,
+// with how much of each is low (below 150 Hz), mid and high (above 6 kHz): a drum kit's note layout.
 //
 // With --state, each file holds the plugin's own state (as a JUCE-built plugin's standalone app saves it)
 // and gives one take; this is how sounds are chosen in plugins without a program list (Numa Player).
@@ -56,6 +59,63 @@ juce::MidiBuffer phrase (int& totalSamples)
         }
     totalSamples = (int) std::round (32 * beat + 3.0 * rate);  // plus room for the release
     return midi;
+}
+
+/** Every note on its own, at real-time pace: which sound, how loud, and how low or high. */
+void mapNotes (juce::AudioPluginInstance& plugin, int velocity)
+{
+    const auto outs = juce::jmax (1, plugin.getTotalNumOutputChannels());
+    juce::AudioBuffer<float> buffer (juce::jmax (outs, plugin.getTotalNumInputChannels()), block);
+    const int length = (int) (0.5 * rate);
+    const auto lowCoeff = (float) (1.0 - std::exp (-2.0 * juce::MathConstants<double>::pi * 150.0 / rate));
+    const auto highCoeff = (float) (1.0 - std::exp (-2.0 * juce::MathConstants<double>::pi * 6000.0 / rate));
+    plugin.reset();
+    std::cout << "note  level   low   mid  high\n";
+    for (int note = 24; note <= 96; ++note)
+    {
+        double total = 0, low = 0, high = 0;
+        float lowState = 0, highState = 0;
+        const auto began = juce::Time::getMillisecondCounterHiRes();
+        for (int start = 0; start < length; start += block)
+        {
+            juce::MidiBuffer events;
+            if (start == 0)
+                for (int channel : { 10, 1 })
+                    events.addEvent (juce::MidiMessage::noteOn (channel, note, (juce::uint8) velocity), 0);
+            if (start <= length / 2 && start + block > length / 2)
+                for (int channel : { 10, 1 })
+                    events.addEvent (juce::MidiMessage::noteOff (channel, note), length / 2 - start);
+            buffer.clear();
+            plugin.processBlock (buffer, events);
+            for (int i = 0; i < block; ++i)
+            {
+                float x = 0;
+                for (int ch = 0; ch < outs; ++ch)
+                    x += buffer.getSample (ch, i);
+                lowState += lowCoeff * (x - lowState);
+                highState += highCoeff * (x - highState);
+                total += x * x;
+                low += lowState * lowState;
+                high += (x - highState) * (x - highState);
+            }
+            const auto due = began + (start + block) / rate * 1000.0;
+            const auto wait = due - juce::Time::getMillisecondCounterHiRes();
+            if (wait > 2)
+                juce::MessageManager::getInstance()->runDispatchLoopUntil ((int) wait);
+        }
+        const auto level = 10.0 * std::log10 (total / length + 1e-12);
+        if (level > -60)
+            std::cout << juce::String (note).paddedLeft (' ', 4) << juce::String (level, 1).paddedLeft (' ', 7)
+                      << juce::String (juce::roundToInt (100 * low / total)).paddedLeft (' ', 5) << "%"
+                      << juce::String (juce::roundToInt (100 * (total - low - high) / total)).paddedLeft (' ', 5) << "%"
+                      << juce::String (juce::roundToInt (100 * high / total)).paddedLeft (' ', 5) << "%\n";
+        // all notes off before the next
+        juce::MidiBuffer off;
+        for (int channel : { 10, 1 })
+            off.addEvent (juce::MidiMessage::allNotesOff (channel), 0);
+        buffer.clear();
+        plugin.processBlock (buffer, off);
+    }
 }
 
 struct Take
@@ -137,17 +197,23 @@ int main (int argc, char* argv[])
 
     if (argc < 2)
     {
-        std::cout << "usage: plugin_probe <plugin.vst3> [out-folder] [program-name-filter ... | --state <file> ...]\n";
+        std::cout << "usage: plugin_probe <plugin.vst3> [out-folder] [program-name-filter ... | --state <file> ...] [--map [--velocity n]]\n";
         return 1;
     }
     const juce::File pluginFile { juce::String (argv[1]) };
     const juce::File outFolder (argc > 2 ? juce::String (argv[2]) : juce::File::getCurrentWorkingDirectory().getFullPathName());
     juce::StringArray filters;
     juce::Array<juce::File> states;
+    bool map = false;
+    int velocity = 110;
     for (int i = 3; i < argc; ++i)
     {
         if (juce::String (argv[i]) == "--state" && i + 1 < argc)
             states.add (juce::File (juce::String (argv[++i])));
+        else if (juce::String (argv[i]) == "--map")
+            map = true;
+        else if (juce::String (argv[i]) == "--velocity" && i + 1 < argc)
+            velocity = juce::jlimit (1, 127, juce::String (argv[++i]).getIntValue());
         else
             filters.add (argv[i]);
     }
@@ -270,7 +336,19 @@ int main (int argc, char* argv[])
             juce::AudioProcessor::copyXmlToBinary (wrapper, wrapped);
             plugin->setStateInformation (wrapped.getData(), (int) wrapped.getSize());
             juce::MessageManager::getInstance()->runDispatchLoopUntil (4000);  // the sound loads in the background
-            report (stateFile.getFileNameWithoutExtension());
+            if (map)
+            {
+                std::cout << "Notes of '" << stateFile.getFileNameWithoutExtension() << "' at velocity " << velocity << ":\n";
+                mapNotes (*plugin, velocity);
+                // and every parameter with the kit loaded, to a file beside the takes
+                juce::String all;
+                const auto& params = plugin->getParameters();
+                for (int i = 0; i < params.size(); ++i)
+                    all << i << "\t" << params[i]->getName (64) << "\t" << params[i]->getCurrentValueAsText() << "\t" << params[i]->getValue() << "\n";
+                outFolder.getChildFile (stateFile.getFileNameWithoutExtension() + ".params.txt").replaceWithText (all);
+            }
+            else
+                report (stateFile.getFileNameWithoutExtension());
         }
     }
     else

@@ -125,6 +125,14 @@ Checked this way (2026-10-21):
 build\Release\plugin_probe_artefacts\Release\plugin_probe.exe <plugin.vst3> out\probe [program-filter ... | --state <file> ...]
 ```
 
+With `--map [--velocity n]` (and a `--state` file per sound) it plays every note from 24 to 96 on its own and
+lists the ones that sound, how loud, and how much of each is low, mid and high: a drum kit's note layout.
+
+MONSTER Drums v3 (2026-10-22): VST3, 32 outputs (16 stereo pairs; many kits put each drum on its own pair, so
+the engine mixes all of them), no latency, about 1 % audio CPU. The kits tried (Acoustica Hits, Sonic Rock,
+G-Linn) follow the General MIDI drum layout. Their hi-hats are about 26 dB under the kick at the same velocity.
+A kit is a state that starts with the path of its `.mse` file.
+
 Numa Player (2026-10-21): VST3 instrument, 0 in / 2 out, no latency, no program list. A new instance is silent
 until it gets a state with a sound (`tools/numa_state.py`). Grand, upright, Rhodes and rock B3: 1-3 % mean audio
 CPU at 64 samples, peaks 6-18 %.

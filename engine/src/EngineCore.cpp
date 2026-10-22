@@ -336,6 +336,17 @@ void EngineCore::connect()
         for (int c = 0; c < count && n > 0; ++c)
             link (from, juce::jmin (c, n - 1), to, base + c);
     };
+    // every output of a multi-output instrument (a drum kit with a stereo pair per drum) into one stereo pair
+    auto allOutputs = [&] (const Node::Ptr& from, const Node::Ptr& to)
+    {
+        if (from == nullptr)
+            return;
+        const auto n = from->getProcessor()->getTotalNumOutputChannels();
+        for (int c = 0; c < n; ++c)
+            link (from, c, to, n == 1 ? 0 : c % 2);
+        if (n == 1)
+            link (from, 0, to, 1);
+    };
 
     const auto ins = graph->getTotalNumInputChannels();
     const auto outs = juce::jmin (2, graph->getTotalNumOutputChannels());
@@ -361,7 +372,7 @@ void EngineCore::connect()
         }
     // drums: the synthesized kit (and the count-in sticks) and the drum plugin
     stereo (bandNode, drumsMix, 0, 2);
-    stereo (drumsPlugin, drumsMix, 0, 2);
+    allOutputs (drumsPlugin, drumsMix);
     stereo (drumsMix, bandBus, 0, 2);
     // bass: the synthesized DI through the bass amp; the bass plugin through it too, or straight to the mixer
     if (bassTone != nullptr)
@@ -369,10 +380,10 @@ void EngineCore::connect()
         for (int c = 0; c < bassTone->getProcessor()->getTotalNumInputChannels(); ++c)
             link (bandNode, 2, bassTone, c);
         if (bassThroughAmp)
-            stereo (bassPlugin, bassTone, 0, bassTone->getProcessor()->getTotalNumInputChannels());
+            allOutputs (bassPlugin, bassTone);
     }
     if (! bassThroughAmp || bassTone == nullptr)
-        stereo (bassPlugin, bassMix, 0, 2);
+        allOutputs (bassPlugin, bassMix);
     stereo (bassTone, bassMix, 0, 2);
     stereo (bassMix, bandBus, 0, 2);
     // keys
