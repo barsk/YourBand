@@ -25,6 +25,7 @@ struct EngineOptions
     double runFor = 0.0;       // --run-for <seconds>: quit after that long (0: run until closed)
     int parent = 0;            // --parent <process id>: started by the game; hidden, and gone with the game
     juce::String bandBass;     // --band-bass <plugin file name, e.g. ABPL | synthesized>: instead of your choice
+    juce::File snapshot;       // --snapshot <file.png>: a picture of the control panel 3 s after the start (tests)
 
     static EngineOptions fromCommandLine (const juce::StringArray& args);
 };
@@ -42,14 +43,20 @@ private:
     void timerCallback() override;
     void log (const juce::String&);
     void showPlugin (EngineCore::Slot, const juce::String& title);
-    /** Loads a band instrument plugin with its sound from last time; it plays for the band if it has one (or
-        plays from the start). Returns false (and logs why) if it cannot be loaded. */
-    bool startBandInstrument (EngineCore::Slot, const juce::File& plugin, bool silentUntilChosen);
-    /** The band's bass on one of the bass plugins found (index into bassChoices), or synthesized (-1); with
-        `remember`, also next time. */
-    void chooseBandBass (int choice, bool remember);
-    /** The bass plugin with this path or file name ("ABPL"), as an index into bassChoices; -1 if none. */
-    int bassChoiceFor (const juce::String& plugin) const;
+    // the band's drums and bass: each its built-in sound or an instrument plugin, chosen in a dropdown
+    void setUpBandPart (EngineCore::Slot);
+    void refreshBandPart (EngineCore::Slot);
+    void bandBoxChanged (EngineCore::Slot);
+    void chooseOtherPlugin (EngineCore::Slot);
+    /** The part on one of its plugins (an index into its choices) or its built-in sound (-1); with `remember`,
+        also next time; `fresh`: a new instance without its sound. False if the plugin cannot be loaded. */
+    bool chooseBandInstrument (EngineCore::Slot, int choice, bool remember, bool fresh);
+    /** The part's plugin with this path or file name ("ABPL"), as an index into its choices; -1 if none. */
+    int choiceFor (EngineCore::Slot, const juce::String& plugin) const;
+    int currentChoice (EngineCore::Slot) const;
+    /** Loads a band instrument plugin, with its sound from last time if `restoreSound`; it plays for the band if
+        it has a sound (or plays from the start). Returns false (and logs why) if it cannot be loaded. */
+    bool startBandInstrument (EngineCore::Slot, const juce::File& plugin, bool silentUntilChosen, bool restoreSound);
     void keepBandState (EngineCore::Slot);
     void refreshInputs();
     void refreshPresets();
@@ -67,15 +74,20 @@ private:
     std::unique_ptr<ParentWatch> parentWatch;
 
     std::unique_ptr<juce::AudioDeviceSelectorComponent> selector;
-    juce::Label inputLabel { {}, "Guitar input" }, presetLabel { {}, "Preset" };
+    juce::Label inputLabel { {}, "Guitar input" }, presetLabel { {}, "Tone preset" };
     juce::ComboBox inputBox, presetBox;
     juce::TextButton guitarButton { "Guitar tone..." }, bassButton { "Bass amp..." };
-    juce::TextButton bandDrumsButton { "Band drums..." }, bandBassButton { "Band bass..." };
     juce::ToggleButton bassThroughAmp { "through bass amp" };
-    juce::Label bandBassLabel { {}, "Band bass" };
-    juce::ComboBox bandBassBox;
-    struct BassChoice { juce::File file; juce::String name; bool silentUntilChosen; float level; };
-    std::vector<BassChoice> bassChoices;
+    struct BandChoice { juce::File file; juce::String name; bool silentUntilChosen; float level; bool added; };
+    struct BandPart  // a band part's row: its sound, and its plugin's window
+    {
+        juce::Label label;
+        juce::ComboBox box;
+        juce::TextButton windowButton { "Plugin window..." };
+        std::vector<BandChoice> choices;  // the plugins it can play on
+    };
+    std::map<EngineCore::Slot, BandPart> bandParts;
+    std::unique_ptr<juce::FileChooser> pluginChooser;
     std::map<EngineCore::Slot, juce::File> bandPlugins;  // the band instrument plugins loaded
     std::map<EngineCore::Slot, juce::MemoryBlock> blankStates;  // an instrument plugin's state before a sound is chosen
     juce::TextButton previousButton { "< Previous" }, nextButton { "Next >" };

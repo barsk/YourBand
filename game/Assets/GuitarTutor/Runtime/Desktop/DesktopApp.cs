@@ -388,7 +388,10 @@ namespace GuitarTutor.Runtime.Desktop
                 case Command.ControlPanel:
                 case Command.ToneWindow:
                     if (engineConnected)
+                    {
+                        EngineProcess.AllowToFront();
                         link.Send(EngineProtocol.ShowWindow(command == Command.ControlPanel ? "controlPanel" : "guitar"));
+                    }
                     break;
                 case Command.Help: screen.ToggleHelp(); break;
                 case Command.Quit: Application.Quit(); break;

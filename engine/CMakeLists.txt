@@ -26,7 +26,8 @@ target_sources(gt_engine
         src/GameLink.cpp
         src/SharedClock.cpp
         src/SilentDevice.cpp
-        src/ParentWatch.cpp)
+        src/ParentWatch.cpp
+        src/WindowFront.cpp)
 
 target_compile_definitions(gt_engine
     PRIVATE

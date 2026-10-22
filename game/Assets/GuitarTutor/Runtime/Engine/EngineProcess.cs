@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
@@ -58,6 +59,19 @@ namespace GuitarTutor.Runtime.Engine
                 Debug.LogWarning($"GuitarTutor: could not start the audio engine {program}: {e.Message}");
                 return null;
             }
+        }
+
+        [DllImport("user32.dll")]
+        static extern bool AllowSetForegroundWindow(int processId);
+
+        /// <summary>
+        /// Lets the engine bring its window in front of the game's, which Windows only allows a program in the
+        /// background when the one in front says so. Call it just before asking the engine for a window.
+        /// </summary>
+        public static void AllowToFront()
+        {
+            const int anyProcess = -1;  // ASFW_ANY: the engine may have been started by you, not the game
+            AllowSetForegroundWindow(anyProcess);
         }
     }
 }

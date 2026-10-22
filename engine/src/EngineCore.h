@@ -19,6 +19,7 @@
 #include <array>
 #include <map>
 #include <memory>
+#include <vector>
 
 namespace gt
 {
@@ -72,8 +73,8 @@ public:
     /** Whether the band plays the drums or bass on its instrument plugin, or synthesized. */
     void useBandInstrument (Slot, bool on);
     bool usesBandInstrument (Slot slot) const;
-    /** The bass plugin's sound level in the mix, used instead of the bass's while the band plays on it. */
-    void setBassPluginLevel (float gain);
+    /** A band instrument plugin's sound level in the mix, used instead of the part's while the band plays on it. */
+    void setBandPluginLevel (Slot, float gain);
     /** The band's bass plugin through the bass amp (TONE3000), or straight to the mixer (it has its own amp). */
     void setBassPluginThroughAmp (bool on);
     bool bassPluginThroughAmp() const { return bassThroughAmp; }
@@ -118,6 +119,8 @@ private:
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void connect();
     Node::Ptr slotNode (Slot) const;
+    /** The band on a drums or bass plugin if you want it there and the plugin is not paused for a new state. */
+    void playBandInstrument (Slot);
     /** Gives a plugin in the graph a new state with its audio paused: from before the change until it has had
         `settleMs` to load what the state names (Numa Player loads a sound in the background, and crashed when it
         played while doing so). */
@@ -136,10 +139,13 @@ private:
     BandProcessor* bandProcessor = nullptr;
     juce::String currentKeysSound;
     std::array<float, 3> soundLevels { 0.8f, 0.8f, 1.3f }, faderLevels { 1.0f, 1.0f, 1.0f };  // drums, bass, keys
-    float bassPluginLevel = 0.8f;
+    std::array<float, 2> pluginLevels { 0.8f, 0.8f };  // drums, bass: on their plugins
     int inputChannel = 1;
     bool silent = false;
     bool bassThroughAmp = false;
+    std::array<bool, 2> bandWants { false, false };  // drums, bass: on their plugins (useBandInstrument)
+    Node::Ptr spareNode;  // a connection to it or not: a different graph, for one more rebuild (unloadBandInstrument)
+    bool spareLinked = false;
     std::map<juce::AudioProcessor*, int> stateChanges;  // the latest change per plugin: only it resumes the audio
     std::shared_ptr<bool> alive = std::make_shared<bool> (true);
 };

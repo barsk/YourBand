@@ -7,6 +7,7 @@ namespace gt
 {
 
 using IO = juce::AudioProcessorGraph::AudioGraphIOProcessor;
+using UpdateKind = juce::AudioProcessorGraph::UpdateKind;
 
 EngineCore::EngineCore()
     : graph (std::make_unique<juce::AudioProcessorGraph>())
@@ -28,6 +29,7 @@ EngineCore::EngineCore()
     keysChannel = graph->addNode (std::make_unique<MidiChannelFilter> (BandProcessor::channelOf (BandProcessor::keys)));
     drumsChannel = graph->addNode (std::make_unique<MidiChannelFilter> (BandProcessor::channelOf (BandProcessor::drums)));
     bassChannel = graph->addNode (std::make_unique<MidiChannelFilter> (BandProcessor::channelOf (BandProcessor::bass)));
+    spareNode = graph->addNode (std::make_unique<MidiChannelFilter> (16));  // nothing plays on channel 16
 
     player.setProcessor (graph.get());
 }
@@ -164,7 +166,8 @@ int EngineCore::partIndex (const juce::String& part)
 
 void EngineCore::applyMix (int part)
 {
-    const auto sound = part == 1 && usesBandInstrument (Slot::bandBass) ? bassPluginLevel : soundLevels[(size_t) part];
+    const auto onPlugin = part < 2 && bandProcessor->usesPluginFor (part == 0 ? BandProcessor::drums : BandProcessor::bass);
+    const auto sound = onPlugin ? pluginLevels[(size_t) part] : soundLevels[(size_t) part];
     const auto gain = sound * faderLevels[(size_t) part];
     if (const auto& node = part == 0 ? drumsMix : part == 1 ? bassMix : keysMix; node != nullptr)  // none after shutdown
         static_cast<GainProcessor*> (node->getProcessor())->setGain (gain);
@@ -212,9 +215,11 @@ juce::String EngineCore::loadBandInstrument (Slot slot, const juce::File& plugin
                                                   d != nullptr ? d->getCurrentBufferSizeSamples() : 64, error);
     if (instance == nullptr)
         return "could not load " + types[0]->name + ": " + error;
+    if (! instance->acceptsMidi())
+        return types[0]->name + " takes no notes: it is not an instrument";
     instance->enableAllBuses();
     unloadBandInstrument (slot);
-    (slot == Slot::bandDrums ? drumsPlugin : bassPlugin) = graph->addNode (std::move (instance));
+    (slot == Slot::bandDrums ? drumsPlugin : bassPlugin) = graph->addNode (std::move (instance), std::nullopt, UpdateKind::none);
     connect();
     return {};
 }
@@ -226,24 +231,40 @@ void EngineCore::unloadBandInstrument (Slot slot)
         return;
     useBandInstrument (slot, false);
     ++stateChanges[node->getProcessor()];  // a resume still waiting from a state change no longer applies
-    // the graph lets go of the plugin once the audio thread has moved on to the graph without it
-    graph->removeNode (node->nodeID);
+    // The plugin is deleted here, before anything else happens. Left to the graph, it would be deleted later,
+    // while the graph holds the lock the audio thread needs to take a newer graph (MONSTER Bass takes 5 s to
+    // go), and perhaps while another plugin is being made (MONSTER Bass crashed on that). So: out of the graph;
+    // the audio thread takes the graph without it at its next block; one more rebuild (the spare connection
+    // changed) makes the graph let go of the one played before, and ours is the last hold on the plugin.
+    auto plugin = graph->removeNode (node->nodeID, UpdateKind::none);
     node = nullptr;
     connect();
+    juce::Thread::sleep (50);
+    spareLinked = ! spareLinked;
+    connect();
+    plugin = nullptr;
 }
 
 void EngineCore::useBandInstrument (Slot slot, bool on)
 {
-    const auto part = slot == Slot::bandDrums ? BandProcessor::drums : BandProcessor::bass;
-    bandProcessor->setPluginFor (part, on && slotNode (slot) != nullptr);
-    if (part == BandProcessor::bass)
-        applyMix (1);
+    bandWants[slot == Slot::bandDrums ? 0 : 1] = on;
+    playBandInstrument (slot);
 }
 
-void EngineCore::setBassPluginLevel (float gain)
+void EngineCore::playBandInstrument (Slot slot)
 {
-    bassPluginLevel = juce::jlimit (0.0f, 4.0f, gain);
-    applyMix (1);
+    // a plugin taking a new state is paused, and silent: the band plays the built-in sound until it is back
+    const auto node = slotNode (slot);
+    const auto plays = bandWants[slot == Slot::bandDrums ? 0 : 1] && node != nullptr && ! node->getProcessor()->isSuspended();
+    bandProcessor->setPluginFor (slot == Slot::bandDrums ? BandProcessor::drums : BandProcessor::bass, plays);
+    applyMix (slot == Slot::bandDrums ? 0 : 1);
+}
+
+void EngineCore::setBandPluginLevel (Slot slot, float gain)
+{
+    const auto part = slot == Slot::bandDrums ? 0 : 1;
+    pluginLevels[(size_t) part] = juce::jlimit (0.0f, 4.0f, gain);
+    applyMix (part);
 }
 
 void EngineCore::setBassPluginThroughAmp (bool on)
@@ -256,7 +277,7 @@ void EngineCore::setBassPluginThroughAmp (bool on)
 
 bool EngineCore::usesBandInstrument (Slot slot) const
 {
-    return bandProcessor->usesPluginFor (slot == Slot::bandDrums ? BandProcessor::drums : BandProcessor::bass);
+    return bandWants[slot == Slot::bandDrums ? 0 : 1] && slotNode (slot) != nullptr;
 }
 
 juce::String EngineCore::setKeysSound (const juce::String& sound)
@@ -312,12 +333,18 @@ void EngineCore::changeState (juce::AudioProcessor& p, const juce::MemoryBlock& 
 {
     // waits for the block being played to finish; from then on the graph plays silence for this plugin
     p.suspendProcessing (true);
+    for (auto slot : { Slot::bandDrums, Slot::bandBass })
+        playBandInstrument (slot);
     p.setStateInformation (state.getData(), (int) state.getSize());
     const auto change = ++stateChanges[&p];
     juce::Timer::callAfterDelay (settleMs, [this, flag = alive, plugin = &p, change]
     {
         if (*flag && stateChanges[plugin] == change)
+        {
             plugin->suspendProcessing (false);
+            for (auto slot : { Slot::bandDrums, Slot::bandBass })
+                playBandInstrument (slot);
+        }
     });
 }
 
@@ -358,13 +385,15 @@ juce::StringArray EngineCore::inputChannelNames() const
 
 void EngineCore::connect()
 {
+    // all connections anew, in one rebuild at the end: the audio thread goes from the whole old graph to the
+    // whole new one (a rebuild per connection let it play graphs half connected, silent in places)
     for (auto& c : graph->getConnections())
-        graph->removeConnection (c);
+        graph->removeConnection (c, UpdateKind::none);
 
     auto link = [this] (const Node::Ptr& from, int fromChannel, const Node::Ptr& to, int toChannel)
     {
         if (from != nullptr && to != nullptr)
-            graph->addConnection ({ { from->nodeID, fromChannel }, { to->nodeID, toChannel } });
+            graph->addConnection ({ { from->nodeID, fromChannel }, { to->nodeID, toChannel } }, UpdateKind::none);
     };
     // a node's first two outputs (a mono output feeds both) into `to`, from channel `base`
     auto stereo = [&] (const Node::Ptr& from, const Node::Ptr& to, int base, int count)
@@ -401,7 +430,7 @@ void EngineCore::connect()
     {
         if (from != nullptr && to != nullptr)
             graph->addConnection ({ { from->nodeID, juce::AudioProcessorGraph::midiChannelIndex },
-                                    { to->nodeID, juce::AudioProcessorGraph::midiChannelIndex } });
+                                    { to->nodeID, juce::AudioProcessorGraph::midiChannelIndex } }, UpdateKind::none);
     };
     for (auto [channel, instrument] : { std::pair { keysChannel, keysNode }, std::pair { drumsChannel, drumsPlugin }, std::pair { bassChannel, bassPlugin } })
         if (instrument != nullptr)
@@ -409,6 +438,8 @@ void EngineCore::connect()
             midi (bandNode, channel);
             midi (channel, instrument);
         }
+    if (spareLinked)
+        midi (bandNode, spareNode);
     // drums: the synthesized kit (and the count-in sticks) and the drum plugin
     stereo (bandNode, drumsMix, 0, 2);
     allOutputs (drumsPlugin, drumsMix);
@@ -429,6 +460,7 @@ void EngineCore::connect()
     stereo (keysNode, keysMix, 0, 2);
     stereo (keysMix, bandBus, 0, 2);
     stereo (bandBus, output, 0, outs);
+    graph->rebuild();
 
     if (auto* d = deviceManager.getCurrentAudioDevice())
         bandProcessor->setOutputLatency (d->getOutputLatencyInSamples() / d->getCurrentSampleRate());
@@ -466,7 +498,7 @@ void EngineCore::shutdown()
     player.setProcessor (nullptr);
     deviceManager.closeAudioDevice();
     guitarTone = bassTone = bandNode = keysNode = drumsMix = bassMix = keysMix = bandBus = input = output = nullptr;
-    drumsPlugin = bassPlugin = keysChannel = drumsChannel = bassChannel = nullptr;
+    drumsPlugin = bassPlugin = keysChannel = drumsChannel = bassChannel = spareNode = nullptr;
     bandProcessor = nullptr;
     graph->clear();
     graph.reset();

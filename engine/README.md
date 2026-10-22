@@ -63,8 +63,9 @@ Still to measure: the true round trip with a loopback cable.
 
 Start the game (`game/Builds/Desktop/GuitarTutor.exe`). It starts the engine itself, hidden, with
 `--parent <the game's process>`: the engine then closes when the game does, even if the game crashes. C in
-the game shows the engine's window, the control panel, and T shows the guitar's TONE3000. Closing those
-windows only hides them. You can also start the engine yourself first, as before; the game then uses it and
+the game shows the engine's window, the control panel, and T shows the guitar's TONE3000, in front of the
+game (the game allows the engine to take the front just before it asks). Closing those windows only hides
+them. You can also start the engine yourself first, as before; the game then uses it and
 leaves it running.
 
 Play from the game (Space) or the footswitch. Playing from the start, or from wherever you moved to, begins
@@ -72,24 +73,34 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
 
 - The game writes the parts (`game/Assets/GuitarTutor/Core/Band/Arranger.cs`) in one of three styles:
   Ballad (the default below 120 BPM), Rock and Pop. B switches style in the game.
-- Drums: MONSTER Drums (a free sampled drum plugin) once you have chosen a kit in it; until then, and
-  without it, a synthesized kit (`src/Instruments.*`). The count-in sticks are always the synthesized ones.
-- Instrument plugins for the band: the engine looks for `MONSTER Drums*.vst3`, `MONSTER Bass*.vst3` and
-  `ABPL*.vst3` (Ample Bass P Lite) in the VST3 folder, then in `monster_plugins/Library files/` next to the
-  repository. A MONSTER plugin is silent until you choose a sound in it: open "Band drums..." or "Band
-  bass...", choose a kit or a bass (each is one `.mse` file from its library folder) and close the window;
-  from then on the band plays it. The engine remembers each plugin's sound. The band sends each part on its
-  own MIDI channel (keys 1, bass 2, drums 10) and each plugin hears only its own.
-- Bass: chosen under "Band bass" in the control panel (or with the game's `bandBass` message): MONSTER Bass,
-  Ample Bass P Lite, or synthesized, a finger-played string built from its harmonics (`BassVoice`). The
-  choice can change while the band plays. MONSTER Bass takes about 7 s to load (the control panel waits
-  meanwhile), and the bass can drop out for a few seconds while it reads its sound; Ample Bass loads at once. Both plugins sound an octave below the note they get (as bass
-  parts are written), so the band sends them its bass notes an octave up. The synthesized one goes through
-  the "Bass amp" TONE3000 instance; the plugins have their own amps and effects, so they go straight to the
-  mixer unless you tick "through bass amp". Each has a level that puts it as loud as the synthesized bass
-  (measured straight to the mixer). The first synthesized version (a Karplus-Strong string plucked with
+- The band's drums and bass each play their built-in sound or an instrument plugin, chosen in the control
+  panel's "Band drums" and "Band bass" dropdowns, also while the band plays:
+  - Built-in sound: a synthesized kit, and a finger-played bass string built from its harmonics
+    (`src/Instruments.*`). The count-in sticks are always the built-in ones.
+  - The plugins the engine knows, if you have them: `MONSTER Drums*.vst3`, `MONSTER Bass*.vst3` and
+    `ABPL*.vst3` (Ample Bass P Lite), in the VST3 folder or in `monster_plugins/Library files/` next to the
+    repository.
+  - "Other plugin...": any VST3 instrument (a plugin that takes no notes is refused); it stays in the list.
+  - "Pick another sound in MONSTER ...": a MONSTER plugin shows its sound picker only while it has no sound,
+    so this starts it anew and opens its window. A MONSTER plugin is silent until you choose a kit or a bass
+    in it (each is one `.mse` file from its library folder); the built-in sound plays until you close its
+    window with one chosen.
+
+  "Plugin window..." opens the plugin's own window. The engine remembers your choice and each plugin's sound
+  (`bandBass.<plugin file>` in the settings). MONSTER Bass takes about 7 s to load and 5 s to let go of its
+  samples; the control panel waits meanwhile, while the band plays on. The band sends each part on its own
+  MIDI channel (keys 1, bass 2, drums 10) and each plugin hears only its own.
+- Bass plugins sound an octave below the note they get (as bass parts are written; MONSTER Bass and Ample
+  Bass both), so the band sends them its bass notes an octave up. The built-in bass goes through the "Bass
+  amp" TONE3000 instance; the plugins have their own amps and effects, so they go straight to the mixer
+  unless you tick "through bass amp". Each known plugin has a level that puts it as loud as the built-in
+  sound (measured straight to the mixer). The first built-in bass (a Karplus-Strong string plucked with
   noise) had almost no fundamental and sounded thin and too high: its strongest partials sat at
   200 Hz-1.3 kHz. Now the fundamental leads, with the next harmonics about 3, 7 and 13 dB under it.
+- Changing plugins: the engine rewires the whole graph in one rebuild, so the audio thread goes from the
+  whole old graph to the whole new one, and deletes a plugin it takes out itself, once the graph has let go
+  of it. Left to the graph, MONSTER Bass was deleted while the graph held the lock the audio thread needs
+  to take a newer graph, and with a rebuild per connection the band went silent for 5 s.
 - Keys: Numa Player, its sound chosen by the style (Rhodes for Ballad, B3 organ for Rock, grand piano for
   Pop), made into a plugin state from the Numa Player app's last state (`src/NumaKeys.*`). Without Numa
   Player installed, the band plays without keys. A new sound mutes the keys for half a second: Numa Player
@@ -119,8 +130,17 @@ python tools\band_session.py <out-folder> --keys "3:Space,20:quit" --seconds 30 
 ```
 
 `band_session.py` starts a silent engine and the game, and plays the game by key script (its `-keys`
-option). Its other options go to the game: `-song <file>`, `-demo`, `-style Rock`, `-parts drums`.
-`wav_check.py` prints the levels and the onsets against the beat grid.
+option). Its other options go to the game: `-song <file>`, `-demo`, `-style Rock`, `-parts drums`; and
+`--band-bass ABPL` (a plugin's file name, or `synthesized`) goes to the engine. `wav_check.py` prints the
+levels and the onsets against the beat grid.
+
+```
+python tools\switch_session.py <out-folder>
+```
+
+`switch_session.py` plays a made-up song on a silent engine without the game and switches the band's bass
+between its plugins every 3.5 s: the band should play on through every switch. `--snapshot <file.png>`
+makes the engine save a picture of its control panel 3 s after it starts.
 
 Checked this way (2026-10-21):
 - Count-in sticks exactly a beat apart, the band in on the next beat, and every drum hit on the eighth-note
@@ -172,10 +192,12 @@ CPU at 64 samples, peaks 6-18 %. A new sound plays at full level 100 ms after th
 | `src/Processors.*` | Small processors: the mixer's volume controls and the limiter |
 | `src/Footswitch.*` | HID joystick reader (Windows joystick API, 500 Hz polling) |
 | `src/ParentWatch.*` | Started by the game: closes the engine when the game is gone |
+| `src/WindowFront.*` | Brings a window of the engine in front of the game |
 | `src/MainComponent.*`, `src/Main.cpp` | The window, the command line, the game's messages |
 | `tools/PluginProbe.cpp` | `plugin_probe`: loads a plugin without a window, lists what it offers, plays a keyboard phrase in 64-sample blocks at real-time pace, reports audio CPU and writes WAVs |
 | `tools/numa_state.py` | Numa Player states: list its sounds, take the standalone's state, make a state for any sound |
 | `tools/band_session.py` | A silent test session: engine and game, the game played by key script |
+| `tools/switch_session.py` | A silent test session without the game: the band's bass switches plugins while it plays |
 | `tools/wav_check.py` | Levels and onsets of a recording, against the beat grid |
 
 ## Licences
