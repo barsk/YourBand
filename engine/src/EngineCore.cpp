@@ -152,24 +152,44 @@ juce::String EngineCore::loadKeys (const juce::File& pluginFile)
     return {};
 }
 
-bool EngineCore::setPartGain (const juce::String& part, float gain)
+int EngineCore::partIndex (const juce::String& part)
 {
-    if (part == "drums")
+    return part == "drums" ? 0 : part == "bass" ? 1 : part == "keys" ? 2 : -1;
+}
+
+void EngineCore::applyMix (int part)
+{
+    const auto gain = soundLevels[(size_t) part] * faderLevels[(size_t) part];
+    if (part == 0)
         bandProcessor->setDrumsGain (gain);
-    else if (part == "bass" || part == "keys")
-        static_cast<GainProcessor*> ((part == "bass" ? bassMix : keysMix)->getProcessor())->setGain (gain);
     else
+        static_cast<GainProcessor*> ((part == 1 ? bassMix : keysMix)->getProcessor())->setGain (gain);
+}
+
+bool EngineCore::setSoundLevel (const juce::String& part, float gain)
+{
+    const auto i = partIndex (part);
+    if (i < 0)
         return false;
+    soundLevels[(size_t) i] = juce::jlimit (0.0f, 4.0f, gain);
+    applyMix (i);
     return true;
 }
 
-float EngineCore::partGain (const juce::String& part) const
+bool EngineCore::setFader (const juce::String& part, float level)
 {
-    if (part == "drums")
-        return bandProcessor->getDrumsGain();
-    if (part == "bass" || part == "keys")
-        return static_cast<GainProcessor*> ((part == "bass" ? bassMix : keysMix)->getProcessor())->getGain();
-    return 0.0f;
+    const auto i = partIndex (part);
+    if (i < 0)
+        return false;
+    faderLevels[(size_t) i] = juce::jlimit (0.0f, 2.0f, level);
+    applyMix (i);
+    return true;
+}
+
+float EngineCore::fader (const juce::String& part) const
+{
+    const auto i = partIndex (part);
+    return i < 0 ? 0.0f : faderLevels[(size_t) i];
 }
 
 juce::String EngineCore::setKeysSound (const juce::String& sound)

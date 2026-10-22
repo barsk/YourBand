@@ -134,7 +134,7 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
     }
     footLabel.setText ("Footswitch: none found (any HID game controller works)", juce::dontSendNotification);
 
-    // the band's mixer (the game sets the keys per style; these follow it, and you can move them)
+    // the band's mixer: your faders, on top of the level the game gives each sound; remembered between runs
     for (size_t i = 0; i < faders.size(); ++i)
     {
         const juce::String part = i == 0 ? "drums" : i == 1 ? "bass" : "keys";
@@ -142,12 +142,31 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
         addAndMakeVisible (faderLabels[i]);
         auto& f = faders[i];
         f.setSliderStyle (juce::Slider::LinearHorizontal);
-        f.setTextBoxStyle (juce::Slider::TextBoxRight, false, 50, 20);
-        f.setRange (0.0, 3.0, 0.05);
-        f.setValue (engine.partGain (part), juce::dontSendNotification);
-        f.onValueChange = [this, &f, part] { engine.setPartGain (part, (float) f.getValue()); };
+        f.setTextBoxStyle (juce::Slider::TextBoxRight, false, 64, 20);
+        f.setRange (0.0, 2.0, 0.01);
+        f.setDoubleClickReturnValue (true, 1.0);  // back to the balanced mix
+        f.textFromValueFunction = [] (double v)
+        {
+            return v < 0.001 ? juce::String ("off") : juce::String (juce::Decibels::gainToDecibels (v), 1) + " dB";
+        };
+        f.valueFromTextFunction = [] (const juce::String& text)
+        {
+            return text.trim() == "off" ? 0.0 : juce::Decibels::decibelsToGain (text.getDoubleValue());
+        };
+        const auto level = (float) settings->getDoubleValue ("fader." + part, 1.0);
+        engine.setFader (part, level);
+        f.setValue (level, juce::dontSendNotification);
+        f.updateText();
+        f.onValueChange = [this, &f, part]
+        {
+            engine.setFader (part, (float) f.getValue());
+            if (! engine.isSilent())  // a test run leaves your settings as they are
+                settings->setValue ("fader." + part, f.getValue());
+        };
         addAndMakeVisible (f);
     }
+    log ("Faders: drums " + faders[0].getTextFromValue (faders[0].getValue()) + ", bass " + faders[1].getTextFromValue (faders[1].getValue())
+         + ", keys " + faders[2].getTextFromValue (faders[2].getValue()));
 
     // footswitch: buttons 1 and 2 step through the tone presets here; the others are the game's to act on
     footswitch.onDevice = [this] (const juce::String& name)
@@ -275,7 +294,7 @@ void MainComponent::handle (const juce::var& message)
         band.setSpeed ((double) message["value"]);
     }
     else if (type == "mix")
-        engine.setPartGain (message["part"].toString(), (float) (double) message["gain"]);
+        engine.setSoundLevel (message["part"].toString(), (float) (double) message["gain"]);
     else if (type == "window")
     {
         const auto which = message["show"].toString();
@@ -402,9 +421,6 @@ void MainComponent::timerCallback()
     cpuLabel.setText (cpu, juce::dontSendNotification);
     auto& band = engine.band();
     const auto* score = band.score();
-    for (size_t i = 0; i < faders.size(); ++i)
-        if (! faders[i].isMouseButtonDown())
-            faders[i].setValue (engine.partGain (i == 0 ? "drums" : i == 1 ? "bass" : "keys"), juce::dontSendNotification);
     bandLabel.setText (score == nullptr ? juce::String ("Band: no song yet")
                                         : "Band: " + score->title + " (" + score->style + "), " + (band.isPlaying() ? "playing" : "stopped")
                                               + " at quarter " + juce::String (band.position(), 1),

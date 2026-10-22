@@ -16,6 +16,8 @@
 #include "Processors.h"
 #include "SharedClock.h"
 
+#include <array>
+
 namespace gt
 {
 
@@ -78,9 +80,12 @@ public:
 
     BandProcessor& band() { return *bandProcessor; }
 
-    /** The band's mixer: "drums", "bass" or "keys", as a gain (1: as played). False if there is no such part. */
-    bool setPartGain (const juce::String& part, float gain);
-    float partGain (const juce::String& part) const;
+    /** The band's mixer, per part ("drums", "bass" or "keys"). A part plays at the level the game gives its
+        sound (the keys per style: an organ sits lower than a piano) times your fader (1: the balanced mix).
+        False if there is no such part. */
+    bool setSoundLevel (const juce::String& part, float gain);
+    bool setFader (const juce::String& part, float level);
+    float fader (const juce::String& part) const;
 
     Latency latency() const;
     double cpuLoad() const { return deviceManager.getCpuUsage(); }
@@ -96,6 +101,8 @@ private:
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
     void connect();
     Node::Ptr slotNode (Slot) const;
+    static int partIndex (const juce::String& part);
+    void applyMix (int part);
 
     juce::AudioDeviceManager deviceManager;
     juce::AudioPluginFormatManager formats;
@@ -106,6 +113,7 @@ private:
     Node::Ptr input, output, guitarTone, bandNode, bassTone, keysNode, bassMix, keysMix, bandBus;
     BandProcessor* bandProcessor = nullptr;
     juce::String currentKeysSound;
+    std::array<float, 3> soundLevels { 0.8f, 0.8f, 1.3f }, faderLevels { 1.0f, 1.0f, 1.0f };  // drums, bass, keys
     int inputChannel = 1;
     bool silent = false;
 };

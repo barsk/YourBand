@@ -81,9 +81,9 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
 - Keys: Numa Player, its sound chosen by the style (Rhodes for Ballad, B3 organ for Rock, grand piano for
   Pop), made into a plugin state from the Numa Player app's last state (`src/NumaKeys.*`). Without Numa
   Player installed, the band plays without keys.
-- Mixer: drums 0.8, bass 0.8 after its amp, keys per style, then a soft limiter on the band's sum (peaks
-  above 0.7 bend towards 1). The game sets the keys level per style; the `mix` message sets any part, and the
-  control panel has a fader for each (not remembered yet).
+- Mixer: each part's sound has a level (drums 0.8, bass 0.8 after its amp, keys set by the game per style),
+  then your fader in the control panel (0 dB is the balanced mix; double-click for 0 dB again; remembered
+  between runs), then a soft limiter on the band's sum (peaks above 0.7 bend towards 1).
 
 Measured with the band playing (silent mode, 48 kHz, 64 samples): audio CPU 2-4 %; the mix at about -21 dB
 RMS, peak 0.8.
