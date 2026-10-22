@@ -63,12 +63,17 @@ public:
     juce::String loadPlugins (const juce::File& pluginFile);
     /** Loads the keyboard plugin (Numa Player) for the band's keys. Returns an error message, or empty. */
     juce::String loadKeys (const juce::File& pluginFile);
-    /** Loads an instrument plugin for the band's drums or bass (MONSTER Drums, MONSTER Bass). The band plays
-        it once you have chosen its sound in its window (see useBandInstrument). Returns an error, or empty. */
+    /** Loads an instrument plugin for the band's drums or bass (MONSTER Drums, MONSTER Bass, Ample Bass), in
+        place of the one there before. The band plays it once told to (see useBandInstrument). Returns an
+        error, or empty. */
     juce::String loadBandInstrument (Slot, const juce::File& pluginFile);
+    /** Takes the band's drums or bass plugin out (the band plays that part synthesized). Close its window first. */
+    void unloadBandInstrument (Slot);
     /** Whether the band plays the drums or bass on its instrument plugin, or synthesized. */
     void useBandInstrument (Slot, bool on);
     bool usesBandInstrument (Slot slot) const;
+    /** The bass plugin's sound level in the mix, used instead of the bass's while the band plays on it. */
+    void setBassPluginLevel (float gain);
     /** The band's bass plugin through the bass amp (TONE3000), or straight to the mixer (it has its own amp). */
     void setBassPluginThroughAmp (bool on);
     bool bassPluginThroughAmp() const { return bassThroughAmp; }
@@ -131,6 +136,7 @@ private:
     BandProcessor* bandProcessor = nullptr;
     juce::String currentKeysSound;
     std::array<float, 3> soundLevels { 0.8f, 0.8f, 1.3f }, faderLevels { 1.0f, 1.0f, 1.0f };  // drums, bass, keys
+    float bassPluginLevel = 0.8f;
     int inputChannel = 1;
     bool silent = false;
     bool bassThroughAmp = false;

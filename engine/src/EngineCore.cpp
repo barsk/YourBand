@@ -164,8 +164,10 @@ int EngineCore::partIndex (const juce::String& part)
 
 void EngineCore::applyMix (int part)
 {
-    const auto gain = soundLevels[(size_t) part] * faderLevels[(size_t) part];
-    static_cast<GainProcessor*> ((part == 0 ? drumsMix : part == 1 ? bassMix : keysMix)->getProcessor())->setGain (gain);
+    const auto sound = part == 1 && usesBandInstrument (Slot::bandBass) ? bassPluginLevel : soundLevels[(size_t) part];
+    const auto gain = sound * faderLevels[(size_t) part];
+    if (const auto& node = part == 0 ? drumsMix : part == 1 ? bassMix : keysMix; node != nullptr)  // none after shutdown
+        static_cast<GainProcessor*> (node->getProcessor())->setGain (gain);
 }
 
 bool EngineCore::setSoundLevel (const juce::String& part, float gain)
@@ -211,15 +213,37 @@ juce::String EngineCore::loadBandInstrument (Slot slot, const juce::File& plugin
     if (instance == nullptr)
         return "could not load " + types[0]->name + ": " + error;
     instance->enableAllBuses();
+    unloadBandInstrument (slot);
     (slot == Slot::bandDrums ? drumsPlugin : bassPlugin) = graph->addNode (std::move (instance));
     connect();
     return {};
+}
+
+void EngineCore::unloadBandInstrument (Slot slot)
+{
+    auto& node = slot == Slot::bandDrums ? drumsPlugin : bassPlugin;
+    if (node == nullptr)
+        return;
+    useBandInstrument (slot, false);
+    ++stateChanges[node->getProcessor()];  // a resume still waiting from a state change no longer applies
+    // the graph lets go of the plugin once the audio thread has moved on to the graph without it
+    graph->removeNode (node->nodeID);
+    node = nullptr;
+    connect();
 }
 
 void EngineCore::useBandInstrument (Slot slot, bool on)
 {
     const auto part = slot == Slot::bandDrums ? BandProcessor::drums : BandProcessor::bass;
     bandProcessor->setPluginFor (part, on && slotNode (slot) != nullptr);
+    if (part == BandProcessor::bass)
+        applyMix (1);
+}
+
+void EngineCore::setBassPluginLevel (float gain)
+{
+    bassPluginLevel = juce::jlimit (0.0f, 4.0f, gain);
+    applyMix (1);
 }
 
 void EngineCore::setBassPluginThroughAmp (bool on)

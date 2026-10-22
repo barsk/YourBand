@@ -17,6 +17,7 @@ Allowed licences: CC0, CC BY (with credit), MIT, BSD, royalty-free store licence
 | JUCE 9.0.4 | Raw Material Software | https://github.com/juce-framework/JUCE | AGPLv3 while personal; a commercial JUCE licence may be required before publishing | `engine/third_party/JUCE/` | Audio engine |
 | Numa Player 2.2.2 | Studiologic | https://www.studiologic-music.com | Free; no licence text found. Installed by you, not bundled; check terms before publishing | Installed plugin (VST3) | Keyboardist's sounds |
 | MONSTER Drums v3 (3.2024.05), MONSTER Bass v2 | Agus Hardiman (Monster DAW), built with Maizesoft's Maize Sampler | https://agushardiman.tv (listed on https://www.kvraudio.com/developer/monster-daw) | Free; no licence text found in the download or on the site. Downloaded by you, not bundled; check terms before publishing | `monster_plugins/` (not in git) | The band's drums and bass |
+| Ample Bass P Lite 4.0.0 | Ample Sound | https://www.amplesound.net | Free for private use only. Installed by you (plugin and library), not bundled; each user installs their own | Installed plugin (VST3), library in `plugins/` (not in git) | The band's bass (an alternative to MONSTER Bass) |
 | ASIO headers (bundled with JUCE) | Steinberg | https://www.steinberg.net/developers/ | Steinberg ASIO licence or GPLv3; publishing under Steinberg's licence needs their free signed agreement | `engine/third_party/JUCE/modules/juce_audio_devices/native/asio/` | ASIO audio |
 
 ## Licence still to record

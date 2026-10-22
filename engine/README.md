@@ -74,22 +74,29 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   Ballad (the default below 120 BPM), Rock and Pop. B switches style in the game.
 - Drums: MONSTER Drums (a free sampled drum plugin) once you have chosen a kit in it; until then, and
   without it, a synthesized kit (`src/Instruments.*`). The count-in sticks are always the synthesized ones.
-- Instrument plugins for the band: the engine looks for `MONSTER Drums*.vst3` and `MONSTER Bass*.vst3` in the
-  VST3 folder, then in `monster_plugins/Library files/` next to the repository. Open "Band drums..." or "Band
-  bass..." in the control panel, choose a kit or a bass in the plugin's window (each is one `.mse` file from
-  its library folder), and close the window: from then on the band plays it, and the engine remembers it. The
-  band sends each part on its own MIDI channel (keys 1, bass 2, drums 10) and each plugin hears only its own.
-- Bass: MONSTER Bass once you have chosen a bass in it, or a finger-played string built from its harmonics
-  (`BassVoice`). The synthesized one goes through the "Bass amp" TONE3000 instance; the plugin has its own amp
-  and effects, so it goes straight to the mixer unless you tick "through bass amp" in the control panel. The first version (a Karplus-Strong string plucked with noise) had almost
-  no fundamental and sounded thin and too high: its strongest partials sat at 200 Hz-1.3 kHz. Now the
-  fundamental leads, with the next harmonics about 3, 7 and 13 dB under it.
+- Instrument plugins for the band: the engine looks for `MONSTER Drums*.vst3`, `MONSTER Bass*.vst3` and
+  `ABPL*.vst3` (Ample Bass P Lite) in the VST3 folder, then in `monster_plugins/Library files/` next to the
+  repository. A MONSTER plugin is silent until you choose a sound in it: open "Band drums..." or "Band
+  bass...", choose a kit or a bass (each is one `.mse` file from its library folder) and close the window;
+  from then on the band plays it. The engine remembers each plugin's sound. The band sends each part on its
+  own MIDI channel (keys 1, bass 2, drums 10) and each plugin hears only its own.
+- Bass: chosen under "Band bass" in the control panel (or with the game's `bandBass` message): MONSTER Bass,
+  Ample Bass P Lite, or synthesized, a finger-played string built from its harmonics (`BassVoice`). The
+  choice can change while the band plays. MONSTER Bass takes about 7 s to load (the control panel waits
+  meanwhile), and the bass can drop out for a few seconds while it reads its sound; Ample Bass loads at once. Both plugins sound an octave below the note they get (as bass
+  parts are written), so the band sends them its bass notes an octave up. The synthesized one goes through
+  the "Bass amp" TONE3000 instance; the plugins have their own amps and effects, so they go straight to the
+  mixer unless you tick "through bass amp". Each has a level that puts it as loud as the synthesized bass
+  (measured straight to the mixer). The first synthesized version (a Karplus-Strong string plucked with
+  noise) had almost no fundamental and sounded thin and too high: its strongest partials sat at
+  200 Hz-1.3 kHz. Now the fundamental leads, with the next harmonics about 3, 7 and 13 dB under it.
 - Keys: Numa Player, its sound chosen by the style (Rhodes for Ballad, B3 organ for Rock, grand piano for
   Pop), made into a plugin state from the Numa Player app's last state (`src/NumaKeys.*`). Without Numa
   Player installed, the band plays without keys. A new sound mutes the keys for half a second: Numa Player
   loads it in the background and once crashed the engine when it played during the load, so the engine
   pauses a plugin's audio whenever it gives it a new state.
-- Mixer: each part's sound has a level (drums 0.8, bass 0.8 after its amp, keys set by the game per style),
+- Mixer: each part's sound has a level (drums 0.8, bass 0.8 after its amp or the bass plugin's own, keys set
+  by the game per style),
   then your fader in the control panel (0 dB is the balanced mix; double-click for 0 dB again; remembered
   between runs), then a soft limiter on the band's sum (peaks above 0.7 bend towards 1).
 
@@ -127,8 +134,9 @@ Checked this way (2026-10-21):
 build\Release\plugin_probe_artefacts\Release\plugin_probe.exe <plugin.vst3> out\probe [program-filter ... | --state <file> ...]
 ```
 
-With `--map [--velocity n]` (and a `--state` file per sound) it plays every note from 24 to 96 on its own and
-lists the ones that sound, how loud, and how much of each is low, mid and high: a drum kit's note layout.
+With `--map [--velocity n]` (with a `--state` file per sound, or the plugin's own sound) it plays every note
+from 24 to 96 on its own and lists the ones that sound, how loud, how much of each is low, mid and high, and
+the pitch it sounds at: a drum kit's note layout, or an instrument's range and octave.
 With `--load-time` (and two or more `--state` files) it switches between the sounds and plays a note 100 ms to
 3 s after each switch: how long the plugin takes to load a sound.
 
@@ -136,6 +144,14 @@ MONSTER Drums v3 (2026-10-22): VST3, 32 outputs (16 stereo pairs; many kits put 
 the engine mixes all of them), no latency, about 1 % audio CPU. The kits tried (Acoustica Hits, Sonic Rock,
 G-Linn) follow the General MIDI drum layout. Their hi-hats are about 26 dB under the kick at the same velocity.
 A kit is a state that starts with the path of its `.mse` file.
+
+MONSTER Bass v2 (2026-10-22): 32 outputs; a five-string bass from note 35 (sounding B0) to 64, each note
+sounding an octave below its number.
+
+Ample Bass P Lite 4.0.0 (2026-10-22): VST3 instrument, 2 in / 2 out, no latency, about 2.5 % mean audio CPU;
+plays its default sound without a state. Notes 40 to 76 are the bass (40 sounds as the low E, an octave
+below its number); notes above 82 are noises (slaps, hits). Its library is a separate download, installed
+where you choose (`plugins/ABPL_Library/` here, not in git); the plugin finds it through the registry.
 
 Numa Player (2026-10-21): VST3 instrument, 0 in / 2 out, no latency, no program list. A new instance is silent
 until it gets a state with a sound (`tools/numa_state.py`). Grand, upright, Rhodes and rock B3: 1-3 % mean audio

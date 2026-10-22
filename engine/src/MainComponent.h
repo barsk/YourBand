@@ -24,6 +24,7 @@ struct EngineOptions
     juce::File recording;      // --record <file.wav>: with --silent, what the engine plays
     double runFor = 0.0;       // --run-for <seconds>: quit after that long (0: run until closed)
     int parent = 0;            // --parent <process id>: started by the game; hidden, and gone with the game
+    juce::String bandBass;     // --band-bass <plugin file name, e.g. ABPL | synthesized>: instead of your choice
 
     static EngineOptions fromCommandLine (const juce::StringArray& args);
 };
@@ -41,6 +42,15 @@ private:
     void timerCallback() override;
     void log (const juce::String&);
     void showPlugin (EngineCore::Slot, const juce::String& title);
+    /** Loads a band instrument plugin with its sound from last time; it plays for the band if it has one (or
+        plays from the start). Returns false (and logs why) if it cannot be loaded. */
+    bool startBandInstrument (EngineCore::Slot, const juce::File& plugin, bool silentUntilChosen);
+    /** The band's bass on one of the bass plugins found (index into bassChoices), or synthesized (-1); with
+        `remember`, also next time. */
+    void chooseBandBass (int choice, bool remember);
+    /** The bass plugin with this path or file name ("ABPL"), as an index into bassChoices; -1 if none. */
+    int bassChoiceFor (const juce::String& plugin) const;
+    void keepBandState (EngineCore::Slot);
     void refreshInputs();
     void refreshPresets();
     void stepPreset (int step);
@@ -62,6 +72,11 @@ private:
     juce::TextButton guitarButton { "Guitar tone..." }, bassButton { "Bass amp..." };
     juce::TextButton bandDrumsButton { "Band drums..." }, bandBassButton { "Band bass..." };
     juce::ToggleButton bassThroughAmp { "through bass amp" };
+    juce::Label bandBassLabel { {}, "Band bass" };
+    juce::ComboBox bandBassBox;
+    struct BassChoice { juce::File file; juce::String name; bool silentUntilChosen; float level; };
+    std::vector<BassChoice> bassChoices;
+    std::map<EngineCore::Slot, juce::File> bandPlugins;  // the band instrument plugins loaded
     std::map<EngineCore::Slot, juce::MemoryBlock> blankStates;  // an instrument plugin's state before a sound is chosen
     juce::TextButton previousButton { "< Previous" }, nextButton { "Next >" };
     juce::Label latencyLabel, cpuLabel, footLabel, gameLabel, bandLabel;

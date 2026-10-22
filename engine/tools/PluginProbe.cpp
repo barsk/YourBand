@@ -3,7 +3,8 @@
 //   plugin_probe <plugin.vst3> [out-folder] [program-name-filter ... | --state <file> ...] [--map [--velocity n]]
 //
 // With --map, instead of the phrase it plays every note from 24 to 96 on its own and lists the ones that sound,
-// with how much of each is low (below 150 Hz), mid and high (above 6 kHz): a drum kit's note layout.
+// with how much of each is low (below 150 Hz), mid and high (above 6 kHz), and the pitch it sounds at (as a
+// note number, 0 for none): a drum kit's note layout, or an instrument's range.
 //
 // With --state, each file holds the plugin's own state (as a JUCE-built plugin's standalone app saves it)
 // and gives one take; this is how sounds are chosen in plugins without a program list (Numa Player).
@@ -61,7 +62,46 @@ juce::MidiBuffer phrase (int& totalSamples)
     return midi;
 }
 
-/** Every note on its own, at real-time pace: which sound, how loud, and how low or high. */
+/** The pitch of a sound as a MIDI note number (YIN, 30 Hz to 1 kHz), or 0 if it has none. */
+double pitchOf (const std::vector<float>& x)
+{
+    constexpr int window = 4096;
+    const int maxLag = (int) (rate / 30.0), minLag = (int) (rate / 1000.0);
+    if ((int) x.size() < window + maxLag)
+        return 0;
+    std::vector<double> d ((size_t) maxLag + 1, 0.0);
+    for (int lag = 1; lag <= maxLag; ++lag)
+        for (int i = 0; i < window; ++i)
+        {
+            const double e = x[(size_t) i] - x[(size_t) (i + lag)];
+            d[(size_t) lag] += e * e;
+        }
+    // each lag against the mean of the shorter ones; the first clear dip is the period
+    double sum = 0;
+    int best = 0;
+    double bestValue = 1e9;
+    for (int lag = 1; lag <= maxLag; ++lag)
+    {
+        sum += d[(size_t) lag];
+        const double value = sum > 0 ? d[(size_t) lag] * lag / sum : 1.0;
+        if (lag < minLag)
+            continue;
+        if (value < 0.15)
+        {
+            while (lag < maxLag && d[(size_t) lag + 1] * (lag + 1) / (sum + d[(size_t) lag + 1]) < value)
+                sum += d[(size_t) ++lag];
+            best = lag;
+            break;
+        }
+        if (value < bestValue)
+            bestValue = value, best = lag;
+    }
+    if (best == 0 || (bestValue < 1e9 && bestValue > 0.5))
+        return 0;
+    return 69.0 + 12.0 * std::log2 (rate / best / 440.0);
+}
+
+/** Every note on its own, at real-time pace: which sound, how loud, how low or high, and at which pitch. */
 void mapNotes (juce::AudioPluginInstance& plugin, int velocity)
 {
     const auto outs = juce::jmax (1, plugin.getTotalNumOutputChannels());
@@ -70,11 +110,12 @@ void mapNotes (juce::AudioPluginInstance& plugin, int velocity)
     const auto lowCoeff = (float) (1.0 - std::exp (-2.0 * juce::MathConstants<double>::pi * 150.0 / rate));
     const auto highCoeff = (float) (1.0 - std::exp (-2.0 * juce::MathConstants<double>::pi * 6000.0 / rate));
     plugin.reset();
-    std::cout << "note  level   low   mid  high\n";
+    std::cout << "note  level   low   mid  high  pitch\n";
     for (int note = 24; note <= 96; ++note)
     {
         double total = 0, low = 0, high = 0;
         float lowState = 0, highState = 0;
+        std::vector<float> mono;  // from 0.1 s on: past the attack
         const auto began = juce::Time::getMillisecondCounterHiRes();
         for (int start = 0; start < length; start += block)
         {
@@ -92,6 +133,8 @@ void mapNotes (juce::AudioPluginInstance& plugin, int velocity)
                 float x = 0;
                 for (int ch = 0; ch < outs; ++ch)
                     x += buffer.getSample (ch, i);
+                if (start + i >= (int) (0.1 * rate))
+                    mono.push_back (x);
                 lowState += lowCoeff * (x - lowState);
                 highState += highCoeff * (x - highState);
                 total += x * x;
@@ -108,7 +151,8 @@ void mapNotes (juce::AudioPluginInstance& plugin, int velocity)
             std::cout << juce::String (note).paddedLeft (' ', 4) << juce::String (level, 1).paddedLeft (' ', 7)
                       << juce::String (juce::roundToInt (100 * low / total)).paddedLeft (' ', 5) << "%"
                       << juce::String (juce::roundToInt (100 * (total - low - high) / total)).paddedLeft (' ', 5) << "%"
-                      << juce::String (juce::roundToInt (100 * high / total)).paddedLeft (' ', 5) << "%\n";
+                      << juce::String (juce::roundToInt (100 * high / total)).paddedLeft (' ', 5) << "%"
+                      << juce::String (pitchOf (mono), 1).paddedLeft (' ', 7) << "\n";
         // all notes off before the next
         juce::MidiBuffer off;
         for (int channel : { 10, 1 })
@@ -350,6 +394,18 @@ int main (int argc, char* argv[])
                   << file.getFullPathName() << "\n";
     };
 
+    // the notes that sound, and every parameter with the sound loaded, to a file beside the takes
+    auto mapSound = [&] (const juce::String& name)
+    {
+        std::cout << "Notes of '" << name << "' at velocity " << velocity << ":\n";
+        mapNotes (*plugin, velocity);
+        juce::String all;
+        const auto& params = plugin->getParameters();
+        for (int i = 0; i < params.size(); ++i)
+            all << i << "\t" << params[i]->getName (64) << "\t" << params[i]->getCurrentValueAsText() << "\t" << params[i]->getValue() << "\n";
+        outFolder.getChildFile (juce::File::createLegalFileName (name) + ".params.txt").replaceWithText (all);
+    };
+
     // how long a sound takes to load: another sound first, then this one, then a note after a wait
     auto setState = [&plugin] (const juce::File& stateFile)
     {
@@ -400,16 +456,7 @@ int main (int argc, char* argv[])
             plugin->setStateInformation (wrapped.getData(), (int) wrapped.getSize());
             juce::MessageManager::getInstance()->runDispatchLoopUntil (4000);  // the sound loads in the background
             if (map)
-            {
-                std::cout << "Notes of '" << stateFile.getFileNameWithoutExtension() << "' at velocity " << velocity << ":\n";
-                mapNotes (*plugin, velocity);
-                // and every parameter with the kit loaded, to a file beside the takes
-                juce::String all;
-                const auto& params = plugin->getParameters();
-                for (int i = 0; i < params.size(); ++i)
-                    all << i << "\t" << params[i]->getName (64) << "\t" << params[i]->getCurrentValueAsText() << "\t" << params[i]->getValue() << "\n";
-                outFolder.getChildFile (stateFile.getFileNameWithoutExtension() + ".params.txt").replaceWithText (all);
-            }
+                mapSound (stateFile.getFileNameWithoutExtension());
             else
                 report (stateFile.getFileNameWithoutExtension());
         }
@@ -426,7 +473,10 @@ int main (int argc, char* argv[])
                 // give a program change time to load samples (message-thread work in many plugins)
                 juce::MessageManager::getInstance()->runDispatchLoopUntil (1500);
             }
-            report (name);
+            if (map)
+                mapSound (name);
+            else
+                report (name);
         }
     }
 

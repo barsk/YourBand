@@ -21,6 +21,19 @@ namespace
         return "";
     }
 
+    /** Where a band instrument plugin's sound is kept: one per plugin ("bandBass.ABPL"). */
+    juce::String stateKey (EngineCore::Slot slot, const juce::File& plugin)
+    {
+        return juce::String (slotKey (slot)) + "." + plugin.getFileNameWithoutExtension();
+    }
+
+    /** The plugins the band's bass can play on, if you have them; MONSTER Bass is silent until you choose a bass
+        in it, Ample Bass plays its own from the start. Each has a sound level that puts it as loud as the
+        synthesized bass (0.8 through its amp), measured straight to the mixer with their default sounds. */
+    struct BassPlugin { const char* pattern; const char* name; bool silentUntilChosen; float level; };
+    const BassPlugin bassPlugins[] { { "MONSTER Bass*.vst3", "MONSTER Bass", true, 0.16f },
+                                     { "ABPL*.vst3", "Ample Bass P Lite", false, 0.21f } };
+
     /** An instrument plugin for the band: the path in the settings, the VST3 folder, or the folder you
         downloaded it to next to the repository (monster_plugins), found by looking upwards from the engine. */
     juce::File findInstrument (const juce::String& setting, const juce::String& pattern)
@@ -71,6 +84,8 @@ EngineOptions EngineOptions::fromCommandLine (const juce::StringArray& args)
             o.runFor = args[++i].getDoubleValue();
         else if (args[i] == "--parent" && i + 1 < args.size())
             o.parent = args[++i].getIntValue();
+        else if (args[i] == "--band-bass" && i + 1 < args.size())
+            o.bandBass = args[++i].unquoted();
     }
     return o;
 }
@@ -131,31 +146,27 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
             engine.setPluginState (slot, state);
     }
 
-    // the band's drums and bass on instrument plugins, if you have them; the band plays them once you have
-    // chosen a kit and a bass in their windows (until then, and without them, it plays its synthesized ones)
-    for (auto [slot, pattern, what] : { std::tuple { EngineCore::Slot::bandDrums, "MONSTER Drums*.vst3", "drums" },
-                                        std::tuple { EngineCore::Slot::bandBass, "MONSTER Bass*.vst3", "bass" } })
-    {
-        const auto file = findInstrument (settings->getValue (juce::String (slotKey (slot)) + "Plugin"), pattern);
-        if (file == juce::File())
-        {
-            log (juce::String ("Band ") + what + ": synthesized (no instrument plugin found)");
-            continue;
-        }
-        if (const auto error = engine.loadBandInstrument (slot, file); error.isNotEmpty())
-        {
-            log (juce::String ("Band ") + what + ": synthesized (" + error + ")");
-            continue;
-        }
-        blankStates[slot] = engine.pluginState (slot);
-        juce::MemoryBlock state;
-        const auto chosen = state.fromBase64Encoding (settings->getValue (slotKey (slot))) && state.getSize() > 0;
-        if (chosen)
-            engine.setPluginState (slot, state);
-        engine.useBandInstrument (slot, chosen);
-        log (juce::String ("Band ") + what + ": " + engine.plugin (slot)->getName()
-             + (chosen ? juce::String() : ", choose its sound with \"Band " + juce::String (what) + "...\" (synthesized until then)"));
-    }
+    // the band's drums and bass on instrument plugins, if you have them (without them, the band plays its
+    // synthesized ones); the bass is the one chosen in the control panel, of the bass plugins found
+    if (const auto drums = findInstrument (settings->getValue ("bandDrumsPlugin"), "MONSTER Drums*.vst3"); drums != juce::File())
+        startBandInstrument (EngineCore::Slot::bandDrums, drums, true);
+    else
+        log ("Band drums: synthesized (no instrument plugin found)");
+    for (const auto& b : bassPlugins)
+        if (const auto file = findInstrument ({}, b.pattern); file != juce::File())
+            bassChoices.push_back ({ file, b.name, b.silentUntilChosen, b.level });
+    // your choice from last time: a plugin's path, or "synthesized" (else the first plugin found)
+    const auto lastBass = options.bandBass.isNotEmpty() ? options.bandBass : settings->getValue ("bandBassPlugin");
+    auto bassChoice = bassChoiceFor (lastBass);
+    if (bassChoice < 0 && lastBass != "synthesized" && ! bassChoices.empty())
+        bassChoice = 0;
+    bandBassBox.addItem ("Synthesized", 1);
+    for (size_t i = 0; i < bassChoices.size(); ++i)
+        bandBassBox.addItem (bassChoices[i].name, (int) i + 2);
+    chooseBandBass (bassChoice, false);
+    bandBassBox.onChange = [this] { chooseBandBass (bandBassBox.getSelectedId() - 2, true); };
+    addAndMakeVisible (bandBassLabel);
+    addAndMakeVisible (bandBassBox);
 
     // the band's keys
     if (const auto error = engine.loadKeys (juce::File (settings->getValue ("keysPlugin", defaultKeysPlugin))); error.isNotEmpty())
@@ -366,6 +377,15 @@ void MainComponent::handle (const juce::var& message)
     }
     else if (type == "mix")
         engine.setSoundLevel (message["part"].toString(), (float) (double) message["gain"]);
+    else if (type == "bandBass")
+    {
+        const auto plugin = message["plugin"].toString();
+        const auto choice = bassChoiceFor (plugin);
+        if (choice >= 0 || plugin == "synthesized")
+            chooseBandBass (choice, true);
+        else
+            log ("The game asked for a bass plugin not found: " + plugin);
+    }
     else if (type == "window")
     {
         const auto which = message["show"].toString();
@@ -411,13 +431,75 @@ void MainComponent::saveSettings()
         if (state.getSize() > 0)
             settings->setValue (slotKey (slot), state.toBase64Encoding());
     }
-    // the band's instruments once a sound is chosen in them
     for (auto slot : { EngineCore::Slot::bandDrums, EngineCore::Slot::bandBass })
-        if (engine.usesBandInstrument (slot))
-            settings->setValue (slotKey (slot), engine.pluginState (slot).toBase64Encoding());
+        keepBandState (slot);
     settings->removeValue ("toneA");
     settings->removeValue ("toneB");
     settings->saveIfNeeded();
+}
+
+bool MainComponent::startBandInstrument (EngineCore::Slot slot, const juce::File& file, bool silentUntilChosen)
+{
+    const juce::String what = slot == EngineCore::Slot::bandDrums ? "drums" : "bass";
+    if (const auto error = engine.loadBandInstrument (slot, file); error.isNotEmpty())
+    {
+        log ("Band " + what + ": synthesized (" + error + ")");
+        return false;
+    }
+    bandPlugins[slot] = file;
+    blankStates[slot] = engine.pluginState (slot);
+    // its sound from last time (a MONSTER plugin's from before each plugin kept its own: under the slot's name)
+    auto value = settings->getValue (stateKey (slot, file));
+    if (value.isEmpty() && file.getFileName().startsWith ("MONSTER"))
+        value = settings->getValue (slotKey (slot));
+    juce::MemoryBlock state;
+    const auto saved = state.fromBase64Encoding (value) && state.getSize() > 0;
+    if (saved)
+        engine.setPluginState (slot, state);
+    const auto plays = saved || ! silentUntilChosen;
+    engine.useBandInstrument (slot, plays);
+    log ("Band " + what + ": " + engine.plugin (slot)->getName()
+         + (plays ? juce::String() : ", choose its sound with \"Band " + what + "...\" (synthesized until then)"));
+    return true;
+}
+
+int MainComponent::bassChoiceFor (const juce::String& plugin) const
+{
+    for (size_t i = 0; i < bassChoices.size(); ++i)
+        if (bassChoices[i].file.getFullPathName() == plugin || bassChoices[i].file.getFileNameWithoutExtension() == plugin)
+            return (int) i;
+    return -1;
+}
+
+void MainComponent::chooseBandBass (int choice, bool remember)
+{
+    const auto slot = EngineCore::Slot::bandBass;
+    if (remember && ! engine.isSilent())
+        settings->setValue ("bandBassPlugin", choice < 0 ? juce::String ("synthesized") : bassChoices[(size_t) choice].file.getFullPathName());
+    const auto loaded = bandPlugins.find (slot);
+    if (choice >= 0 && loaded != bandPlugins.end() && loaded->second == bassChoices[(size_t) choice].file)
+        return;
+    windows.erase (slot);  // the editor goes before its plugin
+    keepBandState (slot);
+    engine.unloadBandInstrument (slot);
+    bandPlugins.erase (slot);
+    blankStates.erase (slot);
+    if (choice >= 0)
+        engine.setBassPluginLevel (bassChoices[(size_t) choice].level);
+    if (choice < 0)
+        log ("Band bass: synthesized");
+    else if (! startBandInstrument (slot, bassChoices[(size_t) choice].file, bassChoices[(size_t) choice].silentUntilChosen))
+        choice = -1;
+    bandBassBox.setSelectedId (choice + 2, juce::dontSendNotification);
+    bandBassButton.setEnabled (engine.plugin (slot) != nullptr);
+    bassThroughAmp.setEnabled (bandBassButton.isEnabled());
+}
+
+void MainComponent::keepBandState (EngineCore::Slot slot)
+{
+    // a band instrument's sound, once it plays for the band (a test run leaves your settings as they are)
+    if (const auto it = bandPlugins.find (slot); it != bandPlugins.end() && engine.usesBandInstrument (slot) && ! engine.isSilent())
+        settings->setValue (stateKey (slot, it->second), engine.pluginState (slot).toBase64Encoding());
 }
 
 void MainComponent::refreshInputs()
@@ -541,12 +623,17 @@ void MainComponent::resized()
     r.removeFromTop (8);
 
     row = r.removeFromTop (30);
-    const auto fifth = row.getWidth() / 5;
-    guitarButton.setBounds (row.removeFromLeft (fifth).reduced (3, 0));
-    bassButton.setBounds (row.removeFromLeft (fifth).reduced (3, 0));
-    bandDrumsButton.setBounds (row.removeFromLeft (fifth).reduced (3, 0));
-    bandBassButton.setBounds (row.removeFromLeft (fifth).reduced (3, 0));
-    bassThroughAmp.setBounds (row.reduced (3, 0));
+    const auto quarter = row.getWidth() / 4;
+    guitarButton.setBounds (row.removeFromLeft (quarter).reduced (3, 0));
+    bassButton.setBounds (row.removeFromLeft (quarter).reduced (3, 0));
+    bandDrumsButton.setBounds (row.removeFromLeft (quarter).reduced (3, 0));
+    bandBassButton.setBounds (row.reduced (3, 0));
+    r.removeFromTop (6);
+
+    row = r.removeFromTop (28);
+    bandBassLabel.setBounds (row.removeFromLeft (100));
+    bandBassBox.setBounds (row.removeFromLeft (260));
+    bassThroughAmp.setBounds (row.reduced (10, 0));
     r.removeFromTop (6);
 
     row = r.removeFromTop (30);

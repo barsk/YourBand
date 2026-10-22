@@ -58,3 +58,4 @@ experiments/e2-passthrough/results/player.log
 
 # Instrument plugins you downloaded (sampled drums and bass): too large for git, licences of their own
 monster_plugins/
+plugins/

@@ -270,8 +270,11 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
             {
                 // a drum hit is short; a bass note lets go just before the next, as a player's would
                 const auto length = note.part == drums ? juce::jmax (0.1, note.length) : note.part == bass ? note.length * 0.95 : note.length;
-                midi.addEvent (juce::MidiMessage::noteOn (channelOf (note.part), note.pitch, note.velocity), at);
-                addOff ({ note.part, note.pitch, -1, note.at + length });
+                // bass plugins sound an octave below the note they get, as bass parts are written (MONSTER Bass
+                // and Ample Bass: note 40 is the low E, measured with plugin_probe --map)
+                const auto pitch = note.part == bass ? note.pitch + 12 : note.pitch;
+                midi.addEvent (juce::MidiMessage::noteOn (channelOf (note.part), pitch, note.velocity), at);
+                addOff ({ note.part, pitch, -1, note.at + length });
             }
             else if (note.part == drums)
                 kit.trigger (note.pitch, note.velocity, at);
