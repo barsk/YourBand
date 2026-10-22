@@ -27,8 +27,8 @@ namespace GuitarTutor.Runtime.UI
 
     /// <summary>
     /// The desktop screen (see docs/plan.md, "Desktop mode"): a header with the song and where you are, the panels
-    /// (chords, strumming, tab, song info: each can be toggled), the chart strip, and a help overlay. The middle
-    /// stays clear for the band once it is there (M6).
+    /// (chords, strumming, song info), the tab across the screen, the chart's rows, and a help overlay. The panels
+    /// and the tab can be toggled. The middle stays clear for the band once it is there (M6).
     /// </summary>
     public sealed class DesktopScreen : VisualElement
     {
@@ -44,8 +44,8 @@ namespace GuitarTutor.Runtime.UI
         readonly Dictionary<Panel, Label> panelTitles = new Dictionary<Panel, Label>();
         readonly VisualElement chordRow, info;
         readonly StrumView strum;
-        readonly Label strumName, strumEmpty, tabEmpty;
-        readonly TabView tab;
+        readonly Label strumName, strumEmpty;
+        readonly TabTape tab;
         readonly List<(string name, VisualElement card, Label tag)> cards = new List<(string, VisualElement, Label)>();
         SongChart chart;
 
@@ -65,10 +65,13 @@ namespace GuitarTutor.Runtime.UI
             strumName = ChartLook.Label("", "gt-strum__name", strumPanel);
             strumEmpty = ChartLook.Label("No strumming pattern in this song", "gt-panel__empty", strumPanel);
             info = AddPanel(Panel.Song, "SONG", middle);
-            var tabPanel = AddPanel(Panel.Tab, "TAB", middle);
-            tab = new TabView();
-            tabPanel.Add(tab);
-            tabEmpty = ChartLook.Label("No tab in these bars", "gt-panel__empty", tabPanel);
+
+            // the tab, across the screen above the chart
+            var tabStrip = ChartLook.Box("gt-tabstrip", this);
+            panels[Panel.Tab] = tabStrip;
+            panelTitles[Panel.Tab] = ChartLook.Label("TAB", "gt-panel__title", tabStrip);
+            tab = new TabTape();
+            tabStrip.Add(tab);
 
             Strip = new ChartStrip();
             Add(Strip);
@@ -122,6 +125,7 @@ namespace GuitarTutor.Runtime.UI
             title.text = song.Info.Title;
             artist.text = song.Info.Artist;
             Strip.SetSong(chart);
+            tab.SetSong(chart, song.Info.Tuning);
             cards.Clear();
             chordRow.Clear();
             strum.Show(null);
@@ -174,7 +178,10 @@ namespace GuitarTutor.Runtime.UI
                           + (string.IsNullOrEmpty(transport.Band) ? "" : "   ·   " + transport.Band);
             status.EnableInClassList("gt-status--playing", transport.Playing);
 
-            Strip.Show(quarter, countIn);
+            // the rows move on a beat before the next row starts, taking at most 0.35 s
+            var beat = 4.0 / (bar?.Signature.Denominator ?? 4);
+            var quartersPerSecond = song.Tempo.BpmAt(at) * transport.Speed / 60.0;
+            Strip.Show(quarter, countIn, Math.Min(beat, 0.35 * quartersPerSecond));
             if (IsShown(Panel.Chords))
                 ShowChords(at, countIn == null && quarter >= 0);
             if (IsShown(Panel.Strumming))
@@ -188,14 +195,7 @@ namespace GuitarTutor.Runtime.UI
                 strum.SetNow(countIn == null && transport.Playing ? chart.StrokeAt(shown, quarter).index : -1);
             }
             if (IsShown(Panel.Tab))
-            {
-                tab.Show(chart, bar, song.Info.Tuning);
-                tab.SetCursor(countIn == null ? quarter : -1);
-                var riff = bar?.Notes.FirstOrDefault().Riff ?? (bar != null && bar.Index + 1 < chart.Bars.Count ? chart.Bars[bar.Index + 1].Notes.FirstOrDefault().Riff : null);
-                panelTitles[Panel.Tab].text = riff != null ? "TAB  ·  " + riff.Name.ToUpperInvariant() : "TAB";
-                tabEmpty.EnableInClassList("gt-hidden", tab.HasNotes);
-                tab.EnableInClassList("gt-hidden", !tab.HasNotes);
-            }
+                tab.Show(quarter);
         }
 
         void ShowChords(double at, bool started)

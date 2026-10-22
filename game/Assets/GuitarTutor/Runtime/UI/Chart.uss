@@ -154,23 +154,6 @@
     margin-top: 6px;
 }
 
-.gt-tab__fret {
-    position: absolute;
-    font-size: 17px;
-    -unity-font-style: bold;
-    -unity-text-align: middle-center;
-    background-color: rgba(31, 35, 41, 1);
-    padding: 0 2px 0 2px;
-}
-.gt-tab__string {
-    margin: 0;
-    padding: 0;
-    position: absolute;
-    font-size: 14px;
-    color: var(--gt-faint);
-    -unity-text-align: middle-right;
-}
-
 .gt-info__row {
     flex-direction: row;
     margin-bottom: 2px;
@@ -229,114 +212,185 @@
     background-color: var(--gt-accent);
 }
 
-.gt-bars {
-    flex-direction: row;
-    height: 228px;
-}
-.gt-bar {
-    flex-basis: 0;
+/* the chart's rows: two in view, the one being played on top */
+.gt-rows {
+    height: 384px;
     overflow: hidden;
-    padding-right: 10px;
 }
-.gt-bar--current {
-    flex-grow: 3;
-}
-.gt-bar--next {
-    flex-grow: 1;
-    opacity: 0.75;
-}
-.gt-bar__head {
-    flex-direction: row;
-    height: 24px;
-}
-.gt-bar__number {
-    font-size: 15px;
-    color: var(--gt-faint);
-}
-.gt-bar__section {
-    font-size: 15px;
-    color: var(--gt-accent);
-    margin-left: 10px;
-    -unity-font-style: bold;
-}
-.gt-bar__beats {
-    height: 26px;
-}
-.gt-bar__beat {
+.gt-row {
     position: absolute;
-    font-size: 18px;
-    color: var(--gt-faint);
+    left: 0;
+    right: 0;
+    height: 50%;
+    padding-top: 4px;
 }
-.gt-bar__beat--now {
+.gt-row__section {
+    font-size: 16px;
+    height: 22px;
+    color: var(--gt-faint);
+    -unity-font-style: bold;
+    letter-spacing: 1px;
+}
+.gt-row__section--start {
+    color: var(--gt-accent);
+}
+.gt-row__cells {
+    flex-direction: row;
+    flex-grow: 1;
+}
+.gt-cell {
+    overflow: hidden;
+    padding: 2px 10px 0 8px;
+    border-left-width: 1px;
+    border-left-color: var(--gt-card-border);
+}
+.gt-cell--now {
+    background-color: rgba(242, 169, 59, 0.045);
+}
+.gt-cell__head {
+    height: 22px;
+}
+.gt-cell__number {
+    position: absolute;
+    right: 0;
+    font-size: 14px;
+    color: var(--gt-faint);
+    padding: 0;
+    margin: 0;
+}
+.gt-cell__beats {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+}
+.gt-cell__beat {
+    position: absolute;
+    font-size: 15px;
+    color: var(--gt-faint);
+    padding: 0;
+    margin: 0;
+}
+.gt-cell__beat--now {
     color: var(--gt-accent);
     -unity-font-style: bold;
 }
-.gt-bar__chords {
-    height: 80px;
+.gt-cell__chords {
+    height: 66px;
 }
-.gt-bar--next .gt-bar__chords {
-    height: 80px;
-}
-.gt-bar__chord {
+.gt-cell__chord {
     position: absolute;
     bottom: 0;
-    font-size: 64px;
+    font-size: 52px;
     -unity-font-style: bold;
     white-space: nowrap;
 }
-.gt-bar--next .gt-bar__chord {
-    font-size: 36px;
-}
-.gt-bar__chord--held {
+.gt-cell__chord--held {
     color: var(--gt-faint);
 }
-.gt-bar__track {
-    height: 30px;
+.gt-cell__track {
+    height: 22px;
+    margin-top: 2px;
+}
+.gt-cell__words {
+    height: 46px;
     margin-top: 4px;
 }
-.gt-bar__words {
-    height: 56px;
-    margin-top: 6px;
-}
-.gt-bar__word {
+.gt-cell__word {
     position: absolute;
-    font-size: 30px;
+    font-size: 32px;
     white-space: nowrap;
 }
-.gt-bar--next .gt-bar__word {
-    font-size: 20px;
+.gt-cell__word--sung {
+    color: var(--gt-accent);
 }
-.gt-bar__word--sung {
+.gt-cell__overlay {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+}
+.gt-cell__count {
+    position: absolute;
+    right: 16px;
+    top: 18px;
+    font-size: 72px;
+    -unity-font-style: bold;
     color: var(--gt-accent);
 }
 
-.gt-lyrics {
-    margin-top: 6px;
-    border-top-width: 1px;
-    border-top-color: var(--gt-card-border);
-    padding-top: 8px;
-    height: 84px;
+/* the tab, across the screen above the chart */
+.gt-tabstrip {
+    background-color: var(--gt-card);
+    border-color: var(--gt-card-border);
+    border-width: 1px;
+    border-radius: 12px;
+    padding: 8px 18px 6px 18px;
+    margin-bottom: 12px;
 }
-.gt-lyrics__line {
-    flex-direction: row;
-    flex-wrap: wrap;
-    height: 40px;
+.gt-tape {
+    overflow: hidden;
 }
-.gt-lyrics__word {
-    font-size: 28px;
-    margin-right: 9px;
+.gt-tape__tape {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
 }
-.gt-lyrics__word--sung {
-    color: var(--gt-accent);
+.gt-tape__fret {
+    position: absolute;
+    font-size: 18px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    background-color: rgba(31, 35, 41, 1);
+    padding: 0 2px 0 2px;
+    margin: 0;
+    height: 22px;
 }
-.gt-lyrics__line--next .gt-lyrics__word {
-    font-size: 22px;
+.gt-tape__riff {
+    position: absolute;
+    top: 0;
+    font-size: 14px;
     color: var(--gt-dim);
+    white-space: nowrap;
+    padding: 0;
+    margin: 0;
 }
-.gt-lyrics__rest {
-    font-size: 22px;
+.gt-tape__marker {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background-color: var(--gt-accent);
+}
+.gt-tape__names {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    background-color: rgba(31, 35, 41, 1);
+}
+.gt-tape__string {
+    position: absolute;
+    left: 0;
+    width: 24px;
+    height: 20px;
+    font-size: 14px;
     color: var(--gt-faint);
-    -unity-font-style: italic;
+    -unity-text-align: middle-right;
+    padding: 0;
+    margin: 0;
+}
+.gt-tape__empty {
+    position: absolute;
+    left: 40%;
+    top: 40%;
+    font-size: 17px;
+    color: var(--gt-faint);
+    background-color: rgba(31, 35, 41, 1);
+    padding: 0 8px 0 8px;
 }
 
 /* ------------------------------------------------------------ footer, help */

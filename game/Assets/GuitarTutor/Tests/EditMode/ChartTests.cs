@@ -132,6 +132,40 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
+        public void Rows_HoldFourBarsAndStartAtSections()
+        {
+            var chart = Demo();
+            // intro 4, verse 8, chorus 8, bridge 4, chorus 8, outro 4
+            CollectionAssert.AreEqual(new[] { 4, 4, 4, 4, 4, 4, 4, 4, 4 }, chart.Rows.Select(r => r.Bars));
+            Assert.AreEqual(12, chart.Rows[3].FirstBar);
+            Assert.IsTrue(chart.Rows[3].StartsSection);
+            Assert.IsFalse(chart.Rows[4].StartsSection);
+            Assert.AreEqual("Chorus", chart.Rows[4].Section.Name);
+            Assert.AreEqual(3, chart.RowOf(13));
+            Assert.AreEqual(4, chart.TypicalBarQuarters);
+
+            // a section of nine bars: 4, 4 and 1
+            var song = new Song { Tempo = new TempoMap(100, TimeSignature.FourFour) };
+            song.Sections.Add(new Section { Name = "Chorus", AtQuarter = 0, Quarters = 36 });
+            song.Sections.Add(new Section { Name = "Outro", AtQuarter = 36, Quarters = 8 });
+            song.Chords.Add(new ChordEvent { Name = "A", AtQuarter = 0, Quarters = 44 });
+            CollectionAssert.AreEqual(new[] { 4, 4, 1, 2 }, new SongChart(song).Rows.Select(r => r.Bars));
+        }
+
+        [Test]
+        public void RowPosition_MovesOnToTheNextRowJustBeforeItIsPlayed()
+        {
+            var chart = Demo();  // the first row is quarters 0-16
+            Assert.AreEqual(0, chart.RowPosition(-2, 1));  // count-in
+            Assert.AreEqual(0, chart.RowPosition(14.9, 1));
+            Assert.AreEqual(0.5, chart.RowPosition(15.5, 1), 1e-9);
+            Assert.AreEqual(1, chart.RowPosition(16, 1), 1e-9);
+            Assert.AreEqual(1, chart.RowPosition(17, 1), 1e-9);
+            // the last row stays
+            Assert.AreEqual(8, chart.RowPosition(143.9, 1), 1e-9);
+        }
+
+        [Test]
         public void Bars_FollowMeterChanges()
         {
             var song = new Song { Tempo = new TempoMap(100, TimeSignature.FourFour) };

@@ -36,9 +36,12 @@ What is there now:
 - `Core/Engine/EngineProtocol.cs`, `Runtime/Engine/`: the connection to the audio engine
   ([../schema/engine-protocol.md](../schema/engine-protocol.md)): messages over TCP, and the engine's clock
   read from shared memory each frame, so the chart moves with the sound.
-- `Runtime/Desktop/DesktopApp.cs` and `Runtime/UI/`: the desktop screen in UI Toolkit (M1). The chart strip
-  (section map, the current bar large with the beat cursor and the next three bars, lyrics karaoke style)
-  and the panels: chord diagrams drawn from the voicings, strumming, tab, song info. Look in `Chart.uss`.
+- `Runtime/Desktop/DesktopApp.cs` and `Runtime/UI/`: the desktop screen in UI Toolkit. The chart is rows of
+  up to four bars (each section starts a new row), all bars as wide as they are long, the section's name over
+  each row. Two rows are in view: the one being played, with the play marker running through it, and the
+  next. A beat before the next row starts, the rows slide up smoothly. The tab runs across the screen above
+  it as a tape under a fixed marker. The panels: chord diagrams drawn from the voicings, strumming, song info.
+  Look in `Chart.uss`.
 
 ![The desktop screen with the demo song](../docs/images/m1-desktop-intro.png)
 

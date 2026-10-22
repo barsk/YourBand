@@ -84,6 +84,31 @@ namespace GuitarTutor.Core.Chart
         }
     }
 
+    /// <summary>A row of the chart: up to <see cref="SongChart.BarsPerRow"/> bars; each section starts a new row.</summary>
+    public readonly struct ChartRow
+    {
+        public int Index { get; }
+        public int FirstBar { get; }
+        public int Bars { get; }
+        public double AtQuarter { get; }
+        public double Quarters { get; }
+        /// <summary>The section the row is in (null if the song has none there).</summary>
+        public Section Section { get; }
+        /// <summary>True for a section's first row.</summary>
+        public bool StartsSection { get; }
+
+        public ChartRow(int index, int firstBar, int bars, double atQuarter, double quarters, Section section, bool startsSection)
+        {
+            Index = index;
+            FirstBar = firstBar;
+            Bars = bars;
+            AtQuarter = atQuarter;
+            Quarters = quarters;
+            Section = section;
+            StartsSection = startsSection;
+        }
+    }
+
     /// <summary>
     /// A song laid out as the chart shows it (see docs/plan.md, "Desktop mode"): bar by bar, with what to show at a
     /// position (the bar, the lyric line, the strumming stroke, the next chord change). Built once per song; the
@@ -94,15 +119,23 @@ namespace GuitarTutor.Core.Chart
         /// <summary>How long a lyric line stays current after its last word starts, at most (in quarter notes).</summary>
         public const double LineTail = 4;
 
+        /// <summary>The most bars a row of the chart holds.</summary>
+        public const int BarsPerRow = 4;
+
         public Song Song { get; }
         public IReadOnlyList<ChartBar> Bars => bars;
         public IReadOnlyList<SectionSpan> Sections => sections;
+        public IReadOnlyList<ChartRow> Rows => rows;
+        /// <summary>The length of the song's most common bar (quarter notes): <see cref="BarsPerRow"/> of them fill a row.</summary>
+        public double TypicalBarQuarters { get; }
         /// <summary>The song's chords by name, in the order they first appear.</summary>
         public IReadOnlyList<string> ChordNames { get; }
         public double EndQuarter { get; }
 
         readonly List<ChartBar> bars = new List<ChartBar>();
         readonly List<SectionSpan> sections = new List<SectionSpan>();
+        readonly List<ChartRow> rows = new List<ChartRow>();
+        readonly List<int> rowOfBar = new List<int>();
         readonly List<LyricLine> lines;
         readonly List<ChordEvent> chords;
 
@@ -168,6 +201,45 @@ namespace GuitarTutor.Core.Chart
                     sections.Add(new SectionSpan(bars[i].Section, i, j - i));
                 i = j;
             }
+
+            // rows: up to four bars, a new one at each section
+            TypicalBarQuarters = bars.Count == 0 ? 4 : bars.GroupBy(b => b.Quarters).OrderByDescending(g => g.Count()).First().Key;
+            for (int i = 0; i < bars.Count;)
+            {
+                int j = i + 1;
+                while (j < bars.Count && j - i < BarsPerRow && !bars[j].StartsSection)
+                    ++j;
+                var rowEnd = bars[j - 1].AtQuarter + bars[j - 1].Quarters;
+                rows.Add(new ChartRow(rows.Count, i, j - i, bars[i].AtQuarter, rowEnd - bars[i].AtQuarter, bars[i].Section, bars[i].StartsSection));
+                for (int k = i; k < j; ++k)
+                    rowOfBar.Add(rows.Count - 1);
+                i = j;
+            }
+        }
+
+        // ------------------------------------------------------------ rows
+        /// <summary>The row a bar is in.</summary>
+        public int RowOf(int bar) => rowOfBar.Count == 0 ? 0 : rowOfBar[Math.Max(0, Math.Min(bar, rowOfBar.Count - 1))];
+
+        /// <summary>
+        /// Where the chart's rows stand at a position, as a row number with a fraction: the number of the row
+        /// being played, rising smoothly to the next row's over the last <paramref name="lead"/> quarter notes of
+        /// the row, so the next row is in place when the music gets there.
+        /// </summary>
+        public double RowPosition(double quarter, double lead)
+        {
+            if (rows.Count == 0)
+                return 0;
+            var bar = BarOf(Math.Max(0, quarter));
+            var r = bar == null ? (quarter < 0 ? 0 : rows.Count - 1) : RowOf(bar.Index);
+            if (r >= rows.Count - 1 || lead <= 0)
+                return r;
+            var end = rows[r].AtQuarter + rows[r].Quarters;
+            var t = (quarter - (end - lead)) / lead;
+            if (t <= 0)
+                return r;
+            t = Math.Min(1, t);
+            return r + t * t * (3 - 2 * t);
         }
 
         // ------------------------------------------------------------ bars

@@ -25,19 +25,16 @@ namespace GuitarTutor.Runtime.UI
     }
 
     /// <summary>
-    /// The chart strip along the bottom of the desktop screen: the section map (click a section to go there), the
-    /// current bar large with the next bars after it, and the lyric line being sung with the next one under it.
+    /// The chart along the bottom of the desktop screen: the section map (click a section to go there) and the
+    /// song's bars in rows, the row being played on top and the next one under it, moving on smoothly.
     /// </summary>
     public sealed class ChartStrip : VisualElement
     {
-        public const int BarsAhead = 3;
-
-        readonly VisualElement sectionRow, sectionCursor, lineNow, lineNext;
-        readonly BarView current;
-        readonly BarView[] ahead = new BarView[BarsAhead];
+        readonly VisualElement sectionRow, sectionCursor;
+        readonly ChartRows rows;
         readonly List<VisualElement> sectionBoxes = new List<VisualElement>();
         SongChart chart;
-        int sectionNow = -2, lineShown = -2, nextShown = -2, wordsLit = -1;
+        int sectionNow = -2;
 
         /// <summary>Called with the bar to go to when a section of the map is clicked.</summary>
         public event Action<int> SeekToBar;
@@ -47,15 +44,8 @@ namespace GuitarTutor.Runtime.UI
             AddToClassList("gt-chart");
             sectionRow = ChartLook.Box("gt-sections", this);
             sectionCursor = ChartLook.Box("gt-sections__cursor");
-            var bars = ChartLook.Box("gt-bars", this);
-            current = new BarView(true);
-            bars.Add(current);
-            for (int i = 0; i < BarsAhead; ++i)
-                bars.Add(ahead[i] = new BarView(false));
-            var lyrics = ChartLook.Box("gt-lyrics", this);
-            lineNow = ChartLook.Box("gt-lyrics__line", lyrics);
-            lineNext = ChartLook.Box("gt-lyrics__line", lyrics);
-            lineNext.AddToClassList("gt-lyrics__line--next");
+            rows = new ChartRows();
+            Add(rows);
         }
 
         public void SetSong(SongChart songChart)
@@ -74,40 +64,21 @@ namespace GuitarTutor.Runtime.UI
                 sectionBoxes.Add(box);
             }
             sectionRow.Add(sectionCursor);
-            sectionNow = lineShown = nextShown = -2;
-            wordsLit = -1;
+            sectionNow = -2;
+            rows.SetSong(chart);
         }
 
         /// <param name="quarter">Where the music is.</param>
         /// <param name="countIn">During a count-in: how far through it, and the bar it leads into; null otherwise.</param>
-        public void Show(double quarter, CountIn? countIn)
+        /// <param name="lead">How long before a row's end the rows move on (quarter notes).</param>
+        public void Show(double quarter, CountIn? countIn, double lead)
         {
             if (chart == null)
                 return;
-            ChartBar bar = null;
-            int firstAhead;
-            if (countIn is CountIn c)
-            {
-                current.ShowCountIn(c.Signature, c.Beat);
-                current.SetCursor((float)c.Fraction);
-                firstAhead = c.TargetBar;
-                quarter = c.TargetBar < chart.Bars.Count ? chart.Bars[c.TargetBar].AtQuarter - 1e-6 : quarter;
-            }
-            else
-            {
-                bar = chart.BarOf(Math.Max(quarter, 0));
-                current.Show(chart, bar);
-                current.SetCursor(bar == null ? -1 : (float)((quarter - bar.AtQuarter) / bar.Quarters));
-                firstAhead = bar == null ? chart.Bars.Count : bar.Index + 1;
-            }
-            for (int i = 0; i < BarsAhead; ++i)
-            {
-                var index = firstAhead + i;
-                ahead[i].Show(chart, index < chart.Bars.Count ? chart.Bars[index] : null);
-                ahead[i].SetCursor(-1);
-            }
+            rows.Show(quarter, countIn, lead);
 
-            var sectionIndex = chart.SectionIndexOf(bar?.Index ?? countIn?.TargetBar ?? -1);
+            var bar = countIn is CountIn c ? (c.TargetBar < chart.Bars.Count ? chart.Bars[c.TargetBar] : null) : chart.BarOf(Math.Max(quarter, 0));
+            var sectionIndex = chart.SectionIndexOf(bar?.Index ?? -1);
             if (sectionIndex != sectionNow)
             {
                 for (int i = 0; i < sectionBoxes.Count; ++i)
@@ -116,42 +87,6 @@ namespace GuitarTutor.Runtime.UI
             }
             var along = chart.EndQuarter > 0 ? Math.Max(0, Math.Min(1, quarter / chart.EndQuarter)) : 0;
             sectionCursor.style.left = Length.Percent((float)(along * 100));
-
-            ShowLyrics(quarter);
-        }
-
-        void ShowLyrics(double quarter)
-        {
-            var now = chart.LineAt(quarter);
-            var next = chart.NextLineAfter(quarter);
-            if (now != lineShown)
-            {
-                lineNow.Clear();
-                var line = chart.Line(now);
-                if (line != null)
-                    foreach (var w in line.Words)
-                        ChartLook.Label(w.Text, "gt-lyrics__word", lineNow);
-                else if (chart.LineCount > 0)
-                    ChartLook.Label(chart.Song.SectionAt(Math.Max(quarter, 0))?.Name ?? "", "gt-lyrics__rest", lineNow);
-                lineShown = now;
-                wordsLit = -1;
-            }
-            if (next != nextShown)
-            {
-                lineNext.Clear();
-                var line = chart.Line(next);
-                if (line != null)
-                    foreach (var w in line.Words)
-                        ChartLook.Label(w.Text, "gt-lyrics__word", lineNext);
-                nextShown = next;
-            }
-            var sung = SongChart.WordsSung(chart.Line(now), quarter);
-            if (sung != wordsLit)
-            {
-                for (int i = 0; i < lineNow.childCount; ++i)
-                    lineNow[i].EnableInClassList("gt-lyrics__word--sung", i < sung && chart.Line(now) != null);
-                wordsLit = sung;
-            }
         }
     }
 }
