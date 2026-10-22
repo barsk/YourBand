@@ -56,6 +56,7 @@ namespace GuitarTutor.EditorTools
 
             if (rebuildScene || !File.Exists(ScenePath))
                 BuildScene();
+            BandSetup.Run();  // the 3D band, if its assets are there (tools/band_assets)
             ConfigurePlayer();
             AssetDatabase.SaveAssets();
             Debug.Log("GuitarTutor setup: done");

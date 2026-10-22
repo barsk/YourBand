@@ -8,6 +8,7 @@ using GuitarTutor.Core.Chart;
 using GuitarTutor.Core.Engine;
 using GuitarTutor.Core.Playback;
 using GuitarTutor.Core.Songs;
+using GuitarTutor.Runtime.Band;
 using GuitarTutor.Runtime.Engine;
 using GuitarTutor.Runtime.Songs;
 using GuitarTutor.Runtime.UI;
@@ -22,7 +23,7 @@ namespace GuitarTutor.Runtime.Desktop
     public enum Command
     {
         PlayPause, Restart, Home, BarBack, BarOn, SectionBack, SectionOn, Faster, Slower,
-        NextPattern, NextSong, NextStyle, BandGuitar, ControlPanel, ToneWindow, Help, Quit,
+        NextPattern, NextSong, NextStyle, BandGuitar, BandView, ControlPanel, ToneWindow, Help, Quit,
     }
 
     /// <summary>
@@ -36,6 +37,9 @@ namespace GuitarTutor.Runtime.Desktop
     /// renders a screenshot at each position (in quarter notes, comma separated; "countin" for the count-in) with
     /// every panel shown, then quits. <c>-noengine</c> does not look for the audio engine. <c>-parts drums,bass</c>
     /// gives the band only those parts (for checking them one at a time); <c>-style Rock</c> starts in that band style.
+    /// <c>-view band</c> starts in the band view (the 3D band behind the chart; V switches it); <c>-nopanels</c>
+    /// hides the panels in screenshots, <c>-nochart</c> the whole screen; <c>-cam guitarist</c> (or another
+    /// role, optionally <c>:left</c>, <c>:right</c>, <c>:hands</c>) frames one musician.
     /// Without a running engine the game starts one (<c>-engine &lt;file&gt;</c>: which; <c>-engineargs "..."</c>: more
     /// for its command line) and closes it when it closes.
     /// </remarks>
@@ -67,6 +71,9 @@ namespace GuitarTutor.Runtime.Desktop
         double? resumeFrom;  // where playing again goes, when not where the music stopped
         bool countInNext = true;  // the next play starts somewhere new: count in
         bool bandGuitarPlays;     // the band guitarist plays the rhythm, as the engine last said
+        BandStage band;           // the 3D band, once the band view has been shown
+        bool bandView;            // the 3D band behind the chart (V)
+        string closeUp;           // screenshots: one musician framed (-cam)
 
         static double Now => Time.realtimeSinceStartupAsDouble;
 
@@ -108,6 +115,12 @@ namespace GuitarTutor.Runtime.Desktop
                 StartCoroutine(StartEngineIfNeeded(Arg("-engine"), Arg("-engineargs") ?? ""));
             }
             Load(songIndex);
+            if (Arg("-view") == "band")
+                SetBandView(true);
+            if (args.Contains("-nochart"))
+                screen.style.display = DisplayStyle.None;
+            closeUp = Arg("-cam");
+            Musician.Logging = args.Contains("-bandlog");
 
             var shots = Arg("-shot");
             if (shots != null)
@@ -170,6 +183,7 @@ namespace GuitarTutor.Runtime.Desktop
             var parts = Environment.GetCommandLineArgs().SkipWhile(a => a != "-parts").Skip(1).FirstOrDefault();
             if (parts != null)
                 arrangement.Notes.RemoveAll(n => !parts.Split(',').Contains(n.Part.ToString().ToLowerInvariant()));
+            band?.SetSong(chart, arrangement);
             engineReady = false;
             transport = local;
             if (engineConnected)  // otherwise it goes when the engine connects
@@ -257,6 +271,38 @@ namespace GuitarTutor.Runtime.Desktop
             var status = link == null ? "" : engineReady ? $"band: {bandStyle.Name}" + (bandGuitarPlays ? ", guitarist strums" : "") : engineConnected ? "band: loading"
                 : startingEngine ? "band: starting the engine" : "no band (engine not running)";
             screen.Show(quarter, CountInAt(quarter), new TransportState(transport.Playing, transport.Speed, chart.Song.Tempo.SecondsAt(Math.Max(0, quarter)), status), pattern);
+            if (bandView && band != null)
+            {
+                band.Show(quarter, chart.Song.Tempo.SecondsAt(Math.Max(0, quarter)));
+                if (closeUp != null && Camera.main != null)
+                    band.Frame(Camera.main, closeUp);
+            }
+        }
+
+        /// <summary>The 3D band behind the chart, or the chart alone (the default).</summary>
+        void SetBandView(bool on)
+        {
+            if (on && band == null)
+            {
+                band = BandStage.Create(out var missing);
+                if (band == null)
+                {
+                    Debug.LogWarning("GuitarTutor: no band view: " + missing);
+                    return;
+                }
+                band.SetSong(chart, arrangement);
+            }
+            bandView = on;
+            if (band != null)
+                band.gameObject.SetActive(on);
+            var eye = Camera.main;
+            if (eye != null)
+            {
+                eye.transform.position = on ? BandStage.ViewFrom : new Vector3(0, 1.6f, -4);
+                eye.transform.rotation = on ? Quaternion.LookRotation(BandStage.ViewAt - BandStage.ViewFrom) : Quaternion.identity;
+                eye.fieldOfView = 50;
+            }
+            Debug.Log("GuitarTutor: " + (on ? "band view" : "chart view"));
         }
 
         CountIn? CountInAt(double quarter)
@@ -405,6 +451,7 @@ namespace GuitarTutor.Runtime.Desktop
                         link.Send(EngineProtocol.ShowWindow(command == Command.ControlPanel ? "controlPanel" : "guitar"));
                     }
                     break;
+                case Command.BandView: SetBandView(!bandView); break;
                 case Command.Help: screen.ToggleHelp(); break;
                 case Command.Quit: Application.Quit(); break;
             }
@@ -421,7 +468,7 @@ namespace GuitarTutor.Runtime.Desktop
                 (Key.LeftArrow, Command.BarBack), (Key.RightArrow, Command.BarOn),
                 (Key.PageUp, Command.SectionBack), (Key.PageDown, Command.SectionOn),
                 (Key.UpArrow, Command.Faster), (Key.DownArrow, Command.Slower),
-                (Key.P, Command.NextPattern), (Key.L, Command.NextSong), (Key.B, Command.NextStyle), (Key.G, Command.BandGuitar),
+                (Key.P, Command.NextPattern), (Key.L, Command.NextSong), (Key.B, Command.NextStyle), (Key.G, Command.BandGuitar), (Key.V, Command.BandView),
                 (Key.C, Command.ControlPanel), (Key.T, Command.ToneWindow),
                 (Key.H, Command.Help), (Key.Escape, Command.Quit),
             };
@@ -444,8 +491,9 @@ namespace GuitarTutor.Runtime.Desktop
         IEnumerator Shots(string folder, string[] positions)
         {
             Directory.CreateDirectory(folder);
+            var panels = !Environment.GetCommandLineArgs().Contains("-nopanels");
             foreach (var panel in PanelOrder)
-                screen.SetShown(panel, true);
+                screen.SetShown(panel, panels);
             Screen.SetResolution(1920, 1080, FullScreenMode.Windowed);
             for (int i = 0; i < 10; ++i)
                 yield return null;

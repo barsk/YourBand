@@ -206,7 +206,9 @@ on fixed spots; room layouts let you place them yourself. Moving a station never
 ## Band animation
 
 Rocketbox avatars as Unity humanoids. Mixamo clips are retargeted by Mecanim. Hands go onto real targets
-(frets, keys, drums) with IK. Clips are time-scaled and locked to the beat, and driven by the scheduled notes.
+(frets, keys, drums) with IK. Clips are time-scaled and locked to the beat, and driven by the band's notes:
+the game arranges every part, so each musician's hits, strokes, chord changes and keys are known ahead and
+played against the engine's clock (no look-ahead messages needed).
 The Blender mockup (`mockup/`) is the reference for fitting and IK: `mocap.py`, `drumming.py`, `comping.py`,
 `riding.py`, `fretting.py`.
 
@@ -256,11 +258,17 @@ Then:
 |---|---|
 | M1 | Chart and panels |
 | M2 | Band at a fixed tempo: style templates, sampled instruments, TONE3000 on band bass and guitar, footswitch and keyboard control, count-in |
+| M6 | The band as 3D musicians: Rocketbox avatars on their instruments, every hit, stroke and key played from the band's notes in real time; on the desktop an extra view to switch to (the chart stays the default) |
+| M7 | VR: mixed reality with the band in your room by default, room layouts |
 | M3 | Listening: tuner, strums, chord check, learn timing by playing |
 | M4 | Tempo following and the bandleader |
 | M5 | Voice commands |
-| M6 | 3D band on the desktop, home studio venue |
-| M7 | VR: mixed reality, room layouts |
+
+On 2026-10-22 the order changed: the band in VR (M6 and M7) comes before listening, tempo following and voice
+(M3-M5), which wait. M6 needs no venue: the desktop's band view is a plain stage, and in VR your room is the
+venue. The band's motion is computed in the game (C#), from the arrangement it already has, not baked in
+Blender per song: any song, style and tempo then works. Blender stays an offline asset step (the instruments'
+meshes and playing geometry, `tools/band_assets/`).
 
 Later: more venues, guitar tracking with ghost hands, a teacher avatar, a language-model coach, alignment
 to recordings.

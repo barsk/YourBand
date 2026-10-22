@@ -29,6 +29,8 @@ engine/third_party/*/
 !engine/third_party/README.md
 
 # Unity (game/ is a Unity project)
+game/Assets/External/
+game/Assets/External.meta
 game/[Ll]ibrary/
 game/[Tt]emp/
 game/[Oo]bj/
