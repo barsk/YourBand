@@ -41,7 +41,8 @@ struct Preset
 class EngineCore final : private juce::ChangeListener
 {
 public:
-    enum class Slot { guitar, bass };
+    /** The plugins: your guitar's amp, the band's bass amp, and the band's drum and bass instruments. */
+    enum class Slot { guitar, bass, bandDrums, bandBass };
 
     EngineCore();
     ~EngineCore() override;
@@ -60,6 +61,12 @@ public:
     juce::String loadPlugins (const juce::File& pluginFile);
     /** Loads the keyboard plugin (Numa Player) for the band's keys. Returns an error message, or empty. */
     juce::String loadKeys (const juce::File& pluginFile);
+    /** Loads an instrument plugin for the band's drums or bass (MONSTER Drums, MONSTER Bass). The band plays
+        it once you have chosen its sound in its window (see useBandInstrument). Returns an error, or empty. */
+    juce::String loadBandInstrument (Slot, const juce::File& pluginFile);
+    /** Whether the band plays the drums or bass on its instrument plugin, or synthesized. */
+    void useBandInstrument (Slot, bool on);
+    bool usesBandInstrument (Slot slot) const;
     /** Gives the keyboard plugin a sound ("2 - E_PIANO/1 - EP-Mark I"). Returns an error message, or empty. */
     juce::String setKeysSound (const juce::String& sound);
     juce::String keysSound() const { return currentKeysSound; }
@@ -110,7 +117,8 @@ private:
     juce::AudioProcessorPlayer player;
 
     SharedClock clock;
-    Node::Ptr input, output, guitarTone, bandNode, bassTone, keysNode, bassMix, keysMix, bandBus;
+    Node::Ptr input, output, guitarTone, bandNode, bassTone, keysNode, drumsMix, bassMix, keysMix, bandBus;
+    Node::Ptr drumsPlugin, bassPlugin, keysChannel, drumsChannel, bassChannel;
     BandProcessor* bandProcessor = nullptr;
     juce::String currentKeysSound;
     std::array<float, 3> soundLevels { 0.8f, 0.8f, 1.3f }, faderLevels { 1.0f, 1.0f, 1.0f };  // drums, bass, keys

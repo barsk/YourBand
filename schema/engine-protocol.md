@@ -25,7 +25,7 @@ the message set settles.
 | `pause` | | Stop; sounding notes are released |
 | `seek` | `to` | Move to `to`; keeps playing if playing |
 | `speed` | `value` | Practice speed: 1 is the song's tempo |
-| `window` | `show` | Brings up a window of the engine: `controlPanel` (devices, faders, log), `guitar` (the guitar's TONE3000) or `bass` (the bass amp) |
+| `window` | `show` | Brings up a window of the engine: `controlPanel` (devices, faders, log), `guitar` (the guitar's TONE3000), `bass` (the bass amp), `drums` (the band's drum plugin) or `bandBass` (the band's bass plugin) |
 | `quit` | | Close the engine (it saves its settings); the game sends it when it closes an engine it started |
 | `mix` | `part`, `gain` | The level of a band part's sound: `drums`, `bass` or `keys`, 1 as played (defaults: drums 0.8, bass 0.8 after its amp, keys 1.3; the game sets the keys per style). The control panel's faders multiply it and are remembered by the engine |
 

@@ -161,9 +161,9 @@ void BandProcessor::addOff (Off off)
 void BandProcessor::releaseAll (juce::MidiBuffer& midi)
 {
     for (int i = 0; i < numOffs; ++i)
-        if (offs[(size_t) i].part == keys)
-            midi.addEvent (juce::MidiMessage::noteOff (1, offs[(size_t) i].pitch), 0);
-    midi.addEvent (juce::MidiMessage::allNotesOff (1), 0);
+        midi.addEvent (juce::MidiMessage::noteOff (channelOf (offs[(size_t) i].part), offs[(size_t) i].pitch), 0);
+    for (auto part : { keys, bass, drums })
+        midi.addEvent (juce::MidiMessage::allNotesOff (channelOf (part)), 0);
     numOffs = 0;
     bassVoice.noteOff (0);
 }
@@ -248,8 +248,8 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
             const auto& off = offs[(size_t) i];
             if (off.at < q1)
             {
-                if (off.part == keys)
-                    midi.addEvent (juce::MidiMessage::noteOff (1, off.pitch), offsetOf (off.at));
+                if (off.serial < 0)  // played on a plugin
+                    midi.addEvent (juce::MidiMessage::noteOff (channelOf (off.part), off.pitch), offsetOf (off.at));
                 else if (off.part == bass && off.serial == bassSerial)
                     bassVoice.noteOff (offsetOf (off.at));
                 offs[(size_t) i] = offs[(size_t) --numOffs];
@@ -265,21 +265,20 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
             if (note.at < q0 - 1.0e-9 || (countingIn && note.at < countInUntil - 1.0e-9))
                 continue;
             const auto at = offsetOf (note.at);
-            switch (note.part)
+            const auto onPlugin = note.part == keys || (note.part == drums && drumsOnPlugin.load()) || (note.part == bass && bassOnPlugin.load());
+            if (onPlugin)
             {
-                case drums:
-                    kit.trigger (note.pitch, note.velocity, at);
-                    break;
-                case bass:
-                    bassVoice.noteOn (note.pitch, note.velocity, at);
-                    addOff ({ bass, note.pitch, ++bassSerial, note.at + note.length * 0.95 });
-                    break;
-                case keys:
-                    midi.addEvent (juce::MidiMessage::noteOn (1, note.pitch, note.velocity), at);
-                    addOff ({ keys, note.pitch, 0, note.at + note.length });
-                    break;
-                default:
-                    break;
+                // a drum hit is short; a bass note lets go just before the next, as a player's would
+                const auto length = note.part == drums ? juce::jmax (0.1, note.length) : note.part == bass ? note.length * 0.95 : note.length;
+                midi.addEvent (juce::MidiMessage::noteOn (channelOf (note.part), note.pitch, note.velocity), at);
+                addOff ({ note.part, note.pitch, -1, note.at + length });
+            }
+            else if (note.part == drums)
+                kit.trigger (note.pitch, note.velocity, at);
+            else if (note.part == bass)
+            {
+                bassVoice.noteOn (note.pitch, note.velocity, at);
+                addOff ({ bass, note.pitch, ++bassSerial, note.at + note.length * 0.95 });
             }
         }
 
@@ -289,10 +288,6 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
     }
 
     kit.render (buffer.getWritePointer (0), buffer.getWritePointer (1), n);
-    const auto gain = drumsGain.load();
-    for (int ch = 0; ch < 2; ++ch)
-        buffer.applyGainRamp (ch, 0, n, drumsApplied, gain);
-    drumsApplied = gain;
     bassVoice.render (buffer.getWritePointer (2), n);
 
     // the block's first sample is heard after the output latency

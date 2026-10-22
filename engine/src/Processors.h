@@ -32,6 +32,35 @@ public:
     void setStateInformation (const void*, int) override {}
 };
 
+/** Passes on the MIDI of one channel only: each instrument plugin hears its own part of the band. */
+class MidiChannelFilter final : public SimpleProcessor
+{
+public:
+    explicit MidiChannelFilter (int midiChannel)
+        : SimpleProcessor (BusesProperties()), channel (midiChannel)
+    {
+        kept.ensureSize (8192);
+    }
+
+    const juce::String getName() const override { return "MIDI channel " + juce::String (channel); }
+    bool acceptsMidi() const override { return true; }
+    bool producesMidi() const override { return true; }
+    bool isMidiEffect() const override { return true; }
+    void prepareToPlay (double, int) override {}
+    void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer& midi) override
+    {
+        kept.clear();
+        for (const auto event : midi)
+            if (event.getMessage().getChannel() == channel)
+                kept.addEvent (event.getMessage(), event.samplePosition);
+        midi.swapWith (kept);
+    }
+
+private:
+    int channel;
+    juce::MidiBuffer kept;
+};
+
 /** A volume control in the graph: one channel of the band's mixer. Changes are ramped over a block. With
     `limit`, peaks above 0.7 are bent softly towards 1 instead of clipping (the band's sum, to spare your ears). */
 class GainProcessor final : public SimpleProcessor

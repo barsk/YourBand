@@ -72,10 +72,15 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
 
 - The game writes the parts (`game/Assets/GuitarTutor/Core/Band/Arranger.cs`) in one of three styles:
   Ballad (the default below 120 BPM), Rock and Pop. B switches style in the game.
-- Drums: a synthesized kit (`src/Instruments.*`): kick, snare, side stick, hats, crash, ride, toms, sticks.
-  It stands in for a sampled kit; finding one is still open.
-- Bass: a finger-played string built from its harmonics (`BassVoice`), as a clean DI signal into the
-  "Bass amp" TONE3000 instance. The first version (a Karplus-Strong string plucked with noise) had almost
+- Drums: MONSTER Drums (a free sampled drum plugin) once you have chosen a kit in it; until then, and
+  without it, a synthesized kit (`src/Instruments.*`). The count-in sticks are always the synthesized ones.
+- Instrument plugins for the band: the engine looks for `MONSTER Drums*.vst3` and `MONSTER Bass*.vst3` in the
+  VST3 folder, then in `monster_plugins/Library files/` next to the repository. Open "Band drums..." or "Band
+  bass..." in the control panel, choose a kit or a bass in the plugin's window (each is one `.mse` file from
+  its library folder), and close the window: from then on the band plays it, and the engine remembers it. The
+  band sends each part on its own MIDI channel (keys 1, bass 2, drums 10) and each plugin hears only its own.
+- Bass: MONSTER Bass once you have chosen a bass in it, or a finger-played string built from its harmonics
+  (`BassVoice`), either way into the "Bass amp" TONE3000 instance. The first version (a Karplus-Strong string plucked with noise) had almost
   no fundamental and sounded thin and too high: its strongest partials sat at 200 Hz-1.3 kHz. Now the
   fundamental leads, with the next harmonics about 3, 7 and 13 dB under it.
 - Keys: Numa Player, its sound chosen by the style (Rhodes for Ballad, B3 organ for Rock, grand piano for

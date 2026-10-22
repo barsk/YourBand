@@ -60,6 +60,8 @@ private:
     juce::Label inputLabel { {}, "Guitar input" }, presetLabel { {}, "Preset" };
     juce::ComboBox inputBox, presetBox;
     juce::TextButton guitarButton { "Guitar tone..." }, bassButton { "Bass amp..." };
+    juce::TextButton bandDrumsButton { "Band drums..." }, bandBassButton { "Band bass..." };
+    std::map<EngineCore::Slot, juce::MemoryBlock> blankStates;  // an instrument plugin's state before a sound is chosen
     juce::TextButton previousButton { "< Previous" }, nextButton { "Next >" };
     juce::Label latencyLabel, cpuLabel, footLabel, gameLabel, bandLabel;
     // the band's mixer: drums, bass, keys

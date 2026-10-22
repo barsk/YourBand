@@ -4,9 +4,10 @@
 // The band owns the song's transport: the game asks it to play, pause, seek and change speed, and the band
 // publishes where the music is in the shared clock after every block.
 //
-//   outputs 0-1   drums (stereo)
-//   output  2     bass DI, into the bass amp (a TONE3000 instance)
-//   MIDI out      keys, into the keyboard plugin (Numa Player)
+//   outputs 0-1   drums (stereo): the synthesized kit, and the count-in sticks
+//   output  2     bass DI, synthesized, into the bass amp (a TONE3000 instance)
+//   MIDI out      keys on channel 1 (Numa Player); with instrument plugins for them, the bass on channel 2 and
+//                 the drums on channel 10 (General MIDI drum notes) instead of the synthesized ones
 //
 // Rendered in the audio callback for now; docs/plan.md has it moving to its own thread, ahead of time, as the
 // band grows.
@@ -53,6 +54,8 @@ class BandProcessor final : public SimpleProcessor
 {
 public:
     enum Part { drums = 0, bass = 1, keys = 2 };
+    /** The MIDI channel each part plays on when it goes to a plugin. */
+    static int channelOf (int part) { return part == drums ? 10 : part == bass ? 2 : 1; }
 
     explicit BandProcessor (SharedClock&);
 
@@ -70,9 +73,9 @@ public:
     const Score* score() const { return latest; }
 
     void setOutputLatency (double seconds) { outputLatency.store (seconds); }
-    /** The drums' volume (the bass and keys have theirs after their plugins). */
-    void setDrumsGain (float g) { drumsGain.store (juce::jlimit (0.0f, 4.0f, g)); }
-    float getDrumsGain() const { return drumsGain.load(); }
+    /** Plays a part on an instrument plugin (as MIDI) instead of the synthesized one. */
+    void setPluginFor (Part part, bool on) { (part == drums ? drumsOnPlugin : bassOnPlugin).store (on); }
+    bool usesPluginFor (Part part) const { return (part == drums ? drumsOnPlugin : bassOnPlugin).load(); }
 
     // any thread: for the window
     double position() const { return shownPosition.load(); }
@@ -109,8 +112,7 @@ private:
     std::vector<std::unique_ptr<Score>> owned;  // message thread; freed once neither pending nor in use
     const Score* latest = nullptr;
     std::atomic<double> outputLatency { 0.0 };
-    std::atomic<float> drumsGain { 0.8f };
-    float drumsApplied = 0.8f;
+    std::atomic<bool> drumsOnPlugin { false }, bassOnPlugin { false };
 
     // audio thread
     const Score* playingScore = nullptr;
