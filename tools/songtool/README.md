@@ -18,7 +18,7 @@ machine.
 
 Both Wicked Game pages (chords and tabs), imported into one layered song:
 
-- 8 sections, 100 chords, 26 lyric lines, 133 bars at 112 BPM, 4:45. The album version is about 4:49, so the
+- 8 sections, 100 chords, 36 lyric lines (11 of them backing vocals, written in parentheses on the page), 133 bars at 112 BPM, 4:45. The album version is about 4:49, so the
   guessed chord lengths hold over the whole song.
 - Timing check: the guess makes the intro 0:34; the tabs page marks it 0:00-0:34 in the recording.
 - The tabs page: all 19 of its lyric lines found in the chords page (matched on similar text, as the pages word
@@ -29,3 +29,8 @@ Both Wicked Game pages (chords and tabs), imported into one layered song:
 What the first guess cannot know yet: the exact rhythm of riffs (ASCII tab has no note lengths; notes are spread
 by their columns) and lines that do not follow the "a bar per chord, filled to whole bars" pattern. "Learn by
 playing" (M3) and the chart editor correct these.
+
+Backing vocals (2026-10-22): words in parentheses become a line of their own, marked as backing (the chart shows
+it dimmed and in italics). A line's words never start before the previous line's last word, and words before a
+line's first chord (a pickup) are timed at a speaking pace, at most a bar ahead: before, chords written close
+together put Wicked Game's chorus pickup two bars early, into the backing vocals.

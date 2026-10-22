@@ -68,6 +68,8 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
                 song.Chords.AddRange(line.Chords);
                 if (line.Lyric != null)
                     song.Lyrics.Add(line.Lyric);
+                if (line.Backing != null)
+                    song.Lyrics.Add(line.Backing);
             }
             report.Add($"{song.Sections.Count} sections, {song.Chords.Count} chords, {song.Lyrics.Count} lyric lines, "
                        + $"{song.Tempo.BarAt(placed.End).bar} bars at {bpm.ToString(CultureInfo.InvariantCulture)} BPM in {signature} "
@@ -99,6 +101,7 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
             public ChordLine Source;
             public List<ChordEvent> Chords = new List<ChordEvent>();
             public LyricLine Lyric;
+            public LyricLine Backing;  // the line's words in parentheses
             public double At, End;
             public string Key = "";  // the lyric, normalised for matching
         }
@@ -122,6 +125,7 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
         {
             var p = new Placement();
             double at = 0;
+            var lastWord = double.MinValue;  // lines are sung one after the other: none starts before the last ends
             foreach (var section in sheet.Sections)
             {
                 var start = at;
@@ -141,8 +145,11 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
                         placedLine.End = at;
                         if (r == 0 && !string.IsNullOrWhiteSpace(c.Lyric))
                         {
-                            placedLine.Lyric = Lyric(c, placedLine);
+                            (placedLine.Lyric, placedLine.Backing) = Lyric(c, placedLine, lastWord);
                             placedLine.Key = Normalise(c.Lyric);
+                            foreach (var l in new[] { placedLine.Lyric, placedLine.Backing })
+                                if (l != null && l.Words.Count > 0)
+                                    lastWord = Math.Max(lastWord, l.Words[l.Words.Count - 1].AtQuarter);
                         }
                         p.Lines.Add(placedLine);
                     }
@@ -154,23 +161,36 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
             return p;
         }
 
-        /// <summary>Words placed between the chords above them, in proportion to their columns.</summary>
-        static LyricLine Lyric(ChordLine c, PlacedLine placed)
+        /// <summary>
+        /// The fastest the words before a line's first chord (a pickup) or after its last are sung: a quarter note
+        /// for every five characters. Chords can be written close together over a bar; their spacing would put
+        /// such words far ahead of the line or far after it.
+        /// </summary>
+        const double SpeechPace = 0.2;
+
+        /// <summary>
+        /// Words placed between the chords above them, in proportion to their columns, and never before
+        /// <paramref name="after"/> (the last word of the line before). Words in parentheses are backing vocals:
+        /// a line of their own, at the places they are written.
+        /// </summary>
+        static (LyricLine main, LyricLine backing) Lyric(ChordLine c, PlacedLine placed, double after)
         {
             var anchors = c.Chords.Select((ch, i) => (column: (double)ch.Column, at: placed.Chords[i].AtQuarter)).ToList();
-            var lyric = new LyricLine();
+            var main = new LyricLine();
+            var backing = new LyricLine { Backing = true };
             var words = Regex.Matches(c.Lyric, @"\S+").Cast<Match>().ToList();
             double rateDefault = (placed.End - placed.At) / Math.Max(1, c.Lyric.Length);
-            double previous = double.MinValue;
+            double previous = after + 0.25;
+            var inParentheses = false;
             foreach (var w in words)
             {
                 double q;
                 var col = (double)w.Index;
                 int k = anchors.FindLastIndex(a => a.column <= col);
-                if (k < 0)  // before the first chord: a pickup, sung just ahead of the line
+                if (k < 0)  // before the first chord: a pickup, sung just ahead of the line (at most a bar ahead)
                 {
-                    var rate = anchors.Count > 1 ? Rate(anchors[0], anchors[1], rateDefault) : rateDefault;
-                    q = anchors[0].at - (anchors[0].column - col) * rate;
+                    var rate = Math.Min(anchors.Count > 1 ? Rate(anchors[0], anchors[1], rateDefault) : rateDefault, SpeechPace);
+                    q = Math.Max(anchors[0].at - (anchors[0].column - col) * rate, anchors[0].at - 4);
                 }
                 else if (k < anchors.Count - 1)
                 {
@@ -178,15 +198,21 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
                 }
                 else  // after the last chord: at the pace of the line so far
                 {
-                    var rate = anchors.Count > 1 ? Rate(anchors[k - 1], anchors[k], rateDefault) : rateDefault;
+                    var rate = Math.Min(anchors.Count > 1 ? Rate(anchors[k - 1], anchors[k], rateDefault) : rateDefault, SpeechPace);
                     q = Math.Min(anchors[k].at + (col - anchors[k].column) * rate, placed.End - 0.25);
                 }
                 q = Math.Max(Math.Max(q, previous), 0);
                 previous = q;
-                lyric.Words.Add(new LyricWord { Text = w.Value, AtQuarter = Math.Round(q * 4) / 4 });  // to sixteenth notes
+                var word = new LyricWord { Text = w.Value, AtQuarter = Math.Round(q * 4) / 4 };  // to sixteenth notes
+                if (w.Value.StartsWith("("))
+                    inParentheses = true;
+                (inParentheses ? backing : main).Words.Add(word);
+                if (w.Value.EndsWith(")") || w.Value.EndsWith("),") || w.Value.EndsWith(")."))
+                    inParentheses = false;
             }
-            lyric.AtQuarter = lyric.Words.Count > 0 ? lyric.Words[0].AtQuarter : placed.At;
-            return lyric;
+            main.AtQuarter = main.Words.Count > 0 ? main.Words[0].AtQuarter : placed.At;
+            backing.AtQuarter = backing.Words.Count > 0 ? backing.Words[0].AtQuarter : placed.At;
+            return (main.Words.Count > 0 ? main : null, backing.Words.Count > 0 ? backing : null);
         }
 
         static double Rate((double column, double at) a, (double column, double at) b, double fallback) =>

@@ -30,11 +30,14 @@ namespace GuitarTutor.Core.Chart
     {
         public LyricWord Word { get; }
         public double Offset { get; }
+        /// <summary>Part of a backing vocal line.</summary>
+        public bool Backing { get; }
 
-        public BarWord(LyricWord word, double offset)
+        public BarWord(LyricWord word, double offset, bool backing = false)
         {
             Word = word;
             Offset = offset;
+            Backing = backing;
         }
     }
 
@@ -143,13 +146,14 @@ namespace GuitarTutor.Core.Chart
         {
             Song = song ?? throw new ArgumentNullException(nameof(song));
             chords = song.Chords.OrderBy(c => c.AtQuarter).ToList();
-            lines = song.Lyrics.Where(l => l.Words.Count > 0).OrderBy(l => l.AtQuarter).ToList();
+            // the lead lines are the song's lines; backing vocals only add their words to the bars
+            lines = song.Lyrics.Where(l => l.Words.Count > 0 && !l.Backing).OrderBy(l => l.AtQuarter).ToList();
             ChordNames = chords.Select(c => c.Name).Distinct().ToList();
 
             var ends = new List<double> { 0 };
             ends.AddRange(chords.Select(c => c.AtQuarter + c.Quarters));
             ends.AddRange(song.Sections.Select(s => s.AtQuarter + s.Quarters));
-            ends.AddRange(lines.SelectMany(l => l.Words).Select(w => w.AtQuarter + 1));
+            ends.AddRange(song.Lyrics.SelectMany(l => l.Words).Select(w => w.AtQuarter + 1));
             ends.AddRange(song.Riffs.SelectMany(r => r.Notes).Select(n => n.AtQuarter + Math.Max(n.Quarters, 0.25)));
             var end = ends.Max();
 
@@ -175,11 +179,12 @@ namespace GuitarTutor.Core.Chart
                     var to = Math.Min(c.AtQuarter + c.Quarters, bar.AtQuarter + bar.Quarters);
                     bar.Chords.Add(new BarChord(c, from - bar.AtQuarter, to - from, c.AtQuarter < bar.AtQuarter - 1e-6));
                 }
-            foreach (var w in lines.SelectMany(l => l.Words))
-            {
-                var bar = BarOf(w.AtQuarter);
-                bar?.Words.Add(new BarWord(w, w.AtQuarter - bar.AtQuarter));
-            }
+            foreach (var l in song.Lyrics)
+                foreach (var w in l.Words)
+                {
+                    var bar = BarOf(w.AtQuarter);
+                    bar?.Words.Add(new BarWord(w, w.AtQuarter - bar.AtQuarter, l.Backing));
+                }
             foreach (var r in song.Riffs)
                 foreach (var n in r.Notes)
                 {

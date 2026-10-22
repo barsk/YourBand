@@ -78,6 +78,9 @@ namespace GuitarTutor.Core.Songs
     public sealed class LyricLine
     {
         public double AtQuarter { get; set; }
+        /// <summary>Backing vocals (written in parentheses in chord sheets): the chart shows them dimmed.</summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public bool Backing { get; set; }
         public List<LyricWord> Words { get; set; } = new List<LyricWord>();
         [JsonIgnore] public string Text => string.Join(" ", Words.Select(w => w.Text));
     }

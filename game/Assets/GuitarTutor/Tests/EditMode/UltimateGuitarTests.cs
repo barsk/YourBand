@@ -143,6 +143,32 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
+        public void Import_BackingVocalsAreTheirOwnLineAndLinesDoNotOverlap()
+        {
+            // chords written close together over a long line, backing vocals in parentheses on the same line,
+            // and the next line starting with a pickup before its first chord
+            const string chorus =
+                "[Chorus]\n" +
+                "    [ch]Bm[/ch] [ch]A[/ch]                     [ch]E[/ch]\n" +
+                "Oh, I keep on running in the rain. (Never gonna stop the train)\n" +
+                "    [ch]Bm[/ch] [ch]A[/ch]                     [ch]E[/ch]\n" +
+                "Oh, I keep on running in the rain.\n";
+            var song = UgImporter.Import(UgPage.Parse(Page("Chords", chorus, false)), null, out _);
+            Assert.AreEqual(3, song.Lyrics.Count);
+            var backing = song.Lyrics.Single(l => l.Backing);
+            Assert.AreEqual("(Never gonna stop the train)", backing.Text);
+            Assert.AreEqual("Oh, I keep on running in the rain.", song.Lyrics[0].Text);
+            // every word after the one before it, across the lines: the second line's pickup comes after the
+            // backing vocals, not among them
+            var second = song.Lyrics.Last(l => !l.Backing);
+            Assert.Greater(second.Words[0].AtQuarter, backing.Words.Last().AtQuarter);
+            Assert.Less(second.Words[0].AtQuarter, song.Chords[3].AtQuarter);  // still a pickup before its Bm
+            // the backing words are sung in the line's last chord (E, two bars)
+            var e = song.Chords[2];
+            Assert.That(backing.Words.All(w => w.AtQuarter >= e.AtQuarter && w.AtQuarter < e.AtQuarter + e.Quarters));
+        }
+
+        [Test]
         public void Import_ShapesStrummingAndTuning()
         {
             var song = UgImporter.Import(ChordsPage, null, out var report);

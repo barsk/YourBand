@@ -304,6 +304,13 @@
 .gt-cell__word--sung {
     color: var(--gt-accent);
 }
+.gt-cell__word--backing {
+    color: var(--gt-dim);
+    -unity-font-style: italic;
+}
+.gt-cell__word--backing.gt-cell__word--sung {
+    color: rgba(242, 169, 59, 0.65);
+}
 .gt-cell__overlay {
     position: absolute;
     left: 0;

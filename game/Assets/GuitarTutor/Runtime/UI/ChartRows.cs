@@ -341,6 +341,7 @@ namespace GuitarTutor.Runtime.UI
             foreach (var w in bar.Words)
             {
                 var label = ChartLook.Label(w.Word.Text, "gt-cell__word", wordLayer);
+                label.EnableInClassList("gt-cell__word--backing", w.Backing);
                 label.RegisterCallback<GeometryChangedEvent>(_ => relayout());
                 words.Add((label, w.Offset / bar.Quarters));
             }
