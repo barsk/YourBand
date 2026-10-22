@@ -19,8 +19,8 @@ EngineCore::EngineCore()
     auto band = std::make_unique<BandProcessor> (clock);
     bandProcessor = band.get();
     bandNode = graph->addNode (std::move (band));
-    // the band's mixer; the bass amp is loud next to the drums, and the keys sit under both
-    bassMix = graph->addNode (std::make_unique<GainProcessor> ("Bass", 0.5f));
+    // the band's mixer: the keys sit a little under the drums and bass
+    bassMix = graph->addNode (std::make_unique<GainProcessor> ("Bass", 0.8f));
     keysMix = graph->addNode (std::make_unique<GainProcessor> ("Keys", 1.3f));
     bandBus = graph->addNode (std::make_unique<GainProcessor> ("Band", 1.0f, true));
 
@@ -161,6 +161,15 @@ bool EngineCore::setPartGain (const juce::String& part, float gain)
     else
         return false;
     return true;
+}
+
+float EngineCore::partGain (const juce::String& part) const
+{
+    if (part == "drums")
+        return bandProcessor->getDrumsGain();
+    if (part == "bass" || part == "keys")
+        return static_cast<GainProcessor*> ((part == "bass" ? bassMix : keysMix)->getProcessor())->getGain();
+    return 0.0f;
 }
 
 juce::String EngineCore::setKeysSound (const juce::String& sound)

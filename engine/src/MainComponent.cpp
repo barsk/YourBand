@@ -132,6 +132,21 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
     }
     footLabel.setText ("Footswitch: none found (any HID game controller works)", juce::dontSendNotification);
 
+    // the band's mixer (the game sets the keys per style; these follow it, and you can move them)
+    for (size_t i = 0; i < faders.size(); ++i)
+    {
+        const juce::String part = i == 0 ? "drums" : i == 1 ? "bass" : "keys";
+        faderLabels[i].setText (part.substring (0, 1).toUpperCase() + part.substring (1), juce::dontSendNotification);
+        addAndMakeVisible (faderLabels[i]);
+        auto& f = faders[i];
+        f.setSliderStyle (juce::Slider::LinearHorizontal);
+        f.setTextBoxStyle (juce::Slider::TextBoxRight, false, 50, 20);
+        f.setRange (0.0, 3.0, 0.05);
+        f.setValue (engine.partGain (part), juce::dontSendNotification);
+        f.onValueChange = [this, &f, part] { engine.setPartGain (part, (float) f.getValue()); };
+        addAndMakeVisible (f);
+    }
+
     // footswitch: buttons 1 and 2 step through the tone presets here; the others are the game's to act on
     footswitch.onDevice = [this] (const juce::String& name)
     {
@@ -341,6 +356,9 @@ void MainComponent::timerCallback()
     cpuLabel.setText (cpu, juce::dontSendNotification);
     auto& band = engine.band();
     const auto* score = band.score();
+    for (size_t i = 0; i < faders.size(); ++i)
+        if (! faders[i].isMouseButtonDown())
+            faders[i].setValue (engine.partGain (i == 0 ? "drums" : i == 1 ? "bass" : "keys"), juce::dontSendNotification);
     bandLabel.setText (score == nullptr ? juce::String ("Band: no song yet")
                                         : "Band: " + score->title + " (" + score->style + "), " + (band.isPlaying() ? "playing" : "stopped")
                                               + " at quarter " + juce::String (band.position(), 1),
@@ -393,6 +411,15 @@ void MainComponent::resized()
     footLabel.setBounds (r.removeFromTop (24));
     gameLabel.setBounds (r.removeFromTop (24));
     bandLabel.setBounds (r.removeFromTop (24));
+    r.removeFromTop (4);
+    row = r.removeFromTop (26);
+    const auto third = row.getWidth() / 3;
+    for (size_t i = 0; i < faders.size(); ++i)
+    {
+        auto cell = row.removeFromLeft (third);
+        faderLabels[i].setBounds (cell.removeFromLeft (50));
+        faders[i].setBounds (cell.reduced (2, 0));
+    }
     r.removeFromTop (6);
     logView.setBounds (r);
 }

@@ -10,6 +10,7 @@
 #include "Footswitch.h"
 #include "GameLink.h"
 
+#include <array>
 #include <map>
 
 namespace gt
@@ -58,6 +59,9 @@ private:
     juce::TextButton guitarButton { "Guitar tone..." }, bassButton { "Bass amp..." };
     juce::TextButton previousButton { "< Previous" }, nextButton { "Next >" };
     juce::Label latencyLabel, cpuLabel, footLabel, gameLabel, bandLabel;
+    // the band's mixer: drums, bass, keys
+    std::array<juce::Slider, 3> faders;
+    std::array<juce::Label, 3> faderLabels;
     juce::TextEditor logView;
 
     std::map<EngineCore::Slot, std::unique_ptr<juce::DocumentWindow>> windows;

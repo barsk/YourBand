@@ -1,7 +1,7 @@
 #pragma once
 
-// The band's own instruments, synthesized: a drum kit and a plucked bass. They need no downloads; a sampled kit
-// and sampled bass can take their place later (docs/plan.md, "Audio").
+// The band's own instruments, synthesized: a drum kit and a finger-played bass. They need no downloads; a
+// sampled kit and sampled bass can take their place later (docs/plan.md, "Audio").
 //
 // Both are driven from the audio thread: events carry a sample offset into the current block, rendering never
 // allocates, and voices are taken from fixed pools.
@@ -70,7 +70,10 @@ private:
     uint32_t seed = 0x1234567u;
 };
 
-/** A plucked bass string (Karplus-Strong), one note at a time, as a clean DI signal for a bass amp. */
+/** A finger-played bass string, one note at a time, as a clean DI signal for a bass amp. It is built from its
+    harmonics: a string plucked a little under a fifth of the way from the bridge (the fundamental strongest, the
+    next harmonics about 3, 7 and 13 dB under it, and some up to the tenth), the upper harmonics a little sharp
+    (string stiffness) and dying faster than the low ones, and a softer pluck giving a darker note. */
 class BassVoice
 {
 public:
@@ -82,15 +85,25 @@ public:
 
 private:
     struct Event { bool on; int note; float velocity; int offset; };
+    /** One harmonic: a rotating phasor (re, im), its level and how much of it is left after each sample. */
+    struct Partial { float re, im, cosStep, sinStep, level, decay; };
+    struct Note
+    {
+        std::array<Partial, 32> partials;
+        int count = 0;
+        float attack = 1.0f;  // rises from 0 to 1 over the first milliseconds
+        bool active = false;
+    };
+
     void pluck (int note, float velocity);
+    void release (Note&, double seconds);
 
     double rate = 48000.0;
-    std::array<float, 4096> line {};  // room for notes down to 12 Hz at 48 kHz
-    size_t length = 2, pos = 0;
-    float damping = 0.98f, tone = 0.0f, level = 0.0f;
+    std::array<Note, 2> notes;  // the note sounding, and the one before it dying away
+    int current = 0;
+    float attackStep = 1.0f;
     std::array<Event, 16> events {};
     int numEvents = 0;
-    uint32_t seed = 0x9e3779b9u;
 };
 
 } // namespace gt

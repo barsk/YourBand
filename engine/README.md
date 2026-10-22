@@ -6,9 +6,9 @@ plugin for your guitar and the band's bass amp, plays the band, and will grow th
 What it does now:
 - Your guitar through TONE3000, with TONE3000's own presets switched from the footswitch (E1).
 - The band (M2): it plays the parts the game arranges, on the song's tempo map, with a count-in. Drums are
-  synthesized, the bass is a plucked string through the second TONE3000 instance (your bass amp capture),
-  and the keys are Numa Player. The band owns the song's transport. The game asks it to play, pause, seek
-  and change speed over a local connection, and reads its clock from shared memory
+  synthesized, the bass is a finger-played string through the second TONE3000 instance (your bass amp
+  capture), and the keys are Numa Player. The band owns the song's transport. The game asks it to play,
+  pause, seek and change speed over a local connection, and reads its clock from shared memory
   ([../schema/engine-protocol.md](../schema/engine-protocol.md)).
 - Latency and CPU readouts, the footswitch, and a log.
 
@@ -69,12 +69,16 @@ starts with a bar of count-in on sticks.
   Ballad (the default below 120 BPM), Rock and Pop. B switches style in the game.
 - Drums: a synthesized kit (`src/Instruments.*`): kick, snare, side stick, hats, crash, ride, toms, sticks.
   It stands in for a sampled kit; finding one is still open.
-- Bass: a plucked string (Karplus-Strong) as a clean DI signal, into the "Bass amp" TONE3000 instance.
+- Bass: a finger-played string built from its harmonics (`BassVoice`), as a clean DI signal into the
+  "Bass amp" TONE3000 instance. The first version (a Karplus-Strong string plucked with noise) had almost
+  no fundamental and sounded thin and too high: its strongest partials sat at 200 Hz-1.3 kHz. Now the
+  fundamental leads, with the next harmonics about 3, 7 and 13 dB under it.
 - Keys: Numa Player, its sound chosen by the style (Rhodes for Ballad, B3 organ for Rock, grand piano for
   Pop), made into a plugin state from the Numa Player app's last state (`src/NumaKeys.*`). Without Numa
   Player installed, the band plays without keys.
-- Mixer: drums 0.8, bass 0.5 after its amp, keys per style, then a soft limiter on the band's sum (peaks
-  above 0.7 bend towards 1). The game sets the keys level per style; the `mix` message sets any part.
+- Mixer: drums 0.8, bass 0.8 after its amp, keys per style, then a soft limiter on the band's sum (peaks
+  above 0.7 bend towards 1). The game sets the keys level per style; the `mix` message sets any part, and the
+  engine window has a fader for each (not remembered yet).
 
 Measured with the band playing (silent mode, 48 kHz, 64 samples): audio CPU 2-4 %; the mix at about -21 dB
 RMS, peak 0.8.

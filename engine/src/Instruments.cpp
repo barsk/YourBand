@@ -228,15 +228,15 @@ void DrumKit::render (float* left, float* right, int numSamples)
 void BassVoice::prepare (double sampleRate)
 {
     rate = sampleRate;
+    attackStep = (float) (1.0 / (0.004 * rate));  // 4 ms: the finger leaves the string
     silence();
 }
 
 void BassVoice::silence()
 {
-    line.fill (0.0f);
+    for (auto& n : notes)
+        n.active = false;
     numEvents = 0;
-    damping = 0.98f;
-    tone = 0.0f;
 }
 
 void BassVoice::noteOn (int note, float velocity, int offset)
@@ -251,23 +251,46 @@ void BassVoice::noteOff (int offset)
         events[(size_t) numEvents++] = { false, 0, 0.0f, offset };
 }
 
+void BassVoice::release (Note& note, double seconds)
+{
+    const auto fast = decayFor (rate, seconds);
+    for (int k = 0; k < note.count; ++k)
+        note.partials[(size_t) k].decay = juce::jmin (note.partials[(size_t) k].decay, fast);
+}
+
 void BassVoice::pluck (int note, float velocity)
 {
-    const auto frequency = 440.0 * std::pow (2.0, (note - 69) / 12.0);
-    length = juce::jlimit<size_t> (2, line.size(), (size_t) std::round (rate / frequency));
-    pos = 0;
-    // a soft pluck: noise smoothed by a one-pole low-pass, so the attack is round like fingers on a bass
-    float s = 0.0f;
-    const auto amount = 0.35f + 0.45f * velocity;
-    for (size_t i = 0; i < length; ++i)
+    // the string sounding stops quickly (a new note on the same string, or a muted one)
+    if (notes[(size_t) current].active)
+        release (notes[(size_t) current], 0.03);
+    current ^= 1;
+    auto& n = notes[(size_t) current];
+
+    const auto v = juce::jlimit (0.0f, 1.0f, velocity);
+    const auto f0 = 440.0 * std::pow (2.0, (note - 69) / 12.0);
+    const auto finger = 1000.0 + 2000.0 * v;                // a harder pluck is brighter
+    const auto sustain = 4.0 * std::pow (41.2 / f0, 0.4);   // seconds to fade 60 dB, the low E longest
+    constexpr double pluckedAt = 0.18, stiffness = 1.5e-4, pi = juce::MathConstants<double>::pi;
+
+    double sum = 0.0;
+    n.count = 0;
+    for (int k = 1; k <= (int) n.partials.size(); ++k)
     {
-        seed ^= seed << 13;
-        seed ^= seed >> 17;
-        seed ^= seed << 5;
-        s += 0.35f * ((float) (int32_t) seed / 2147483648.0f - s);
-        line[i] = amount * s;
+        const auto f = k * f0 * std::sqrt (1.0 + stiffness * k * k);
+        if (f > 6000.0 || f > 0.45 * rate)
+            break;
+        const auto level = std::sin (k * pi * pluckedAt) / std::pow (k, 1.1) / (1.0 + (f / finger) * (f / finger));
+        const auto w = 2.0 * pi * f / rate;
+        // every harmonic starts at zero, so the note starts without a click
+        n.partials[(size_t) n.count++] = { 1.0f, 0.0f, (float) std::cos (w), (float) std::sin (w), (float) level,
+                                           decayFor (rate, sustain / (1.0 + 0.2 * (k - 1))) };
+        sum += std::abs (level);
     }
-    damping = 0.997f;
+    const auto scale = (0.3 + 0.5 * v) / juce::jmax (1.0e-9, sum);
+    for (int k = 0; k < n.count; ++k)
+        n.partials[(size_t) k].level *= (float) scale;
+    n.attack = 0.0f;
+    n.active = true;
 }
 
 void BassVoice::render (float* out, int numSamples)
@@ -282,6 +305,7 @@ void BassVoice::render (float* out, int numSamples)
                 break;
             std::swap (a, b);
         }
+
     int next = 0;
     for (int i = 0; i < numSamples; ++i)
     {
@@ -290,17 +314,55 @@ void BassVoice::render (float* out, int numSamples)
             const auto& e = events[(size_t) next++];
             if (e.on)
                 pluck (e.note, e.velocity);
-            else
-                damping = 0.985f;  // the player mutes the string
+            else if (notes[(size_t) current].active)
+                release (notes[(size_t) current], 0.09);  // the player mutes the string
         }
-        const auto after = (pos + 1) % length;
-        const auto value = 0.5f * (line[pos] + line[after]) * damping;
-        tone += 0.5f * (value - tone);  // keeps the top end of a bass DI signal soft
-        line[pos] = value;
-        pos = after;
-        out[i] += tone;
+        float s = 0.0f;
+        for (auto& n : notes)
+        {
+            if (! n.active)
+                continue;
+            float sum = 0.0f;
+            for (int k = 0; k < n.count; ++k)
+            {
+                auto& p = n.partials[(size_t) k];
+                const auto re = p.re * p.cosStep - p.im * p.sinStep;
+                p.im = p.re * p.sinStep + p.im * p.cosStep;
+                p.re = re;
+                sum += p.level * p.im;
+                p.level *= p.decay;
+            }
+            if (n.attack < 1.0f)
+            {
+                n.attack = juce::jmin (1.0f, n.attack + attackStep);
+                sum *= n.attack * n.attack * (3.0f - 2.0f * n.attack);  // a smooth rise
+            }
+            s += sum;
+        }
+        out[i] += s;
     }
     numEvents = 0;
+
+    // keep the phasors on the unit circle, and let notes go once they have faded
+    for (auto& n : notes)
+    {
+        if (! n.active)
+            continue;
+        float loudest = 0.0f;
+        for (int k = 0; k < n.count; ++k)
+        {
+            auto& p = n.partials[(size_t) k];
+            const auto length = std::sqrt (p.re * p.re + p.im * p.im);
+            if (length > 0.0f)
+            {
+                p.re /= length;
+                p.im /= length;
+            }
+            loudest = juce::jmax (loudest, std::abs (p.level));
+        }
+        if (loudest < 1.0e-5f)
+            n.active = false;
+    }
 }
 
 } // namespace gt

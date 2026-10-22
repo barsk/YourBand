@@ -80,6 +80,7 @@ public:
 
     /** The band's mixer: "drums", "bass" or "keys", as a gain (1: as played). False if there is no such part. */
     bool setPartGain (const juce::String& part, float gain);
+    float partGain (const juce::String& part) const;
 
     Latency latency() const;
     double cpuLoad() const { return deviceManager.getCpuUsage(); }
