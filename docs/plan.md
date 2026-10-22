@@ -328,4 +328,6 @@ to recordings.
   stick sizes the board or pushes, pulls and turns. A / B / sticks run the transport, floor calibration and
   key colour on the left controller; all remembered. Checked on the desktop: without a headset VDXR answers
   "no headset" at once and the room is shown on the desktop; every background pixel exactly #FF00FF, no edge
-  pixel tinted; the controls driven by a scripted headset and controllers (`-vrscript`). Headset test: yours.
+  pixel tinted; the controls driven by a scripted headset and controllers (`-vrscript`); a real XR session
+  (Direct3D 11, focused, band and board in the mirror view) against Unity's OpenXR mock runtime. Headset
+  test: yours.

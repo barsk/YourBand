@@ -150,6 +150,11 @@ Command line:
 | `-vr` | start in VR mode; `-noxr` shows it on the desktop without starting XR; `-xrruntime <json>` uses that OpenXR runtime, `-xrruntime system` the system's |
 | `-vrscript "3:head 0 1.6 0; 4:aim 0.25 1.1 0.3 > -1.5 1 1.6; 4.5:press trigger; 6:shot; 8:quit" -keyshots <folder>` | a scripted headset and Touch controllers on the game's own input (with `-vr -noxr`): tests VR mode's controls without a headset (`Runtime/Testing/VrScript.cs`) |
 | `-vrsettings <file>` | VR mode's settings in that file instead of the game's data folder (for tests, so they leave yours alone) |
+
+Without a headset, a real XR session can still be started against Unity's OpenXR mock runtime, which comes with
+the OpenXR package: `-vr -xrruntime game\Library\PackageCache\com.unity.xr.openxr@<hash>\Runtime\MockRuntime\unity-mock-runtime.json`
+(with `-vrsettings` and `-keys "...:shot"` for a look at the mirror view). It checks the session, the graphics
+and the rendering in stereo; the mock headset has no controllers to press.
 | `-keys "2:Space,6:DownArrow,7:shot,9:quit" -keyshots <folder>` | presses keys on the game's own keyboard at those seconds (never the desktop's), screenshots on "shot": tests the controls end to end |
 
 ## Tests
