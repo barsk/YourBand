@@ -26,18 +26,19 @@ namespace GuitarTutor.Runtime.Vr
     /// runtime (VDXR) if it is installed: <c>-xrruntime &lt;json&gt;</c> names another, <c>-xrruntime system</c>
     /// uses the system's. Without a headset (or with <c>-noxr</c>) the room is shown on the desktop instead, from
     /// standing eye height. Where the band and the board stand, the floor's height and the key colour are kept in
-    /// vr-settings.json in the game's data folder.
+    /// vr-settings.json in the game's data folder (<c>-vrsettings &lt;file&gt;</c>: another file, for tests).
     /// Controllers: A play / pause, B restart, right stick bars and speed, left stick sections (up: help); the
-    /// trigger moves the board or the band (aim at a musician's feet), the stick meanwhile resizes the board or
-    /// turns the band; right stick click brings both back in front of you; X the next key colour; Y, with the left
-    /// controller resting on the floor, sets the floor's height.
+    /// trigger moves the board, or the musician it is aimed at (to fit the band into the room; a ring shows their
+    /// station, red where it crowds another's), the grip the whole band; the stick meanwhile resizes the board,
+    /// or pushes, pulls and turns what is held; right stick click brings the band and the board back in front of you; X
+    /// the next key colour; Y, with the left controller resting on the floor, sets the floor's height.
     /// </remarks>
     public sealed class VrMode : MonoBehaviour
     {
         /// <summary>The key colours Virtual Desktop can key out: magenta (the default), green, blue, black.</summary>
         static readonly Color[] Keys = { new Color(1, 0, 1), new Color(0, 1, 0), new Color(0, 0, 1), Color.black };
         static readonly Color BoardColor = new Color32(0x14, 0x16, 0x1a, 0xff);
-        static readonly Color Aiming = new Color(0.95f, 0.66f, 0.23f), Idle = new Color(0.8f, 0.8f, 0.8f);
+        static readonly Color Aiming = new Color(0.95f, 0.66f, 0.23f), Idle = new Color(0.8f, 0.8f, 0.8f), Crowded = new Color(0.95f, 0.25f, 0.2f);
         const float BoardAspect = 16f / 9;  // the board's width to height: the desktop screen's layout as it is
         const float ControllerTipBelowGrip = 0.04f;
 
@@ -51,6 +52,15 @@ namespace GuitarTutor.Runtime.Vr
             public Vector3 boardAt;
             public float boardPitch, boardYaw;
             public float boardWidth = 1.25f;
+            public List<Station> stations = new List<Station>();  // musicians moved from the stage layout
+        }
+
+        /// <summary>Where a musician stands in the band (relative to it).</summary>
+        [Serializable]
+        class Station
+        {
+            public string role;
+            public float x, z, yaw;
         }
 
         /// <summary>A command from the controllers.</summary>
@@ -61,7 +71,9 @@ namespace GuitarTutor.Runtime.Vr
         public string Status { get; private set; } = "";
 
         Settings settings = new Settings();
-        static string SettingsPath => Path.Combine(Application.persistentDataPath, "vr-settings.json");
+        /// <summary>vr-settings.json in the game's data folder, or the file given by <c>-vrsettings</c> (tests).</summary>
+        static string SettingsPath => Environment.GetCommandLineArgs().SkipWhile(a => a != "-vrsettings").Skip(1).FirstOrDefault()
+                                      ?? Path.Combine(Application.persistentDataPath, "vr-settings.json");
 
         Camera eye;
         Transform eyeParent;
@@ -73,7 +85,8 @@ namespace GuitarTutor.Runtime.Vr
         bool eyeHdr, eyeMsaa;
 
         Transform rig, offset, rightAim, leftGrip, beam, dot;
-        Material beamMaterial;
+        Material beamMaterial, ringMaterial;
+        LineRenderer ring;
         TrackedPoseDriver head;
         BandStage band;
         UIDocument document;
@@ -82,10 +95,12 @@ namespace GuitarTutor.Runtime.Vr
         Transform board;
         bool xrRunning, recentreWhenTracked;
 
-        InputAction trigger, buttonA, buttonB, buttonX, buttonY, stickClick, rightStick, leftStick, rightTracked, leftTracked, headTracked;
-        enum Held { Nothing, Board, Band }
+        InputAction trigger, grip, buttonA, buttonB, buttonX, buttonY, stickClick, rightStick, leftStick, rightTracked, leftTracked, headTracked;
+        enum Held { Nothing, Board, Band, Musician }
         Held held;
+        Musician heldMusician;
         Vector3 boardInAimAt, bandOffset;
+        float grabDistance;  // how far along the beam a held musician or band is
         Quaternion boardInAimRotation;
         int rightX, rightY, leftX, leftY;  // the sticks' flick state
 
@@ -102,6 +117,7 @@ namespace GuitarTutor.Runtime.Vr
             }
             InputAction Button(string binding) => new InputAction(type: InputActionType.Button, binding: binding);
             trigger = Button("<XRController>{RightHand}/triggerPressed");
+            grip = Button("<XRController>{RightHand}/gripPressed");
             buttonA = Button("<XRController>{RightHand}/primaryButton");
             buttonB = Button("<XRController>{RightHand}/secondaryButton");
             buttonX = Button("<XRController>{LeftHand}/primaryButton");
@@ -114,7 +130,7 @@ namespace GuitarTutor.Runtime.Vr
             leftStick = new InputAction(type: InputActionType.Value, binding: "<XRController>{LeftHand}/thumbstick");
         }
 
-        IEnumerable<InputAction> Actions => new[] { trigger, buttonA, buttonB, buttonX, buttonY, stickClick, rightStick, leftStick, rightTracked, leftTracked, headTracked };
+        IEnumerable<InputAction> Actions => new[] { trigger, grip, buttonA, buttonB, buttonX, buttonY, stickClick, rightStick, leftStick, rightTracked, leftTracked, headTracked };
 
         // ------------------------------------------------------------ in and out
         /// <summary>Into VR: the band (if there is one) in the room, the chart onto the board, XR started.</summary>
@@ -170,6 +186,8 @@ namespace GuitarTutor.Runtime.Vr
             {
                 band.InRoom = false;
                 band.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+                foreach (var m in band.Musicians)
+                    band.ResetStation(m);
             }
             RenderPipelineManager.beginContextRendering -= MakeMips;
             Destroy(rig.gameObject);
@@ -295,6 +313,19 @@ namespace GuitarTutor.Runtime.Vr
             dot.localScale = Vector3.one * 0.02f;
             beam.gameObject.SetActive(false);
             dot.gameObject.SetActive(false);
+            // a musician's station on the floor, while it is aimed at or moved
+            ringMaterial = new Material(beamMaterial);
+            ringMaterial.SetFloat("_Cull", (float)CullMode.Off);  // seen from above whichever way the line faces
+            ring = new GameObject("Station").AddComponent<LineRenderer>();
+            ring.transform.SetParent(rig, false);
+            ring.transform.localRotation = Quaternion.Euler(-90, 0, 0);  // flat on the floor
+            ring.alignment = LineAlignment.TransformZ;
+            ring.sharedMaterial = ringMaterial;
+            ring.shadowCastingMode = ShadowCastingMode.Off;
+            ring.loop = true;
+            ring.widthMultiplier = 0.015f;
+            ring.positionCount = 48;
+            ring.enabled = false;
         }
 
         static Transform Part(PrimitiveType shape, string name, Transform parent, Material material)
@@ -351,7 +382,17 @@ namespace GuitarTutor.Runtime.Vr
             if (!settings.placed)
                 Recentre(new Vector3(0, 1.6f, 0), Vector3.forward);
             if (band != null)
+            {
                 band.transform.SetPositionAndRotation(new Vector3(settings.bandX, 0, settings.bandZ), Quaternion.Euler(0, settings.bandYaw, 0));
+                foreach (var m in band.Musicians)
+                {
+                    var station = settings.stations.Find(x => x.role == m.role.ToString());
+                    if (station != null)
+                        m.transform.SetLocalPositionAndRotation(new Vector3(station.x, 0, station.z), Quaternion.Euler(0, station.yaw, 0));
+                    else
+                        band.ResetStation(m);
+                }
+            }
             board.SetPositionAndRotation(settings.boardAt, Quaternion.Euler(settings.boardPitch, settings.boardYaw, 0));
             board.localScale = new Vector3(settings.boardWidth, settings.boardWidth / BoardAspect, 1);
         }
@@ -386,6 +427,10 @@ namespace GuitarTutor.Runtime.Vr
                 settings.bandX = band.transform.position.x;
                 settings.bandZ = band.transform.position.z;
                 settings.bandYaw = band.transform.eulerAngles.y;
+                settings.stations = band.Musicians.Select(m => new Station
+                {
+                    role = m.role.ToString(), x = m.transform.localPosition.x, z = m.transform.localPosition.z, yaw = m.transform.localEulerAngles.y,
+                }).ToList();
             }
             settings.boardAt = board.position;
             var e = board.eulerAngles;
@@ -395,6 +440,7 @@ namespace GuitarTutor.Runtime.Vr
             try
             {
                 File.WriteAllText(SettingsPath, JsonUtility.ToJson(settings, true));
+                Debug.Log("GuitarTutor VR: saved " + JsonUtility.ToJson(settings));
             }
             catch (Exception ex)
             {
@@ -465,25 +511,40 @@ namespace GuitarTutor.Runtime.Vr
             if (!tracked)
             {
                 dot.gameObject.SetActive(false);
+                ring.enabled = false;
                 held = Held.Nothing;
                 return;
             }
+            // what the beam points at: the board or a musician, whichever is nearer; else the floor
             var ray = new Ray(rightAim.position, rightAim.forward);
             var onBoard = BoardHit(ray);
-            var floor = new Plane(Vector3.up, Vector3.zero);
-            Vector3? onFloor = floor.Raycast(ray, out var d) && d < 8 ? ray.GetPoint(d) : (Vector3?)null;
-            var target = onBoard != null ? Held.Board : onFloor != null && band != null && band.Covers(onFloor.Value) ? Held.Band : Held.Nothing;
-
-            if (trigger.WasPressedThisFrame() && target != Held.Nothing)
+            var (aimedAt, onMusician) = MusicianHit(ray);
+            if (onBoard != null && onMusician != null)
             {
-                held = target;
+                if (onBoard < onMusician)
+                    (aimedAt, onMusician) = (null, null);
+                else
+                    onBoard = null;
+            }
+            var floor = new Plane(Vector3.up, Vector3.zero);
+            float? onFloor = floor.Raycast(ray, out var d) && d < 8 ? d : (float?)null;
+            var target = onBoard != null ? Held.Board : aimedAt != null ? Held.Musician : Held.Nothing;
+
+            // the trigger takes the board or one musician, the grip the whole band
+            if (held == Held.Nothing && (trigger.WasPressedThisFrame() && target != Held.Nothing || grip.WasPressedThisFrame() && aimedAt != null))
+            {
+                held = trigger.WasPressedThisFrame() ? target : Held.Band;
+                heldMusician = aimedAt;
                 var inverse = Quaternion.Inverse(rightAim.rotation);
                 boardInAimAt = inverse * (board.position - rightAim.position);
                 boardInAimRotation = inverse * board.rotation;
-                if (onFloor != null && band != null)
-                    bandOffset = band.transform.position - onFloor.Value;
+                if (aimedAt != null)
+                {
+                    grabDistance = onMusician.Value;
+                    bandOffset = Flat((held == Held.Musician ? aimedAt.transform.position : band.transform.position) - ray.GetPoint(grabDistance));
+                }
             }
-            if (trigger.WasReleasedThisFrame() && held != Held.Nothing)
+            if ((held == Held.Band ? grip : trigger).WasReleasedThisFrame() && held != Held.Nothing)
             {
                 if (held == Held.Board)  // stood upright again: no roll
                     board.rotation = Quaternion.LookRotation(board.forward, Vector3.up);
@@ -495,21 +556,25 @@ namespace GuitarTutor.Runtime.Vr
             {
                 // the board goes with the controller; the stick up / down makes it bigger / smaller
                 board.SetPositionAndRotation(rightAim.position + rightAim.rotation * boardInAimAt, rightAim.rotation * boardInAimRotation);
-                var width = Mathf.Clamp(board.localScale.x * (1 + stick.y * Time.deltaTime), 0.5f, 3f);
+                var width = Mathf.Clamp(board.localScale.x * (1 + stick.y * 0.5f * Time.deltaTime), 0.5f, 3f);
                 board.localScale = new Vector3(width, width / BoardAspect, 1);
             }
-            else if (held == Held.Band && onFloor != null)
+            else if (held == Held.Band || held == Held.Musician)
             {
-                // the band slides along the floor under the beam; the stick left / right turns it about that point
-                var at = onFloor.Value;
-                band.transform.position = Flat(at + bandOffset);
+                // the band, or one musician, stays where the beam took hold of it, along the floor; the stick up /
+                // down pushes it away or pulls it in, left / right turns it (a musician on the spot, the band
+                // about where the beam holds it)
+                grabDistance = Mathf.Clamp(grabDistance * (1 + stick.y * 0.8f * Time.deltaTime), 0.3f, 10f);
+                var at = Flat(ray.GetPoint(grabDistance));
+                var moving = held == Held.Band ? band.transform : heldMusician.transform;
+                moving.position = at + bandOffset;
                 if (Mathf.Abs(stick.x) > 0.2f)
                 {
-                    band.transform.RotateAround(at, Vector3.up, stick.x * 60f * Time.deltaTime);
-                    bandOffset = band.transform.position - at;
+                    moving.RotateAround(held == Held.Band ? at : moving.position, Vector3.up, stick.x * 60f * Time.deltaTime);
+                    bandOffset = moving.position - at;
                 }
             }
-            else if (held == Held.Nothing)
+            else
             {
                 switch (Flick(stick, ref rightX, ref rightY))
                 {
@@ -520,15 +585,92 @@ namespace GuitarTutor.Runtime.Vr
                 }
             }
 
-            // the beam to what it points at
-            var length = held == Held.Board ? boardInAimAt.magnitude : onBoard ?? (onFloor != null ? d : 3f);
+            // the beam to what it points at, a dot where it lands
+            var hit = held == Held.Board ? boardInAimAt.magnitude : held != Held.Nothing ? grabDistance : onBoard ?? onMusician ?? onFloor;
+            var length = hit ?? 3f;
             beam.localScale = new Vector3(0.004f, 0.004f, length);
             beam.localPosition = new Vector3(0, 0, length / 2);
             beamMaterial.color = target != Held.Nothing || held != Held.Nothing ? Aiming : Idle;
-            var lands = held == Held.Nothing && (onBoard != null || onFloor != null);
-            dot.gameObject.SetActive(lands);
-            if (lands)
-                dot.position = ray.GetPoint(onBoard ?? d);
+            dot.gameObject.SetActive(held == Held.Nothing && hit != null);
+            if (hit != null)
+                dot.position = ray.GetPoint(hit.Value);
+            ShowStation(held == Held.Musician ? heldMusician : held == Held.Nothing ? aimedAt : null);
+        }
+
+        /// <summary>
+        /// The musician the ray meets first, and how far along it: each stands in an upright cylinder round their
+        /// station (their footprint, as tall as a standing player).
+        /// </summary>
+        (Musician, float?) MusicianHit(Ray ray)
+        {
+            if (band == null)
+                return (null, null);
+            Musician found = null;
+            float? nearest = null;
+            foreach (var m in band.Musicians)
+            {
+                var t = CylinderHit(ray, m.transform.position, BandStage.Footprint(m.role), 1.9f);
+                if (t != null && (nearest == null || t < nearest))
+                {
+                    found = m;
+                    nearest = t;
+                }
+            }
+            return (found, nearest);
+        }
+
+        /// <summary>Where a ray first meets an upright cylinder standing on the floor at <paramref name="foot"/>, or null.</summary>
+        static float? CylinderHit(Ray ray, Vector3 foot, float radius, float height)
+        {
+            // the stretch of the ray inside the circle (seen from above), then inside the height
+            var o = new Vector2(ray.origin.x - foot.x, ray.origin.z - foot.z);
+            var dir = new Vector2(ray.direction.x, ray.direction.z);
+            float from, to;
+            var a = dir.sqrMagnitude;
+            if (a < 1e-8f)
+            {
+                if (o.sqrMagnitude > radius * radius)
+                    return null;
+                (from, to) = (0, float.MaxValue);
+            }
+            else
+            {
+                var b = 2 * Vector2.Dot(dir, o);
+                var c = o.sqrMagnitude - radius * radius;
+                var disc = b * b - 4 * a * c;
+                if (disc < 0)
+                    return null;
+                var root = Mathf.Sqrt(disc);
+                (from, to) = ((-b - root) / (2 * a), (-b + root) / (2 * a));
+            }
+            var y = ray.origin.y - foot.y;
+            if (Mathf.Abs(ray.direction.y) > 1e-6f)
+            {
+                var t0 = (0 - y) / ray.direction.y;
+                var t1 = (height - y) / ray.direction.y;
+                from = Mathf.Max(from, Mathf.Min(t0, t1));
+                to = Mathf.Min(to, Mathf.Max(t0, t1));
+            }
+            else if (y < 0 || y > height)
+                return null;
+            from = Mathf.Max(from, 0);
+            return from <= to ? from : (float?)null;
+        }
+
+        /// <summary>The ring round a musician's station on the floor: red where it crowds another's.</summary>
+        void ShowStation(Musician m)
+        {
+            ring.enabled = m != null;
+            if (m == null)
+                return;
+            var r = BandStage.Footprint(m.role);
+            var centre = Flat(m.transform.position) + Vector3.up * 0.005f;
+            for (int i = 0; i < ring.positionCount; ++i)
+            {
+                var a = i * Mathf.PI * 2 / ring.positionCount;
+                ring.SetPosition(i, centre + new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a)) * r);
+            }
+            ringMaterial.color = band.Crowds(m) ? Crowded : Aiming;
         }
 
         /// <summary>How far along the ray it meets the board, or null if it misses it.</summary>

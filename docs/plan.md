@@ -323,7 +323,9 @@ to recordings.
   drummer's sticking and strokes onto the drums and cymbals, pedals; the guitarist's grips fretted and strums
   over the strings; the bassist's frets and plucks; the keyboardist's fingers pressing the keys.
 - 2026-10-23: M7 started: VR mode (`-vr`, or X). The band in your room by default, the chart on an opaque
-  board like a music stand; the trigger moves the board or the band, the stick sizes or turns them, A / B /
-  sticks run the transport, floor calibration and key colour on the left controller, all remembered.
-  Checked on the desktop: without a headset VDXR answers "no headset" at once and the room is shown on the
-  desktop; every background pixel exactly #FF00FF, no edge pixel tinted. Headset test: yours.
+  board like a music stand. Room layout with the controllers: the trigger moves the board, or one musician
+  along the floor (a ring shows their station, red where it crowds another's), the grip the whole band; the
+  stick sizes the board or pushes, pulls and turns. A / B / sticks run the transport, floor calibration and
+  key colour on the left controller; all remembered. Checked on the desktop: without a headset VDXR answers
+  "no headset" at once and the room is shown on the desktop; every background pixel exactly #FF00FF, no edge
+  pixel tinted; the controls driven by a scripted headset and controllers (`-vrscript`). Headset test: yours.

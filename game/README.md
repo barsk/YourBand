@@ -107,7 +107,10 @@ Controllers:
 - Right stick: left / right a bar back or on, up / down the speed. Left stick: left / right a section back or
   on, up the help.
 - Trigger, held: aimed at the board, it goes with the controller (the stick meanwhile sizes it); aimed at a
-  musician's feet, the band slides along the floor (the stick meanwhile turns it).
+  musician, they go along the floor with the beam (the stick meanwhile pushes them away, pulls them in or
+  turns them), to fit the band into your room. A ring shows their station on the floor, red where it crowds
+  another's.
+- Grip, held, aimed at a musician: the whole band goes with the beam the same way.
 - Right stick click: the band and the board back in front of you.
 - X: the next key colour (magenta, green, blue, black). Y, with the left controller resting on the floor: the
   floor's height.
@@ -133,6 +136,8 @@ Command line:
 | `-guitarplays` | the band guitarist plays in screenshots (there is no engine to say so) |
 | `-bandlog` | the musicians log what they play |
 | `-vr` | start in VR mode; `-noxr` shows it on the desktop without starting XR; `-xrruntime <json>` uses that OpenXR runtime, `-xrruntime system` the system's |
+| `-vrscript "3:head 0 1.6 0; 4:aim 0.25 1.1 0.3 > -1.5 1 1.6; 4.5:press trigger; 6:shot; 8:quit" -keyshots <folder>` | a scripted headset and Touch controllers on the game's own input (with `-vr -noxr`): tests VR mode's controls without a headset (`Runtime/Testing/VrScript.cs`) |
+| `-vrsettings <file>` | VR mode's settings in that file instead of the game's data folder (for tests, so they leave yours alone) |
 | `-keys "2:Space,6:DownArrow,7:shot,9:quit" -keyshots <folder>` | presses keys on the game's own keyboard at those seconds (never the desktop's), screenshots on "shot": tests the controls end to end |
 
 ## Tests

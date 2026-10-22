@@ -49,17 +49,33 @@ namespace GuitarTutor.Runtime.Band
             }
         }
 
-        /// <summary>Whether a point on the floor is where one of the musicians is (within <paramref name="reach"/> m).</summary>
-        public bool Covers(Vector3 point, float reach = 0.8f)
+        /// <summary>How far round a musician their station reaches on the floor (m): the kit, the keyboard and
+        /// bench, or a player with their instrument.</summary>
+        public static float Footprint(BandRole role) => role switch
         {
-            foreach (var m in musicians)
-            {
-                var d = m.transform.position - point;
-                if (new Vector2(d.x, d.z).magnitude < reach)
+            BandRole.Drummer => 0.95f,
+            BandRole.Keyboardist => 0.75f,
+            _ => 0.5f,
+        };
+
+        /// <summary>Whether a musician's station overlaps another's.</summary>
+        public bool Crowds(Musician m)
+        {
+            foreach (var other in musicians)
+                if (other != m && Flat(other.transform.position - m.transform.position).magnitude < Footprint(m.role) + Footprint(other.role) - 0.15f)
                     return true;
-            }
             return false;
         }
+
+        /// <summary>A musician back on their place in the stage layout.</summary>
+        public void ResetStation(Musician m)
+        {
+            foreach (var (role, at, facing) in Layout)
+                if (role == m.role)
+                    m.transform.SetLocalPositionAndRotation(at, Quaternion.Euler(0, facing, 0));
+        }
+
+        static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0, v.z);
 
         /// <summary>The band, or null (and why) if its assets have not been made (tools/band_assets).</summary>
         public static BandStage Create(out string missing)
