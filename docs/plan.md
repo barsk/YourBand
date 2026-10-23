@@ -331,3 +331,12 @@ to recordings.
   pixel tinted; the controls driven by a scripted headset and controllers (`-vrscript`); a real XR session
   (Direct3D 11, focused, band and board in the mirror view) against Unity's OpenXR mock runtime. Headset
   test: yours.
+- 2026-10-23: band animation brought up to the mockup after the first headset test: the mocap clips now play
+  (they had not: a wrong animator state name left every musician on the clip's first frame, with only the IK
+  moving); the guitarist's and bassist's instruments hang ahead of the player's own belly, high enough that the
+  picking elbow flares out and the forearm rests on the body's upper corner, follow part of the chest's sway,
+  and have a strap; the bassist is straightened as the mockup does; the strumming and plucking hands keep the
+  captured pick grip; the drummer's throne is where his right foot reaches the kick pedal exactly (hands and feet
+  reach every target, 0 mm), his elbows follow the capture, and the hi-hat opens on the and of 4 (Rock, Pop).
+  Still different from the mockup: the bass roots are not moved to frets 5-10 (long reaches at the nut), and the
+  three styles differ little in how the drums look.

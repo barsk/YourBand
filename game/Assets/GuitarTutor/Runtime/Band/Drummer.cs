@@ -276,7 +276,9 @@ namespace GuitarTutor.Runtime.Band
             var back = (transform.up + outwards * 0.5f).normalized;
             var rotation = Ik.Aim(h.stickDirection, h.back, direction, back);
             var wrist = grip - rotation * h.grip;
-            var pole = h.upper.position + outwards * 0.4f - transform.forward * 0.2f - transform.up * 0.35f;
+            // the elbow stays where the capture has it (the mockup keeps the captured elbow direction), pushed out and
+            // forward so it clears the body
+            var pole = h.lower.position + outwards * 0.2f + transform.forward * 0.1f;
             var miss = Ik.TwoBone(h.upper, h.lower, h.hand, wrist, pole);
             h.hand.rotation = rotation;
             if (Logging)
