@@ -448,6 +448,10 @@ namespace GuitarTutor.Runtime.Band
 
         /// <summary>Elbow flare of the picking arm, in the musician's frame (right, up, forward): where the pole sends
         /// the elbow, so the forearm rests on the body's rounded upper corner rather than hanging at the hip.</summary>
+        /// <summary>How far back along the instrument (m) the picking wrist sits from where a hand pointing across the
+        /// strings would have it; the pick or fingertip stays on the strings, so the hand turns along the forearm.</summary>
+        const float WristBack = 0.06f;
+
         static readonly Vector3 ElbowFlare = new Vector3(0.6f, -0.1f, -0.2f);
 
         Vector3 PickingElbow() => picking.Upper.position + Frame(ElbowFlare);
@@ -455,11 +459,17 @@ namespace GuitarTutor.Runtime.Band
         /// <summary>The pick (between the thumb and the index, the captured grip) onto a point, the forearm over the body.</summary>
         void Pick(Vector3 point)
         {
-            var rotation = picking.Facing(Dir(-0.25f, -0.75f, -0.6f).normalized, Dir(0.1f, 0.2f, 1f).normalized);
-            picking.Wrist.rotation = rotation;
+            var forward = Dir(-0.25f, -0.75f, -0.6f).normalized;
+            var back = Dir(0.1f, 0.2f, 1f).normalized;
+            picking.Wrist.rotation = picking.Facing(forward, back);
             // the fingers stay as captured: a relaxed pick grip, the other fingers loose (the mockup's)
-            var pick = (picking.Fingers[0].Tip + picking.Fingers[1].Bones[1].position) / 2;
-            var wrist = point - (pick - picking.Wrist.position);
+            Vector3 PickPoint() => (picking.Fingers[0].Tip + picking.Fingers[1].Bones[1].position) / 2;
+            // the wrist further back along the instrument, the pick staying on the strings: the hand then points
+            // along the forearm, not across it with a sharp bend at the wrist
+            forward = (forward * (PickPoint() - picking.Wrist.position).magnitude + Dir(1, 0, 0).normalized * WristBack).normalized;
+            var rotation = picking.Facing(forward, back);
+            picking.Wrist.rotation = rotation;
+            var wrist = point - (PickPoint() - picking.Wrist.position);
             var pole = PickingElbow();
             picking.Reach(wrist, rotation, pole);
         }
@@ -468,8 +478,9 @@ namespace GuitarTutor.Runtime.Band
         {
             var x = bridgeX + 0.2f;  // between the pickups
             var (now, index) = NoteAt(quarter);
-            var rotation = picking.Facing(Dir(0.2f, -0.8f, -0.5f).normalized, Dir(0f, 0.3f, 1f).normalized);
-            picking.Wrist.rotation = rotation;
+            var forward = Dir(0.2f, -0.8f, -0.5f).normalized;
+            var back = Dir(0f, 0.3f, 1f).normalized;
+            picking.Wrist.rotation = picking.Facing(forward, back);
             // the fingers not plucking stay as captured (the clip's own plucking hand), only the plucking one is solved
             var finger = picking.Fingers[index % 2 == 0 ? 1 : 2];
             var stringNow = now?.String ?? 1;
@@ -480,8 +491,12 @@ namespace GuitarTutor.Runtime.Band
             var target = s + new Vector3(0, Mathf.Lerp(0.004f, -0.009f, Smooth(through)), -0.001f);
             // the hand sets the plucking finger's tip onto the target: wrist from the tip's place in the hand
             finger.Curl(0.5f);
-            var tip = finger.Tip;
-            var wrist = instrument.ToWorld(target) - (tip - picking.Wrist.position);
+            // the wrist further back along the instrument, the fingertip staying on the string (as for the pick)
+            forward = (forward * (finger.Tip - picking.Wrist.position).magnitude + Dir(1, 0, 0).normalized * WristBack).normalized;
+            var rotation = picking.Facing(forward, back);
+            picking.Wrist.rotation = rotation;
+            finger.Curl(0.5f);
+            var wrist = instrument.ToWorld(target) - (finger.Tip - picking.Wrist.position);
             var pole = PickingElbow();
             picking.Reach(wrist, rotation, pole);
             finger.Reach(instrument.ToWorld(target));
