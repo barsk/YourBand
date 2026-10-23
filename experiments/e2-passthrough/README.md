@@ -49,7 +49,7 @@ The app is `C:\Users\krist\Documents\Unity\GuitarTutor-E2\E2-VD\Builds\E2\E2 Pas
 
 1. In the Virtual Desktop Streamer on the PC, set the OpenXR runtime to VDXR.
 2. In Virtual Desktop in the headset, turn on passthrough by chroma key with the key colour #FF00FF
-   (RGB 255, 0, 255). Start with a low similarity (a few percent) and a little smoothness.
+   (RGB 255, 0, 255). Raise similarity and smoothness until the thin magenta outline round the musician is gone (a low setting leaves the stream's blurred edge visible; found later, see `game/README.md`).
 3. Connect, then start the app from Virtual Desktop's games list, or from the desktop while streaming. The PC's
    system OpenXR runtime is SteamVR: started outside Virtual Desktop, the app would start SteamVR instead.
 4. Try:
