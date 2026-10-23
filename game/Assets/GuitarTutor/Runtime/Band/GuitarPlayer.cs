@@ -45,7 +45,8 @@ namespace GuitarTutor.Runtime.Band
         HandRig fretting, picking;
         bool bass, measured;
         float lean;               // the capture's mean forward lean (degrees)
-        Quaternion chestRest = Quaternion.identity, ride = Quaternion.identity;
+        Quaternion chestRest = Quaternion.identity;  // the chest's mean orientation, in the musician's frame
+        Quaternion ride = Quaternion.identity;       // how far the instrument follows the chest's sway (world axes)
         Transform[] upper;        // the spine, shoulders, neck and head, for straightening
         float[] share;            // how much of the straightening each takes (the spine bends gradually)
         int strings;
@@ -181,8 +182,9 @@ namespace GuitarTutor.Runtime.Band
             {
                 var v = neckBone.position - hips.position;
                 angles += Mathf.Atan2(Vector3.Dot(v, transform.forward), Vector3.Dot(v, transform.up)) * Mathf.Rad2Deg;
-                forwards += Chest.rotation * Vector3.forward;
-                ups += Chest.rotation * Vector3.up;
+                // in the musician's own frame: the band is moved and turned about in VR, which must not look like sway
+                forwards += transform.InverseTransformDirection(Chest.rotation * Vector3.forward);
+                ups += transform.InverseTransformDirection(Chest.rotation * Vector3.up);
             });
             lean = angles / n;
             chestRest = Quaternion.LookRotation(forwards.normalized, ups.normalized);
@@ -206,7 +208,9 @@ namespace GuitarTutor.Runtime.Band
                 return;
             var chest = Chest;
             // how the chest sways about its mean: the instrument follows part of it
-            ride = Quaternion.Slerp(Quaternion.identity, chest.rotation * Quaternion.Inverse(chestRest), follow);
+            var toLocal = Quaternion.Inverse(transform.rotation);
+            var sway = Quaternion.Slerp(Quaternion.identity, toLocal * chest.rotation * Quaternion.Inverse(chestRest), follow);
+            ride = transform.rotation * sway * toLocal;  // the same turn, about the world's axes
             var angle = upright * lean;
             if (Mathf.Abs(angle) < 1e-3f)
                 return;
