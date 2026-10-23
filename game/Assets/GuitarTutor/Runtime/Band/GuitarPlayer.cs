@@ -92,6 +92,7 @@ namespace GuitarTutor.Runtime.Band
                 MeasureBody();
             Straighten();
             instrument.Place(hips.position + Frame(bodyCentre), Frame(neck), Frame(top));
+            Strap();
             if (fretPoints == null)
                 Measure();
             if (bass)
@@ -107,6 +108,48 @@ namespace GuitarTutor.Runtime.Band
         }
 
         Vector3 Frame(Vector3 v) => ride * (transform.right * v.x + transform.up * v.y + transform.forward * v.z);
+
+        // ------------------------------------------------------------------ the strap
+        Transform[] strap;
+        float shoulderTop = 0.05f;  // how far above the shoulder bones the clothed shoulder reaches (m)
+        float chestDepth = 0.12f;  // how far ahead of the chest bone the clothed chest reaches (m)
+
+        /// <summary>A flat leather strap from the instrument's strap button, across the front of the chest, over the
+        /// left shoulder (the rest of it goes behind the back, out of sight), re-aimed every frame as the body moves.</summary>
+        void Strap()
+        {
+            if (strap == null)
+            {
+                if (instrument.Data["strap_top"] == null)
+                    return;
+                var leather = new Material(Shader.Find("Universal Render Pipeline/Lit")) { color = new Color(0.3f, 0.18f, 0.09f) };
+                leather.SetFloat("_Smoothness", 0.25f);
+                strap = new Transform[2];
+                for (int i = 0; i < strap.Length; ++i)
+                {
+                    var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    go.name = "Strap " + (i + 1);
+                    Destroy(go.GetComponent<Collider>());
+                    go.GetComponent<Renderer>().sharedMaterial = leather;
+                    strap[i] = go.transform;
+                    strap[i].SetParent(transform, true);
+                }
+            }
+            var button = instrument.ToWorld(instrument.Data["strap_top"]);
+            var shoulder = ShoulderMiddle() + transform.up * (Mathf.Clamp(shoulderTop, 0.05f, 0.09f) + 0.005f) + transform.forward * Mathf.Max(0.03f, chestDepth * 0.5f);
+            // across the chest: the strap lies on the clothes, a little ahead of the chest bone, between the two
+            var onChest = Chest.position + transform.forward * (chestDepth + 0.02f) + transform.up * 0.04f;
+            Segment(strap[0], button, onChest);
+            Segment(strap[1], onChest, shoulder);
+        }
+
+        void Segment(Transform t, Vector3 a, Vector3 b)
+        {
+            var d = b - a;
+            var normal = Vector3.ProjectOnPlane(transform.forward, d.normalized).normalized;
+            t.SetPositionAndRotation((a + b) / 2, Quaternion.LookRotation(d.normalized, normal));
+            t.localScale = new Vector3(0.045f, 0.004f, d.magnitude);
+        }
 
         // ------------------------------------------------------------------ the body under the instrument
         Transform Chest => Bone(HumanBodyBones.Chest) ?? Bone(HumanBodyBones.Spine);
@@ -140,8 +183,12 @@ namespace GuitarTutor.Runtime.Band
             chestRest = Quaternion.LookRotation(forwards.normalized, ups.normalized);
 
             Straighten();
-            var front = BellyFront();
+            var front = FrontOf(Bone(HumanBodyBones.Hips).position, -0.02f, 0.25f);
             bodyCentre.z = front + FrontToBody;
+            chestDepth = FrontOf(Chest.position, -0.08f, 0.12f, 0.22f);  // wide: the strap crosses to the shoulder
+            shoulderTop = TopOf(ShoulderMiddle());
+            if (Logging)
+                Debug.Log($"GuitarTutor {role}: chest {chestDepth * 100:0} cm ahead of its bone, shoulder {shoulderTop * 100:0} cm up");
             if (Logging)
                 Debug.Log($"GuitarTutor {role}: mean lean {lean:0.0} degrees, taking out {upright * lean:0.0}; belly {front * 100:0} cm ahead of the hips");
         }
@@ -163,21 +210,42 @@ namespace GuitarTutor.Runtime.Band
                 upper[i].rotation = Quaternion.AngleAxis(-angle * share[i], transform.right) * originals[i];
         }
 
-        /// <summary>How far ahead of the hips the clothed body reaches, over the belly (m): from the skinned
-        /// meshes as they are posed now, between the hips' height and a quarter metre above, near the middle.</summary>
-        float BellyFront()
+        Vector3 ShoulderMiddle() => (Bone(HumanBodyBones.LeftShoulder).position + Bone(HumanBodyBones.LeftUpperArm).position) / 2;
+
+        /// <summary>How far above a point the clothed body reaches within 6 cm of it (the shoulder's top, m).</summary>
+        float TopOf(Vector3 origin)
         {
-            var hips = Bone(HumanBodyBones.Hips).position;
-            var front = 0.1f;
+            var top = 0.03f;
             var mesh = new Mesh();
             foreach (var smr in body.GetComponentsInChildren<SkinnedMeshRenderer>())
             {
                 smr.BakeMesh(mesh, false);
                 foreach (var v in mesh.vertices)
                 {
-                    var d = smr.transform.TransformPoint(v) - hips;
+                    var d = smr.transform.TransformPoint(v) - origin;
                     var up = Vector3.Dot(d, transform.up);
-                    if (up < -0.02f || up > 0.25f || Mathf.Abs(Vector3.Dot(d, transform.right)) > 0.12f)
+                    if (up > 0 && up < 0.15f && Vector3.ProjectOnPlane(d, transform.up).magnitude < 0.06f)
+                        top = Mathf.Max(top, up);
+                }
+            }
+            Destroy(mesh);
+            return top;
+        }
+
+        /// <summary>How far ahead of a point on the body the clothed body reaches (m), near the middle, between two
+        /// heights above it: from the skinned meshes as they are posed now.</summary>
+        float FrontOf(Vector3 origin, float lowest, float highest, float halfWidth = 0.12f)
+        {
+            var front = 0.05f;
+            var mesh = new Mesh();
+            foreach (var smr in body.GetComponentsInChildren<SkinnedMeshRenderer>())
+            {
+                smr.BakeMesh(mesh, false);
+                foreach (var v in mesh.vertices)
+                {
+                    var d = smr.transform.TransformPoint(v) - origin;
+                    var up = Vector3.Dot(d, transform.up);
+                    if (up < lowest || up > highest || Mathf.Abs(Vector3.Dot(d, transform.right)) > halfWidth)
                         continue;
                     front = Mathf.Max(front, Vector3.Dot(d, transform.forward));
                 }
