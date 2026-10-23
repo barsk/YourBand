@@ -111,7 +111,8 @@ Controllers:
   turns them), to fit the band into your room. A ring shows their station on the floor, red where it crowds
   another's.
 - Grip, held, aimed at a musician: the whole band goes with the beam the same way.
-- Right stick click: the band and the board back in front of you.
+- Right stick click: the band and the board back in front of you. Left stick click: the band guitarist plays the
+  rhythm, or rests (he strums only while he is on; the game starts with him resting).
 - X: the next key colour (magenta, green, blue, black). Y, with the left controller resting on the floor: the
   floor's height.
 

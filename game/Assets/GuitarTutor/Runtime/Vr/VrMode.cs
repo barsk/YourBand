@@ -32,7 +32,8 @@ namespace GuitarTutor.Runtime.Vr
     /// trigger moves the board, or the musician it is aimed at (to fit the band into the room; a ring shows their
     /// station, red where it crowds another's), the grip the whole band; the stick meanwhile resizes the board,
     /// or pushes, pulls and turns what is held; right stick click brings the band and the board back in front of you; X
-    /// the next key colour; Y, with the left controller resting on the floor, sets the floor's height.
+    /// the next key colour; Y, with the left controller resting on the floor, sets the floor's height; left stick
+    /// click: the band guitarist plays the rhythm or rests.
     /// </remarks>
     public sealed class VrMode : MonoBehaviour
     {
@@ -97,7 +98,7 @@ namespace GuitarTutor.Runtime.Vr
         bool xrRunning, recentreWhenTracked;
         float trackedFor;  // how long the headset has been tracked, for the first placing
 
-        InputAction trigger, grip, buttonA, buttonB, buttonX, buttonY, stickClick, rightStick, leftStick, rightTracked, leftTracked, headTracked;
+        InputAction trigger, grip, leftClick, buttonA, buttonB, buttonX, buttonY, stickClick, rightStick, leftStick, rightTracked, leftTracked, headTracked;
         enum Held { Nothing, Board, Band, Musician }
         Held held;
         Musician heldMusician;
@@ -125,6 +126,7 @@ namespace GuitarTutor.Runtime.Vr
             buttonX = Button("<XRController>{LeftHand}/primaryButton");
             buttonY = Button("<XRController>{LeftHand}/secondaryButton");
             stickClick = Button("<XRController>{RightHand}/thumbstickClicked");
+            leftClick = Button("<XRController>{LeftHand}/thumbstickClicked");
             rightTracked = Button("<XRController>{RightHand}/isTracked");
             leftTracked = Button("<XRController>{LeftHand}/isTracked");
             headTracked = Button("<XRHMD>/isTracked");
@@ -147,7 +149,7 @@ namespace GuitarTutor.Runtime.Vr
             return false;
         }
 
-        IEnumerable<InputAction> Actions => new[] { trigger, grip, buttonA, buttonB, buttonX, buttonY, stickClick, rightStick, leftStick, rightTracked, leftTracked, headTracked };
+        IEnumerable<InputAction> Actions => new[] { trigger, grip, leftClick, buttonA, buttonB, buttonX, buttonY, stickClick, rightStick, leftStick, rightTracked, leftTracked, headTracked };
 
         // ------------------------------------------------------------ in and out
         /// <summary>Into VR: the band (if there is one) in the room, the chart onto the board, XR started.</summary>
@@ -498,6 +500,8 @@ namespace GuitarTutor.Runtime.Vr
                 Save();
                 Debug.Log("GuitarTutor VR: the band and the board in front of you");
             }
+            if (leftClick.WasPressedThisFrame())
+                Commanded?.Invoke(Command.BandGuitar);  // the band guitarist plays the rhythm, or rests
             var left = leftStick.ReadValue<Vector2>();
             switch (Flick(left, ref leftX, ref leftY))
             {

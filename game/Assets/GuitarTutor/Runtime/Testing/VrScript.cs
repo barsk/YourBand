@@ -141,6 +141,7 @@ namespace GuitarTutor.Runtime.Testing
             "a" => (right, "primaryButton"),
             "b" => (right, "secondaryButton"),
             "click" => (right, "thumbstickClicked"),
+            "lclick" => (left, "thumbstickClicked"),
             "x" => (left, "primaryButton"),
             "y" => (left, "secondaryButton"),
             _ => throw new ArgumentException("no button " + name),

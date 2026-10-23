@@ -78,7 +78,7 @@ namespace GuitarTutor.Runtime.UI
             Add(Strip);
             hint = ChartLook.Label(string.Join("   ·   ", "Space play / pause", "R restart", "Left / Right bar", "PgUp / PgDn section", "Up / Down speed", "1-4 panels", "P pattern", "B band style", "G band guitarist", "V band view", "X VR", "C control panel", "T tone", "H help"),
                 "gt-hint", this);
-            vrHint = ChartLook.Label(string.Join("   ·   ", "A play / pause", "B restart", "right stick: bar, speed", "left stick: section", "trigger: move the chart or a musician, grip: the band", "stick click: in front of you", "left stick up: help"),
+            vrHint = ChartLook.Label(string.Join("   ·   ", "A play / pause", "B restart", "right stick: bar, speed", "left stick: section", "trigger: move the chart or a musician, grip: the band", "right stick click: in front of you", "left stick click: band guitarist", "left stick up: help"),
                 "gt-hint", this);
             vrHint.AddToClassList("gt-hidden");
 
@@ -111,7 +111,8 @@ namespace GuitarTutor.Runtime.UI
                          ("Trigger", "hold, aimed at the chart or at a musician, to move it (or them)"),
                          ("Grip", "hold, aimed at a musician, to move the whole band"),
                          ("", "meanwhile the stick sizes the chart; or pushes, pulls and turns what you hold"),
-                         ("Stick click", "the band and the chart back in front of you"),
+                         ("Right stick click", "the band and the chart back in front of you"),
+                         ("Left stick click", "the band guitarist plays the rhythm, or rests"),
                          ("X", "next key colour for the passthrough (magenta, green, blue, black)"),
                          ("Y", "with the left controller resting on the floor: the floor's height"),
                          ("Keyboard X", "back to the desktop"),

@@ -26,12 +26,18 @@ namespace GuitarTutor.Runtime.Band
         /// (frames, 30 a second). 0 frames per eighth: not on the beat, played at its own pace.</summary>
         public float clipBeat1, clipFramesPerEighth, clipLoopFrames;
 
+        /// <summary>A clip with a steady beat of its own (the guitarists' playing clips): seconds per beat, and
+        /// how far into a beat the nod falls (the head's lowest). 0: not on the beat. Set by the musician.</summary>
+        protected float clipBeatSeconds, clipNodAt;
+        /// <summary>Song quarter notes per clip beat (1, or 2 / 0.5 when the song's tempo is far from the clip's).</summary>
+        protected double quartersPerClipBeat = 1;
+
         /// <summary>Log what the musicians aim at (the game's -bandlog).</summary>
         public static bool Logging;
 
         const float ClipFps = 30f;
         int state;
-        float clipLength;
+        protected float clipLength;
         protected bool posed;
         float shown;  // the clip's normalized time now
 
@@ -81,6 +87,12 @@ namespace GuitarTutor.Runtime.Band
         /// <summary>The clip's time (seconds) for a moment of the song.</summary>
         float ClipTime(double quarter, double seconds)
         {
+            if (clipBeatSeconds > 0)
+            {
+                // on the song's beat: the clip's nod on each quarter, so its sway follows the tempo
+                var t = (quarter / quartersPerClipBeat * clipBeatSeconds + clipNodAt) % clipLength;
+                return (float)(t < 0 ? t + clipLength : t);
+            }
             if (clipFramesPerEighth > 0)
             {
                 // on the beat: the groove's eighths on ours, its loop over two bars

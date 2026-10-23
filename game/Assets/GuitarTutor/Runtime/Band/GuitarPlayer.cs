@@ -40,11 +40,16 @@ namespace GuitarTutor.Runtime.Band
         /// <summary>Whether the guitarist plays (the band guitarist's switch); the bassist always does.</summary>
         public bool Playing { get; set; } = true;
 
+        const float ClipBeatGuitarist = 0.59583f, NodGuitarist = 0.1614f;  // measured on the clip (seconds)
+        const float HeadCalm = 0.65f;  // how much of the head's nod and bob is taken out
+
         const float Change = 0.15f;  // quarter notes: the fretting hand moves to the next chord in this long before it
 
         HandRig fretting, picking;
         bool bass, measured;
         float lean;               // the capture's mean forward lean (degrees)
+        Quaternion headRest = Quaternion.identity;  // the head's mean orientation, in the musician's frame
+        Vector3 headRestAt;                        // and its mean place relative to the hips
         Quaternion chestRest = Quaternion.identity;  // the chest's mean orientation, in the musician's frame
         Quaternion ride = Quaternion.identity;       // how far the instrument follows the chest's sway (world axes)
         Transform[] upper;        // the spine, shoulders, neck and head, for straightening
@@ -77,6 +82,15 @@ namespace GuitarTutor.Runtime.Band
         public override void SetSong(SongChart chart, Arrangement arrangement)
         {
             bass = role == BandRole.Bassist;
+            if (role == BandRole.Guitarist)
+            {
+                // the clip is eight beats of 0.596 s (100.7 BPM), its head lowest 0.161 s into each: at the song's
+                // tempo, one clip beat to a quarter note, or two / half as many when that would be far from natural speed
+                clipBeatSeconds = ClipBeatGuitarist;
+                clipNodAt = NodGuitarist;
+                var speed = chart.Song.Tempo.BpmAt(0) / (60.0 / ClipBeatGuitarist);  // of the clip's own pace, one to a quarter
+                quartersPerClipBeat = speed > 1.45 ? 2 : speed < 0.7 ? 0.5 : 1;
+            }
             grips = GuitarPerformance.Grips(chart);
             strums = GuitarPerformance.Strums(chart, arrangement.Notes);
             notes = BassPerformance.Plan(arrangement.Notes);
@@ -95,6 +109,7 @@ namespace GuitarTutor.Runtime.Band
             var hips = Bone(HumanBodyBones.Hips);
             if (!measured)
                 MeasureBody();
+            CalmHead();
             Straighten();
             var turn = Quaternion.AngleAxis(swing, transform.up);  // positive: clockwise seen from above
             instrument.Place(hips.position + turn * Frame(bodyCentre), turn * Frame(neck), turn * Frame(top));
@@ -176,7 +191,7 @@ namespace GuitarTutor.Runtime.Band
             var hips = Bone(HumanBodyBones.Hips);
             var neckBone = Bone(HumanBodyBones.Neck) ?? Bone(HumanBodyBones.Head);
             float angles = 0;
-            Vector3 forwards = Vector3.zero, ups = Vector3.zero;
+            Vector3 forwards = Vector3.zero, ups = Vector3.zero, headForwards = Vector3.zero, headUps = Vector3.zero, headAt = Vector3.zero;
             const int n = 24;
             SampleClip(n, () =>
             {
@@ -185,9 +200,15 @@ namespace GuitarTutor.Runtime.Band
                 // in the musician's own frame: the band is moved and turned about in VR, which must not look like sway
                 forwards += transform.InverseTransformDirection(Chest.rotation * Vector3.forward);
                 ups += transform.InverseTransformDirection(Chest.rotation * Vector3.up);
+                var head = Bone(HumanBodyBones.Head);
+                headForwards += transform.InverseTransformDirection(head.rotation * Vector3.forward);
+                headUps += transform.InverseTransformDirection(head.rotation * Vector3.up);
+                headAt += transform.InverseTransformPoint(head.position) - transform.InverseTransformPoint(hips.position);
             });
             lean = angles / n;
             chestRest = Quaternion.LookRotation(forwards.normalized, ups.normalized);
+            headRest = Quaternion.LookRotation(headForwards.normalized, headUps.normalized);
+            headRestAt = headAt / n;
 
             Straighten();
             var front = FrontOf(Bone(HumanBodyBones.Hips).position, -0.02f, 0.25f);
@@ -198,6 +219,22 @@ namespace GuitarTutor.Runtime.Band
                 Debug.Log($"GuitarTutor {role}: chest {chestDepth * 100:0} cm ahead of its bone, shoulder {shoulderTop * 100:0} cm up");
             if (Logging)
                 Debug.Log($"GuitarTutor {role}: mean lean {lean:0.0} degrees, taking out {upright * lean:0.0}; belly {front * 100:0} cm ahead of the hips");
+        }
+
+        /// <summary>Takes most of the clip's head nod and bob out: the head turned back towards its mean orientation, and
+        /// the upper body moved back towards its mean place (the whole spine, so the shoulders and arms go along).</summary>
+        void CalmHead()
+        {
+            var head = Bone(HumanBodyBones.Head);
+            var hips = Bone(HumanBodyBones.Hips);
+            var spine = Bone(HumanBodyBones.Spine);
+            var off = transform.InverseTransformPoint(head.position) - transform.InverseTransformPoint(hips.position) - headRestAt;
+            if (spine != null)
+                spine.position -= transform.TransformDirection(off) * HeadCalm;
+            head.rotation = Quaternion.Slerp(head.rotation, transform.rotation * headRest, HeadCalm);
+            var neck = Bone(HumanBodyBones.Neck);
+            if (neck != null)
+                neck.rotation = Quaternion.Slerp(neck.rotation, transform.rotation * headRest, HeadCalm * 0.5f);
         }
 
         /// <summary>The body's forward angle taken out of the spine (bending gradually), as the capture leans.</summary>
