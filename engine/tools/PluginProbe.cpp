@@ -1,6 +1,6 @@
 // plugin_probe: checks whether a plugin can serve as one of the band's instruments.
 //
-//   plugin_probe <plugin.vst3> [out-folder] [program-name-filter ... | --state <file> ...] [--map [--velocity n]]
+//   plugin_probe <plugin.vst3> [out-folder] [program-name-filter ... | --state <file> ...] [--map [--velocity n] [--channel n]]
 //
 // With --map, instead of the phrase it plays every note from 24 to 96 on its own and lists the ones that sound,
 // with how much of each is low (below 150 Hz), mid and high (above 6 kHz), and the pitch it sounds at (as a
@@ -21,9 +21,13 @@
 
 #include <algorithm>
 #include <iostream>
+#include <vector>
 
 namespace
 {
+/** The MIDI channels the note map plays on (--channel n for one): a drum kit and a piano answer on 10 and 1. */
+std::vector<int> mapChannels { 10, 1 };
+
 constexpr double rate = 48000.0;
 constexpr int block = 64;
 constexpr double bpm = 112.0;
@@ -101,6 +105,26 @@ double pitchOf (const std::vector<float>& x)
     return 69.0 + 12.0 * std::log2 (rate / best / 440.0);
 }
 
+/** Waits like a host does: the message loop runs and silent audio blocks are processed at real-time pace (a plugin
+    like Kontakt only finishes loading an instrument while its audio runs). */
+void settle (juce::AudioPluginInstance& plugin, int milliseconds)
+{
+    const auto outs = juce::jmax (1, plugin.getTotalNumOutputChannels());
+    juce::AudioBuffer<float> buffer (juce::jmax (outs, plugin.getTotalNumInputChannels()), block);
+    const auto began = juce::Time::getMillisecondCounterHiRes();
+    double done = 0;
+    while (juce::Time::getMillisecondCounterHiRes() - began < milliseconds)
+    {
+        buffer.clear();
+        juce::MidiBuffer none;
+        plugin.processBlock (buffer, none);
+        done += block;
+        const auto due = began + done / rate * 1000.0;
+        const auto wait = due - juce::Time::getMillisecondCounterHiRes();
+        juce::MessageManager::getInstance()->runDispatchLoopUntil (wait > 1 ? (int) wait : 1);
+    }
+}
+
 /** Every note on its own, at real-time pace: which sound, how loud, how low or high, and at which pitch. */
 void mapNotes (juce::AudioPluginInstance& plugin, int velocity)
 {
@@ -110,6 +134,7 @@ void mapNotes (juce::AudioPluginInstance& plugin, int velocity)
     const auto lowCoeff = (float) (1.0 - std::exp (-2.0 * juce::MathConstants<double>::pi * 150.0 / rate));
     const auto highCoeff = (float) (1.0 - std::exp (-2.0 * juce::MathConstants<double>::pi * 6000.0 / rate));
     plugin.reset();
+    auto loudest = -120.0;
     std::cout << "note  level   low   mid  high  pitch\n";
     for (int note = 24; note <= 96; ++note)
     {
@@ -121,10 +146,10 @@ void mapNotes (juce::AudioPluginInstance& plugin, int velocity)
         {
             juce::MidiBuffer events;
             if (start == 0)
-                for (int channel : { 10, 1 })
+                for (int channel : mapChannels)
                     events.addEvent (juce::MidiMessage::noteOn (channel, note, (juce::uint8) velocity), 0);
             if (start <= length / 2 && start + block > length / 2)
-                for (int channel : { 10, 1 })
+                for (int channel : mapChannels)
                     events.addEvent (juce::MidiMessage::noteOff (channel, note), length / 2 - start);
             buffer.clear();
             plugin.processBlock (buffer, events);
@@ -147,6 +172,7 @@ void mapNotes (juce::AudioPluginInstance& plugin, int velocity)
                 juce::MessageManager::getInstance()->runDispatchLoopUntil ((int) wait);
         }
         const auto level = 10.0 * std::log10 (total / length + 1e-12);
+        loudest = std::max (loudest, level);
         if (level > -60)
             std::cout << juce::String (note).paddedLeft (' ', 4) << juce::String (level, 1).paddedLeft (' ', 7)
                       << juce::String (juce::roundToInt (100 * low / total)).paddedLeft (' ', 5) << "%"
@@ -155,11 +181,12 @@ void mapNotes (juce::AudioPluginInstance& plugin, int velocity)
                       << juce::String (pitchOf (mono), 1).paddedLeft (' ', 7) << "\n";
         // all notes off before the next
         juce::MidiBuffer off;
-        for (int channel : { 10, 1 })
+        for (int channel : mapChannels)
             off.addEvent (juce::MidiMessage::allNotesOff (channel), 0);
         buffer.clear();
         plugin.processBlock (buffer, off);
     }
+    std::cout << "loudest note: " << juce::String (loudest, 1) << " dB\n";
 }
 
 /** A middle C, played for 0.4 s at real-time pace: its level in dB (silence: -100). */
@@ -270,7 +297,7 @@ int main (int argc, char* argv[])
 
     if (argc < 2)
     {
-        std::cout << "usage: plugin_probe <plugin.vst3> [out-folder] [program-name-filter ... | --state <file> ...] [--map [--velocity n]]\n";
+        std::cout << "usage: plugin_probe <plugin.vst3> [out-folder] [program-name-filter ... | --state <file> ...] [--map [--velocity n] [--channel n]]\n";
         return 1;
     }
     const juce::File pluginFile { juce::String (argv[1]) };
@@ -287,6 +314,14 @@ int main (int argc, char* argv[])
             map = true;
         else if (juce::String (argv[i]) == "--load-time")
             loadTime = true;
+        else if (juce::String (argv[i]) == "--channel" && i + 1 < argc)
+        {
+            const auto n = juce::String (argv[++i]).getIntValue();  // 0: all sixteen
+            mapChannels.clear();
+            for (int c = 1; c <= 16; ++c)
+                if (n == 0 || n == c)
+                    mapChannels.push_back (c);
+        }
         else if (juce::String (argv[i]) == "--velocity" && i + 1 < argc)
             velocity = juce::jlimit (1, 127, juce::String (argv[++i]).getIntValue());
         else
@@ -454,7 +489,20 @@ int main (int argc, char* argv[])
             juce::MemoryBlock wrapped;
             juce::AudioProcessor::copyXmlToBinary (wrapper, wrapped);
             plugin->setStateInformation (wrapped.getData(), (int) wrapped.getSize());
-            juce::MessageManager::getInstance()->runDispatchLoopUntil (4000);  // the sound loads in the background
+            settle (*plugin, juce::SystemStats::getEnvironmentVariable ("PROBE_WAIT_MS", "12000").getIntValue());  // the sound loads in the background, while the audio runs
+            {
+                // what the plugin holds now: a state with an instrument loaded is far bigger than an empty one
+                juce::MemoryBlock after;
+                plugin->getStateInformation (after);
+                juce::String text;
+                for (size_t i = 0; i < after.getSize(); ++i)
+                {
+                    const auto c = (char) after[i];
+                    text << ((c >= 32 && c < 127) ? juce::String::charToString (c) : juce::String ("."));
+                }
+                std::cout << "State after loading: " << (int) after.getSize() << " bytes"
+                          << (text.containsIgnoreCase ("shreddage") ? ", mentions Shreddage" : "") << std::endl;
+            }
             if (map)
                 mapSound (stateFile.getFileNameWithoutExtension());
             else

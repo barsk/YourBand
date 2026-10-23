@@ -166,6 +166,11 @@ build\Release\plugin_probe_artefacts\Release\plugin_probe.exe <plugin.vst3> out\
 With `--map [--velocity n]` (with a `--state` file per sound, or the plugin's own sound) it plays every note
 from 24 to 96 on its own and lists the ones that sound, how loud, how much of each is low, mid and high, and
 the pitch it sounds at: a drum kit's note layout, or an instrument's range and octave.
+`--map` plays on MIDI channels 10 and 1; `--channel n` on that one (0: all sixteen), and it reports the loudest
+note, so a silent plugin shows as -120 dB. The state is loaded with the audio running (Kontakt only finishes
+loading an instrument then) for 12 s, or `PROBE_WAIT_MS` milliseconds. A `--state` file holds the plugin's own
+data (the VST3 state's `<IComponent>`, as the engine keeps it under `bandGuitar.<plugin>` in its settings),
+not the whole wrapped state.
 With `--load-time` (and two or more `--state` files) it switches between the sounds and plays a note 100 ms to
 3 s after each switch: how long the plugin takes to load a sound.
 
