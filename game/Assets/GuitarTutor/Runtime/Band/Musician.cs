@@ -40,7 +40,6 @@ namespace GuitarTutor.Runtime.Band
             body.applyRootMotion = false;
             var info = body.runtimeAnimatorController.animationClips;
             clipLength = info.Length > 0 ? info[0].length : 1f;
-            state = Animator.StringToHash("Base Layer." + (info.Length > 0 ? info[0].name : ""));
         }
 
         /// <summary>The song and the band's parts (a new song, or a new style).</summary>
@@ -51,7 +50,15 @@ namespace GuitarTutor.Runtime.Band
         /// <summary>Where the song is: quarter notes from its start, and the seconds that took.</summary>
         public virtual void Show(double quarter, double seconds)
         {
+            if (state == 0)
+            {
+                // the controller's only state, by the animator's own hash: a name built by hand does not find it
+                // (the clip is called "mixamo.com", and the dot is the path separator)
+                body.Update(0);
+                state = body.GetCurrentAnimatorStateInfo(0).fullPathHash;
+            }
             body.Play(state, 0, ClipTime(quarter, seconds) / clipLength);
+            body.Update(0);
             posed = true;
         }
 
