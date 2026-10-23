@@ -21,11 +21,12 @@ namespace GuitarTutor.Runtime.Band
     {
         /// <summary>The body's centre from the hips (the musician's frame: right, up, forward). Its depth is set
         /// from the player's own belly once the body is posed (<see cref="FrontToBody"/> ahead of it).</summary>
-        public Vector3 bodyCentre = new Vector3(0.04f, 0.1f, 0.165f);
+        public Vector3 bodyCentre = new Vector3(0.04f, 0.16f, 0.165f);
         /// <summary>Along the neck, and out of the top (the musician's frame).</summary>
         public Vector3 neck = new Vector3(-0.92f, 0.37f, 0.12f), top = new Vector3(0.05f, 0.25f, 1f);
-        /// <summary>How far the instrument's centre is ahead of the front of the player's belly (m).</summary>
-        public float FrontToBody = 0.045f;
+        /// <summary>How far the instrument's centre is ahead of the front of the player's belly (m): close, and high on
+        /// the body, so the picking arm bends and its forearm rests on the body's rounded upper corner.</summary>
+        public float FrontToBody = 0.005f;
         /// <summary>The share of the capture's mean forward lean taken out of the spine: the bass capture hunches
         /// far over the instrument, which put it beside her (the mockup: 0.6).</summary>
         public float upright;
@@ -61,9 +62,9 @@ namespace GuitarTutor.Runtime.Band
             if (role == BandRole.Bassist)
             {
                 // the mockup's P-Bass: a little lower and further forward, the neck steeper, the player straightened
-                bodyCentre = new Vector3(0.05f, 0.06f, bodyCentre.z);
+                bodyCentre = new Vector3(0.05f, 0.12f, bodyCentre.z);
                 neck = new Vector3(-0.9f, 0.4f, 0.15f);
-                FrontToBody = 0.05f;
+                FrontToBody = 0.01f;
                 upright = 0.6f;
             }
         }
@@ -372,6 +373,12 @@ namespace GuitarTutor.Runtime.Band
             Pick(instrument.ToWorld(new Vector3(x, y, z)));
         }
 
+        /// <summary>Elbow flare of the picking arm, in the musician's frame (right, up, forward): where the pole sends
+        /// the elbow, so the forearm rests on the body's rounded upper corner rather than hanging at the hip.</summary>
+        static readonly Vector3 ElbowFlare = new Vector3(0.6f, -0.1f, -0.2f);
+
+        Vector3 PickingElbow() => picking.Upper.position + Frame(ElbowFlare);
+
         /// <summary>The pick (between the thumb and the index, the captured grip) onto a point, the forearm over the body.</summary>
         void Pick(Vector3 point)
         {
@@ -380,7 +387,7 @@ namespace GuitarTutor.Runtime.Band
             // the fingers stay as captured: a relaxed pick grip, the other fingers loose (the mockup's)
             var pick = (picking.Fingers[0].Tip + picking.Fingers[1].Bones[1].position) / 2;
             var wrist = point - (pick - picking.Wrist.position);
-            var pole = picking.Upper.position + transform.right * 0.25f - transform.forward * 0.25f - transform.up * 0.25f;
+            var pole = PickingElbow();
             picking.Reach(wrist, rotation, pole);
         }
 
@@ -402,7 +409,7 @@ namespace GuitarTutor.Runtime.Band
             finger.Curl(0.5f);
             var tip = finger.Tip;
             var wrist = instrument.ToWorld(target) - (tip - picking.Wrist.position);
-            var pole = picking.Upper.position + transform.right * 0.25f - transform.forward * 0.2f - transform.up * 0.3f;
+            var pole = PickingElbow();
             picking.Reach(wrist, rotation, pole);
             finger.Reach(instrument.ToWorld(target));
             // the thumb rests on the pickup, above the low string
