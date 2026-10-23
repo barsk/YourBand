@@ -24,9 +24,9 @@ namespace GuitarTutor.Runtime.Band
         public Vector3 bodyCentre = new Vector3(0.04f, 0.16f, 0.165f);
         /// <summary>Along the neck, and out of the top (the musician's frame).</summary>
         public Vector3 neck = new Vector3(-0.92f, 0.37f, 0.12f), top = new Vector3(0.05f, 0.25f, 1f);
-        /// <summary>Degrees the instrument is turned clockwise, seen from the front (about the player's forward
-        /// axis, on its own centre): the neck lower on the player's left, the body's lower end swung out.</summary>
-        public float roll;
+        /// <summary>Degrees the whole instrument is swung clockwise seen from above, about the vertical axis through the
+        /// player's hips: the body round towards the player's right, the neck away from their body.</summary>
+        public float swing;
         /// <summary>How far the instrument's centre is ahead of the front of the player's belly (m): close, and high on
         /// the body, so the picking arm bends and its forearm rests on the body's rounded upper corner.</summary>
         public float FrontToBody = 0.005f;
@@ -64,12 +64,12 @@ namespace GuitarTutor.Runtime.Band
             picking = new HandRig(body, false);
             if (role == BandRole.Bassist)
             {
-                // the P-Bass: a little lower than the guitar, at the guitar's angle to the body (the mockup's steeper
-                // vectors, once squared to the top, hung it about 4 degrees more up and back), the player straightened
+                // the mockup's P-Bass: a little lower than the guitar, its neck steeper, the player straightened
                 bodyCentre = new Vector3(0.05f, 0.12f, bodyCentre.z);
+                neck = new Vector3(-0.9f, 0.4f, 0.15f);
                 FrontToBody = 0.01f;
                 upright = 0.6f;
-                roll = 15f;  // turned clockwise from the guitar's angle, as the user wanted it
+                swing = 15f;  // swung round her hip, clockwise seen from above
             }
         }
 
@@ -95,7 +95,8 @@ namespace GuitarTutor.Runtime.Band
             if (!measured)
                 MeasureBody();
             Straighten();
-            instrument.Place(hips.position + Frame(bodyCentre), Roll(Frame(neck)), Roll(Frame(top)));
+            var turn = Quaternion.AngleAxis(swing, transform.up);  // positive: clockwise seen from above
+            instrument.Place(hips.position + turn * Frame(bodyCentre), turn * Frame(neck), turn * Frame(top));
             Strap();
             if (fretPoints == null)
                 Measure();
@@ -110,8 +111,6 @@ namespace GuitarTutor.Runtime.Band
                 StrumStrings();
             }
         }
-
-        Vector3 Roll(Vector3 v) => Quaternion.AngleAxis(roll, transform.forward) * v;  // Unity turns clockwise looking along the axis: from the front, the neck's far end goes down
 
         Vector3 Frame(Vector3 v) => ride * (transform.right * v.x + transform.up * v.y + transform.forward * v.z);
 
