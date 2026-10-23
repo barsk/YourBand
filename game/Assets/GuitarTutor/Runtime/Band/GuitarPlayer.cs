@@ -19,11 +19,19 @@ namespace GuitarTutor.Runtime.Band
     /// </summary>
     public sealed class GuitarPlayer : Musician
     {
-        /// <summary>The body's centre from the hips (the musician's frame: right, up, forward; the front of the
-        /// belly is about 0.12 m ahead of the hips).</summary>
+        /// <summary>The body's centre from the hips (the musician's frame: right, up, forward). Its depth is set
+        /// from the player's own belly once the body is posed (<see cref="FrontToBody"/> ahead of it).</summary>
         public Vector3 bodyCentre = new Vector3(0.04f, 0.1f, 0.165f);
         /// <summary>Along the neck, and out of the top (the musician's frame).</summary>
         public Vector3 neck = new Vector3(-0.92f, 0.37f, 0.12f), top = new Vector3(0.05f, 0.25f, 1f);
+        /// <summary>How far the instrument's centre is ahead of the front of the player's belly (m).</summary>
+        public float FrontToBody = 0.045f;
+        /// <summary>The share of the capture's mean forward lean taken out of the spine: the bass capture hunches
+        /// far over the instrument, which put it beside her (the mockup: 0.6).</summary>
+        public float upright;
+        /// <summary>The share of the chest's sway the instrument follows (a strapped instrument rests on the
+        /// belly and hip and turns only partly with the chest; the mockup: 0.4).</summary>
+        public float follow = 0.4f;
 
         /// <summary>Whether the guitarist plays (the band guitarist's switch); the bassist always does.</summary>
         public bool Playing { get; set; } = true;
@@ -31,7 +39,11 @@ namespace GuitarTutor.Runtime.Band
         const float Change = 0.15f;  // quarter notes: the fretting hand moves to the next chord in this long before it
 
         HandRig fretting, picking;
-        bool bass;
+        bool bass, measured;
+        float lean;               // the capture's mean forward lean (degrees)
+        Quaternion chestRest = Quaternion.identity, ride = Quaternion.identity;
+        Transform[] upper;        // the spine, shoulders, neck and head, for straightening
+        float[] share;            // how much of the straightening each takes (the spine bends gradually)
         int strings;
         JArray fretPoints, paths, neckSamples;
         float bridgeX, boardZ;
@@ -46,6 +58,14 @@ namespace GuitarTutor.Runtime.Band
             // before the clip first poses them: the hands' rest pose (straight fingers) is the model's
             fretting = new HandRig(body, true);
             picking = new HandRig(body, false);
+            if (role == BandRole.Bassist)
+            {
+                // the mockup's P-Bass: a little lower and further forward, the neck steeper, the player straightened
+                bodyCentre = new Vector3(0.05f, 0.06f, bodyCentre.z);
+                neck = new Vector3(-0.9f, 0.4f, 0.15f);
+                FrontToBody = 0.05f;
+                upright = 0.6f;
+            }
         }
 
         public override void SetSong(SongChart chart, Arrangement arrangement)
@@ -67,6 +87,9 @@ namespace GuitarTutor.Runtime.Band
             if (!posed || instrument == null)
                 return;
             var hips = Bone(HumanBodyBones.Hips);
+            if (!measured)
+                MeasureBody();
+            Straighten();
             instrument.Place(hips.position + Frame(bodyCentre), Frame(neck), Frame(top));
             if (fretPoints == null)
                 Measure();
@@ -82,7 +105,85 @@ namespace GuitarTutor.Runtime.Band
             }
         }
 
-        Vector3 Frame(Vector3 v) => transform.right * v.x + transform.up * v.y + transform.forward * v.z;
+        Vector3 Frame(Vector3 v) => ride * (transform.right * v.x + transform.up * v.y + transform.forward * v.z);
+
+        // ------------------------------------------------------------------ the body under the instrument
+        Transform Chest => Bone(HumanBodyBones.Chest) ?? Bone(HumanBodyBones.Spine);
+
+        /// <summary>From the whole clip: how far it leans forward on average and its mean chest; then (with the
+        /// body straightened) how far ahead the belly is, where the instrument hangs.</summary>
+        void MeasureBody()
+        {
+            measured = true;
+            var list = new List<(HumanBodyBones bone, float share)>
+            {
+                (HumanBodyBones.Spine, 1 / 3f), (HumanBodyBones.Chest, 2 / 3f), (HumanBodyBones.UpperChest, 1f),
+                (HumanBodyBones.Neck, 1f), (HumanBodyBones.Head, 1f), (HumanBodyBones.LeftShoulder, 1f), (HumanBodyBones.RightShoulder, 1f),
+            }.Where(x => Bone(x.bone) != null).ToList();
+            upper = list.Select(x => Bone(x.bone)).ToArray();
+            share = list.Select(x => x.share).ToArray();
+
+            var hips = Bone(HumanBodyBones.Hips);
+            var neckBone = Bone(HumanBodyBones.Neck) ?? Bone(HumanBodyBones.Head);
+            float angles = 0;
+            Vector3 forwards = Vector3.zero, ups = Vector3.zero;
+            const int n = 24;
+            SampleClip(n, () =>
+            {
+                var v = neckBone.position - hips.position;
+                angles += Mathf.Atan2(Vector3.Dot(v, transform.forward), Vector3.Dot(v, transform.up)) * Mathf.Rad2Deg;
+                forwards += Chest.rotation * Vector3.forward;
+                ups += Chest.rotation * Vector3.up;
+            });
+            lean = angles / n;
+            chestRest = Quaternion.LookRotation(forwards.normalized, ups.normalized);
+
+            Straighten();
+            var front = BellyFront();
+            bodyCentre.z = front + FrontToBody;
+            if (Logging)
+                Debug.Log($"GuitarTutor {role}: mean lean {lean:0.0} degrees, taking out {upright * lean:0.0}; belly {front * 100:0} cm ahead of the hips");
+        }
+
+        /// <summary>The body's forward angle taken out of the spine (bending gradually), as the capture leans.</summary>
+        void Straighten()
+        {
+            ride = Quaternion.identity;
+            if (upper == null)
+                return;
+            var chest = Chest;
+            // how the chest sways about its mean: the instrument follows part of it
+            ride = Quaternion.Slerp(Quaternion.identity, chest.rotation * Quaternion.Inverse(chestRest), follow);
+            var angle = upright * lean;
+            if (Mathf.Abs(angle) < 1e-3f)
+                return;
+            var originals = upper.Select(b => b.rotation).ToArray();
+            for (int i = 0; i < upper.Length; ++i)
+                upper[i].rotation = Quaternion.AngleAxis(-angle * share[i], transform.right) * originals[i];
+        }
+
+        /// <summary>How far ahead of the hips the clothed body reaches, over the belly (m): from the skinned
+        /// meshes as they are posed now, between the hips' height and a quarter metre above, near the middle.</summary>
+        float BellyFront()
+        {
+            var hips = Bone(HumanBodyBones.Hips).position;
+            var front = 0.1f;
+            var mesh = new Mesh();
+            foreach (var smr in body.GetComponentsInChildren<SkinnedMeshRenderer>())
+            {
+                smr.BakeMesh(mesh, false);
+                foreach (var v in mesh.vertices)
+                {
+                    var d = smr.transform.TransformPoint(v) - hips;
+                    var up = Vector3.Dot(d, transform.up);
+                    if (up < -0.02f || up > 0.25f || Mathf.Abs(Vector3.Dot(d, transform.right)) > 0.12f)
+                        continue;
+                    front = Mathf.Max(front, Vector3.Dot(d, transform.forward));
+                }
+            }
+            Destroy(mesh);
+            return front;
+        }
 
         void Measure()
         {
@@ -271,16 +372,12 @@ namespace GuitarTutor.Runtime.Band
             Pick(instrument.ToWorld(new Vector3(x, y, z)));
         }
 
-        /// <summary>The pick (between the thumb and the curled index) onto a point, the forearm over the body.</summary>
+        /// <summary>The pick (between the thumb and the index, the captured grip) onto a point, the forearm over the body.</summary>
         void Pick(Vector3 point)
         {
             var rotation = picking.Facing(Dir(-0.25f, -0.75f, -0.6f).normalized, Dir(0.1f, 0.2f, 1f).normalized);
             picking.Wrist.rotation = rotation;
-            picking.Fingers[0].Curl(0.6f);
-            picking.Fingers[1].Curl(0.7f);
-            picking.Fingers[2].Curl(0.8f);
-            picking.Fingers[3].Curl(0.85f);
-            picking.Fingers[4].Curl(0.9f);
+            // the fingers stay as captured: a relaxed pick grip, the other fingers loose (the mockup's)
             var pick = (picking.Fingers[0].Tip + picking.Fingers[1].Bones[1].position) / 2;
             var wrist = point - (pick - picking.Wrist.position);
             var pole = picking.Upper.position + transform.right * 0.25f - transform.forward * 0.25f - transform.up * 0.25f;

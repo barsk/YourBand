@@ -19,7 +19,7 @@ namespace GuitarTutor.Runtime.Band
     public sealed class Drummer : Musician
     {
         static readonly Vector3 PelvisOnSeat = new Vector3(0f, 0.09f, -0.03f);  // right, up, forward
-        const float ThroneBack = 0.10f;            // m: the throne further from the drums than the model has it
+        const float ThroneBack = -0.04f;           // m: the throne further from the drums than the kit has it (nearer: where the right foot just reaches the kick pedal)
         const float StickTip = 0.27f;              // m from the grip (thumb and index) to the tip
         const float StickDown = 25f;               // degrees below level when the tip strikes
         const float ElbowsOut = 0.15f;             // m: the sticks aim from beside the shoulders, so they point in
@@ -67,6 +67,8 @@ namespace GuitarTutor.Runtime.Band
                 strokes[limb] = new List<DrumStroke>();
             foreach (var s in DrumPerformance.Plan(arrangement.Notes))
                 strokes[s.Limb].Add(s);
+            if (Logging)
+                Debug.Log($"GuitarTutor drummer plays: " + string.Join(", ", strokes.Select(kv => $"{kv.Key} {kv.Value.Count}")));
         }
 
         public override void Show(double q, double seconds)
@@ -325,7 +327,9 @@ namespace GuitarTutor.Runtime.Band
             var heel = p.hinge + turn * (p.heel - p.hinge);
             var ankle = heel + transform.up * 0.075f + (ball - heel) * 0.1f;
             var pole = thigh.position + transform.forward * 0.6f + (thigh.position - calf.position).normalized * -0.1f;
-            Ik.TwoBone(thigh, calf, foot, ankle, pole);
+            var miss = Ik.TwoBone(thigh, calf, foot, ankle, pole);
+            if (Logging)
+                Debug.Log($"FOOT {(thigh == Bone(HumanBodyBones.RightUpperLeg) ? "kick" : "hat")} q={quarter:0.00} press={press:0.00} miss={miss:0.000} hips={Bone(HumanBodyBones.Hips).position.y - transform.position.y:0.000} ankleTarget={ankle.y - transform.position.y:0.000} footY={foot.position.y - transform.position.y:0.000}");
             // the foot along the footboard: its toes (the ball of the foot) towards the ball point
             if (toes != null)
                 foot.rotation = Quaternion.FromToRotation(toes.position - foot.position, ball + transform.up * 0.02f - foot.position) * foot.rotation;

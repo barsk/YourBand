@@ -33,6 +33,7 @@ namespace GuitarTutor.Runtime.Band
         int state;
         float clipLength;
         protected bool posed;
+        float shown;  // the clip's normalized time now
 
         protected virtual void Awake()
         {
@@ -57,9 +58,24 @@ namespace GuitarTutor.Runtime.Band
                 body.Update(0);
                 state = body.GetCurrentAnimatorStateInfo(0).fullPathHash;
             }
-            body.Play(state, 0, ClipTime(quarter, seconds) / clipLength);
+            shown = ClipTime(quarter, seconds) / clipLength;
+            body.Play(state, 0, shown);
             body.Update(0);
             posed = true;
+        }
+
+        /// <summary>Poses the body at <paramref name="count"/> moments spread over the whole clip, calling
+        /// <paramref name="each"/> at each (to measure the capture), then back as it was.</summary>
+        protected void SampleClip(int count, System.Action each)
+        {
+            for (int i = 0; i < count; ++i)
+            {
+                body.Play(state, 0, (i + 0.5f) / count);
+                body.Update(0);
+                each();
+            }
+            body.Play(state, 0, shown);
+            body.Update(0);
         }
 
         /// <summary>The clip's time (seconds) for a moment of the song.</summary>

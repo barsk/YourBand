@@ -129,7 +129,7 @@ namespace GuitarTutor.Runtime.Band
 
         /// <summary>
         /// Points a camera at one musician (for checking them in screenshots): "guitarist" from the front,
-        /// "guitarist:left" / ":right" from their side, "guitarist:hands" close on the hands.
+        /// "guitarist:left" / ":right" from their side, "guitarist:hands" close on the hands, ":feet" low on the feet.
         /// </summary>
         public void Frame(Camera eye, string what)
         {
@@ -147,6 +147,9 @@ namespace GuitarTutor.Runtime.Band
                 "left" => (t.position - t.right * 1.5f + Vector3.up * 1.2f + t.forward * 0.3f, t.position + Vector3.up * 1.0f),
                 "right" => (t.position + t.right * 1.5f + Vector3.up * 1.2f + t.forward * 0.3f, t.position + Vector3.up * 1.0f),
                 "hands" => (hands + t.forward * 0.75f + Vector3.up * 0.2f, hands),
+                "kick" => (t.position + t.forward * 0.5f + t.right * 0.9f + Vector3.up * 0.18f, t.position + t.forward * 0.5f + Vector3.up * 0.12f),
+                "kickl" => (t.position + t.forward * 0.5f - t.right * 0.9f + Vector3.up * 0.18f, t.position + t.forward * 0.5f + Vector3.up * 0.12f),
+                "feet" => (t.position - t.forward * 0.9f + t.right * 0.5f + Vector3.up * 1.5f, t.position + t.forward * 0.35f + Vector3.up * 0.1f),
                 "above" => (t.position + t.forward * 1.3f + Vector3.up * 2.3f, t.position + t.forward * 0.35f + Vector3.up * 0.7f),
                 _ => (t.position + t.forward * 2.4f + Vector3.up * 1.35f, t.position + Vector3.up * 1.05f),
             };
