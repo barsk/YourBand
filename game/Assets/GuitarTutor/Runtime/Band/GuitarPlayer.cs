@@ -61,9 +61,9 @@ namespace GuitarTutor.Runtime.Band
             picking = new HandRig(body, false);
             if (role == BandRole.Bassist)
             {
-                // the mockup's P-Bass: a little lower and further forward, the neck steeper, the player straightened
+                // the P-Bass: a little lower than the guitar, at the guitar's angle to the body (the mockup's steeper
+                // vectors, once squared to the top, hung it about 4 degrees more up and back), the player straightened
                 bodyCentre = new Vector3(0.05f, 0.12f, bodyCentre.z);
-                neck = new Vector3(-0.9f, 0.4f, 0.15f);
                 FrontToBody = 0.01f;
                 upright = 0.6f;
             }

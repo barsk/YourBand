@@ -98,9 +98,42 @@ namespace GuitarTutor.Runtime.Band
                 var m = Instantiate(prefabs[role], at, Quaternion.Euler(0, facing, 0), stage.transform).GetComponent<Musician>();
                 m.name = role.ToString();
                 stage.musicians.Add(m);
+                SteelHardware(m);
             }
             stage.Dress();
             return stage;
+        }
+
+        static Material steel;
+
+        /// <summary>
+        /// The instruments' "chrome" comes from the models as near-white paint (the import drops its metal), which
+        /// reads as untextured plastic. A true metal would need reflections to show anything, so: satin steel, a
+        /// mid grey with a soft sheen.
+        /// </summary>
+        static void SteelHardware(Musician m)
+        {
+            if (steel == null)
+            {
+                steel = new Material(Shader.Find("Universal Render Pipeline/Lit")) { name = "Steel", color = new Color(0.50f, 0.52f, 0.56f) };
+                steel.SetFloat("_Metallic", 0.35f);
+                steel.SetFloat("_Smoothness", 0.6f);
+            }
+            if (m.instrument == null)
+                return;
+            foreach (var r in m.instrument.GetComponentsInChildren<Renderer>())
+            {
+                var materials = r.sharedMaterials;
+                var changed = false;
+                for (int i = 0; i < materials.Length; ++i)
+                    if (materials[i] != null && materials[i].name.ToLowerInvariant().Contains("chrome"))
+                    {
+                        materials[i] = steel;
+                        changed = true;
+                    }
+                if (changed)
+                    r.sharedMaterials = materials;
+            }
         }
 
         /// <summary>The song and the band's parts, for each musician to plan their playing.</summary>
@@ -147,6 +180,8 @@ namespace GuitarTutor.Runtime.Band
                 "left" => (t.position - t.right * 1.5f + Vector3.up * 1.2f + t.forward * 0.3f, t.position + Vector3.up * 1.0f),
                 "right" => (t.position + t.right * 1.5f + Vector3.up * 1.2f + t.forward * 0.3f, t.position + Vector3.up * 1.0f),
                 "hands" => (hands + t.forward * 0.75f + Vector3.up * 0.2f, hands),
+                "kit" => (t.position - t.forward * 2.2f - t.right * 1.6f + Vector3.up * 1.7f, t.position + t.forward * 0.4f + Vector3.up * 0.6f),
+                "kitl" => (t.position + t.forward * 2.6f + t.right * 0.4f + Vector3.up * 1.5f, t.position + t.forward * 0.3f + Vector3.up * 0.6f),
                 "kick" => (t.position + t.forward * 0.5f + t.right * 0.9f + Vector3.up * 0.18f, t.position + t.forward * 0.5f + Vector3.up * 0.12f),
                 "kickl" => (t.position + t.forward * 0.5f - t.right * 0.9f + Vector3.up * 0.18f, t.position + t.forward * 0.5f + Vector3.up * 0.12f),
                 "feet" => (t.position - t.forward * 0.9f + t.right * 0.5f + Vector3.up * 1.5f, t.position + t.forward * 0.35f + Vector3.up * 0.1f),

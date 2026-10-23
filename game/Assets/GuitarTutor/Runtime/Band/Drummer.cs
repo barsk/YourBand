@@ -32,7 +32,9 @@ namespace GuitarTutor.Runtime.Band
         readonly Hand[] hands = new Hand[2];
         Pedal kick, hihat;
         Transform crash, hihatTop;
-        Vector3 crashPivot, crashAxis, hatRestPosition, hatDropDirection;
+        // the moving parts' geometry (pivots, axes, rest poses) is kept in the drummer's own frame, not the world's:
+        // in VR the band is moved about, and a pivot left behind would swing the cymbals and pedals about thin air
+        Vector3 crashPivot, crashAxis, hatRestPosition, crashRestPosition;
         Quaternion crashRest;
         float hatDrop;
         double quarter;
@@ -44,10 +46,19 @@ namespace GuitarTutor.Runtime.Band
             public Vector3 grip, stickDirection, back;  // in the hand's frame (rotation only): the grip, the stick's way, the back of the hand
         }
 
+        Vector3 Wp(Vector3 local) => transform.TransformPoint(local);
+        Vector3 Wd(Vector3 local) => transform.TransformDirection(local);
+        Quaternion Wq(Quaternion local) => transform.rotation * local;
+        Vector3 Lp(Vector3 world) => transform.InverseTransformPoint(world);
+        Vector3 Ld(Vector3 world) => transform.InverseTransformDirection(world);
+        Quaternion Lq(Quaternion world) => Quaternion.Inverse(transform.rotation) * world;
+
+        /// <summary>A pedal: its numbers are in the drummer's frame (see the fields above).</summary>
         sealed class Pedal
         {
             public Transform board, beater;
             public Quaternion boardRest, beaterRest;
+            public Vector3 boardRestPosition, beaterRestPosition;
             public Vector3 hinge, axis, axle, heel, ball;
             public float travel, hit;
         }
@@ -152,21 +163,21 @@ namespace GuitarTutor.Runtime.Band
                 var p = new Pedal
                 {
                     board = instrument.Part((string)d["board"]),
-                    hinge = instrument.ToWorld(d["hinge"]),
-                    axis = instrument.DirectionToWorld(InstrumentFrame.Point(d["axis"])),
+                    hinge = Lp(instrument.ToWorld(d["hinge"])),
+                    axis = Ld(instrument.DirectionToWorld(InstrumentFrame.Point(d["axis"]))),
                     travel = (float)d["travel"] * Mathf.Rad2Deg,
-                    heel = instrument.ToWorld(instrument.Data[name == "kick" ? "kick_heel" : "hihat_heel"]),
-                    ball = instrument.ToWorld(instrument.Data[name == "kick" ? "kick_ball" : "hihat_ball"]),
+                    heel = Lp(instrument.ToWorld(instrument.Data[name == "kick" ? "kick_heel" : "hihat_heel"])),
+                    ball = Lp(instrument.ToWorld(instrument.Data[name == "kick" ? "kick_ball" : "hihat_ball"])),
                 };
                 if (p.board != null)
-                    p.boardRest = p.board.rotation;
+                    (p.boardRestPosition, p.boardRest) = (Lp(p.board.position), Lq(p.board.rotation));
                 if (beaterKey != null)
                 {
                     p.beater = instrument.Part((string)d[beaterKey]);
-                    p.axle = instrument.ToWorld(d["axle"]);
+                    p.axle = Lp(instrument.ToWorld(d["axle"]));
                     p.hit = (float)d["hit"] * Mathf.Rad2Deg;
                     if (p.beater != null)
-                        p.beaterRest = p.beater.rotation;
+                        (p.beaterRestPosition, p.beaterRest) = (Lp(p.beater.position), Lq(p.beater.rotation));
                 }
                 return p;
             }
@@ -175,21 +186,20 @@ namespace GuitarTutor.Runtime.Band
 
             var swing = instrument.Data["swing"]["crash"];
             crash = instrument.Part((string)swing["object"]);
-            crashPivot = instrument.ToWorld(swing["pivot"]);
-            crashAxis = instrument.DirectionToWorld(InstrumentFrame.Point(swing["axis"]));
+            crashPivot = Lp(instrument.ToWorld(swing["pivot"]));
+            crashAxis = Ld(instrument.DirectionToWorld(InstrumentFrame.Point(swing["axis"])));
             if (crash != null)
-                crashRest = crash.rotation;
+                (crashRestPosition, crashRest) = (Lp(crash.position), Lq(crash.rotation));
             var tops = instrument.Data["hihat"]["top"];
             hihatTop = instrument.Part((string)tops[0]);
             hatDrop = (float)instrument.Data["hihat"]["drop"];
-            hatDropDirection = -transform.up;
             if (hihatTop != null)
             {
                 // the top and its clutch move as one: the clutch under the top
                 var clutch = instrument.Part((string)tops[1]);
                 if (clutch != null)
                     clutch.SetParent(hihatTop, true);
-                hatRestPosition = hihatTop.position;
+                hatRestPosition = Lp(hihatTop.position);
             }
         }
 
@@ -303,15 +313,15 @@ namespace GuitarTutor.Runtime.Band
             Press(kick, press, Bone(HumanBodyBones.RightUpperLeg), Bone(HumanBodyBones.RightLowerLeg), Bone(HumanBodyBones.RightFoot), Bone(HumanBodyBones.RightToes));
             if (kick.beater != null)
             {
-                kick.beater.rotation = kick.beaterRest;
-                kick.beater.RotateAround(kick.axle, kick.axis, kick.hit * press);
+                kick.beater.SetPositionAndRotation(Wp(kick.beaterRestPosition), Wq(kick.beaterRest));
+                kick.beater.RotateAround(Wp(kick.axle), Wd(kick.axis), kick.hit * press);
             }
             // hi-hat: closed, but for the open hits: the foot lifts just before one and lets the hat shut again by the
             // next beat; the top cymbal rises with it (it opens about half its gap)
             var open = HatOpen();
             Press(hihat, 1 - open, Bone(HumanBodyBones.LeftUpperLeg), Bone(HumanBodyBones.LeftLowerLeg), Bone(HumanBodyBones.LeftFoot), Bone(HumanBodyBones.LeftToes));
             if (hihatTop != null)
-                hihatTop.position = hatRestPosition + hatDropDirection * (hatDrop * (1 - HatOpenShare * open));
+                hihatTop.position = Wp(hatRestPosition) - transform.up * (hatDrop * (1 - HatOpenShare * open));
             if (Logging && open > 0)
                 Debug.Log($"GuitarTutor hi-hat q {quarter:0.00}: open {open:0.00}, top {(hihatTop != null ? (hihatTop.position - hatRestPosition).magnitude * 1000 : 0):0} mm below rest");
         }
@@ -338,14 +348,16 @@ namespace GuitarTutor.Runtime.Band
         /// towards the ball point.</summary>
         void Press(Pedal p, float press, Transform thigh, Transform calf, Transform foot, Transform toes)
         {
-            var turn = Quaternion.AngleAxis(p.travel * press, p.axis);
+            var hinge = Wp(p.hinge);
+            var axis = Wd(p.axis);
+            var turn = Quaternion.AngleAxis(p.travel * press, axis);
             if (p.board != null)
             {
-                p.board.rotation = p.boardRest;
-                p.board.RotateAround(p.hinge, p.axis, p.travel * press);
+                p.board.SetPositionAndRotation(Wp(p.boardRestPosition), Wq(p.boardRest));
+                p.board.RotateAround(hinge, axis, p.travel * press);
             }
-            var ball = p.hinge + turn * (p.ball - p.hinge);
-            var heel = p.hinge + turn * (p.heel - p.hinge);
+            var ball = hinge + turn * (Wp(p.ball) - hinge);
+            var heel = hinge + turn * (Wp(p.heel) - hinge);
             var ankle = heel + transform.up * 0.075f + (ball - heel) * 0.1f;
             var pole = thigh.position + transform.forward * 0.6f + (thigh.position - calf.position).normalized * -0.1f;
             var miss = Ik.TwoBone(thigh, calf, foot, ankle, pole);
@@ -362,13 +374,13 @@ namespace GuitarTutor.Runtime.Band
                 return;
             var last = strokes.Values.SelectMany(s => s).Where(s => s.Piece == KitPiece.Crash && s.AtQuarter <= quarter)
                 .Select(s => (double?)s.AtQuarter).DefaultIfEmpty(null).Max();
-            crash.rotation = crashRest;
+            crash.SetPositionAndRotation(Wp(crashRestPosition), Wq(crashRest));
             if (last == null)
                 return;
             var since = (float)(tempo.SecondsAt(quarter) - tempo.SecondsAt(last.Value));
             var angle = CrashSwing.amplitude * Mathf.Exp(-since / CrashSwing.decay) * Mathf.Sin(2 * Mathf.PI * CrashSwing.frequency * since);
-            var tilt = Vector3.Cross(crashAxis, transform.forward).normalized;  // swings about a level axis across the cymbal
-            crash.RotateAround(crashPivot, tilt, angle);
+            var tilt = Vector3.Cross(Wd(crashAxis), transform.forward).normalized;  // swings about a level axis across the cymbal
+            crash.RotateAround(Wp(crashPivot), tilt, angle);
         }
 
         static float Smooth(float u)

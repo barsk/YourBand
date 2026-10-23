@@ -146,7 +146,7 @@ Command line:
 | `-engineargs "..."` | more for the started engine's command line, for example `"--silent --record band.wav"` |
 | `-style Rock` | start in that band style |
 | `-parts drums,bass` | give the band only those parts (to check them one at a time) |
-| `-view band` | start in the band view; `-cam guitarist` (or `drummer`, `bassist`, `keyboardist`, with `:left`, `:right`, `:hands`, `:above`; the drummer also `:feet`, `:kick`, `:kickl`) frames one musician |
+| `-view band` | start in the band view; `-cam guitarist` (or `drummer`, `bassist`, `keyboardist`, with `:left`, `:right`, `:hands`, `:above`; the drummer also `:feet`, `:kick`, `:kickl`, `:kit`, `:kitl`) frames one musician |
 | `-nochart`, `-nopanels` | screenshots without the chart, or without the panels |
 | `-guitarplays` | the band guitarist plays in screenshots (there is no engine to say so) |
 | `-bandlog` | the musicians log what they play |
