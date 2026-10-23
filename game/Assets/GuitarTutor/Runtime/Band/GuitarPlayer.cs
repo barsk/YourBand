@@ -397,7 +397,7 @@ namespace GuitarTutor.Runtime.Band
             var (now, index) = NoteAt(quarter);
             var rotation = picking.Facing(Dir(0.2f, -0.8f, -0.5f).normalized, Dir(0f, 0.3f, 1f).normalized);
             picking.Wrist.rotation = rotation;
-            picking.Relax(0.35f);
+            // the fingers not plucking stay as captured (the clip's own plucking hand), only the plucking one is solved
             var finger = picking.Fingers[index % 2 == 0 ? 1 : 2];
             var stringNow = now?.String ?? 1;
             var s = StringAt(stringNow, x);
