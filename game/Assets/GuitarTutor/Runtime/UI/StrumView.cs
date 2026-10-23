@@ -11,7 +11,9 @@ namespace GuitarTutor.Runtime.UI
     /// </summary>
     public sealed class StrumView : VisualElement
     {
-        const float Cell = 58, ArrowTop = 6, ArrowBottom = 88, CountsTop = 94, Height = 124;
+        const float MaxCell = 58, MaxWidth = 620, ArrowTop = 6, ArrowBottom = 88, CountsTop = 94, Height = 124;
+
+        float Cell = MaxCell;  // narrower for a long pattern (16 steps), so the panels still fit on one row
 
         StrumPattern pattern;
         int now = -1;
@@ -31,6 +33,7 @@ namespace GuitarTutor.Runtime.UI
             Clear();
             if (pattern == null)
                 return;
+            Cell = Mathf.Min(MaxCell, MaxWidth / pattern.Strokes.Count);
             style.width = Cell * pattern.Strokes.Count;
             var counts = SongChart.Counts(pattern);
             var perBeat = Mathf.Max(1, pattern.Subdivision / 4);
