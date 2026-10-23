@@ -100,6 +100,12 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   Stratus FREE. A guitar plugin goes through a trim into the amp (MONSTER Guitar plays about 30 dB louder
   than a guitar: -30 dB), or straight to the mixer with "through band guitar tone" off. Guitar plugins get
   the notes as they sound (MONSTER Guitar: note 40 is E2).
+  Kontakt's Shreddage strum speaks a little late (recorded silently: the first strum reaches half its peak
+  36 ms after the beat, the built-in guitar's 11 ms), so the band sends Kontakt its guitar notes 20 ms early
+  (`bandGuitarAdvanceMs` in the settings changes it; 0 turns it off; the log says "plays 20 ms ahead" when
+  it is on). The band has a cursor of its own for the guitar's notes, so this works with seeking and the
+  count-in. Shreddage's own keyswitches, effects and MIDI channel are saved with Kontakt's state: if the
+  guitar is silent or muted, look at its window first.
 - Bass plugins sound an octave below the note they get (as bass parts are written; MONSTER Bass and Ample
   Bass both), so the band sends them its bass notes an octave up. The built-in bass is a DI sound, and the
   plugins have their own amps and effects: all go straight to the mixer. Each known plugin has a level that

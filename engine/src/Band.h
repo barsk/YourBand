@@ -43,6 +43,7 @@ struct Score
     std::vector<Tempo> tempos;
     std::vector<Meter> meters;
     std::vector<BandNote> notes;
+    std::vector<size_t> guitar;  // the indices of the guitar's notes, in time order (the guitar has its own cursor)
 
     double bpmAt (double quarter) const;
     /** A beat's length in quarter notes at a position (1 in 4/4, 0.5 in 6/8). */
@@ -80,6 +81,9 @@ public:
     bool usesPluginFor (Part part) const { return onPlugin[(size_t) part].load(); }
     /** Whether the band's guitarist plays (the rhythm: the song's strumming on its chords). */
     void setGuitarPlays (bool on) { guitarPlays.store (on); }
+    /** How early (seconds) the guitar's notes go to its plugin, when it plays on one: a plugin whose sound builds
+        slowly (Kontakt's strummed guitars) is heard late by about that much. */
+    void setGuitarAdvance (double seconds) { guitarAdvance.store (juce::jlimit (0.0, 0.2, seconds)); }
     bool guitarIsPlaying() const { return guitarPlays.load(); }
 
     // any thread: for the window
@@ -102,6 +106,8 @@ private:
     void apply (const Command&, juce::MidiBuffer&);
     void releaseAll (juce::MidiBuffer&);
     size_t firstNoteFrom (double quarter) const;
+    size_t firstGuitarNoteFrom (double quarter) const;
+    void emit (const BandNote&, double dueAt, int sample, juce::MidiBuffer&);
     void addOff (Off);
     void collectGarbage();
 
@@ -120,12 +126,13 @@ private:
     std::atomic<double> outputLatency { 0.0 };
     std::array<std::atomic<bool>, 4> onPlugin {};  // per part; the keys are always on their plugin
     std::atomic<bool> guitarPlays { false };
+    std::atomic<double> guitarAdvance { 0.0 };
 
     // audio thread
     const Score* playingScore = nullptr;
     bool playing = false;
     double quarter = 0.0, speed = 1.0, countInUntil = 0.0, countInLength = 0.0;
-    size_t cursor = 0;
+    size_t cursor = 0, guitarCursor = 0;
     std::array<Off, 256> offs;
     int numOffs = 0, bassSerial = 0;
 

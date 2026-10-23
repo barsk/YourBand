@@ -48,6 +48,16 @@ namespace
                                        { EngineCore::Slot::bandGuitar, "Kontakt*.vst3", "Kontakt (Shreddage)", true, 0.8f, 1.0f } };
     constexpr float guitarLevelThroughAmp = 0.8f;  // as the built-in guitar's
 
+    /** How early (seconds) the band guitar's notes go to a plugin: Kontakt's strummed guitars sound a little late (the
+        first strum is on the beat, its loud part builds about 25-40 ms later, measured with a recorded session), so
+        they go 20 ms ahead. The setting bandGuitarAdvanceMs overrides it (0 for none). */
+    double guitarAdvanceSeconds (const juce::File& plugin, const juce::String& setting)
+    {
+        if (setting.isNotEmpty())
+            return juce::jlimit (0.0, 200.0, setting.getDoubleValue()) / 1000.0;
+        return plugin.getFileName().startsWithIgnoreCase ("Kontakt") ? 0.02 : 0.0;
+    }
+
     /** A plugin you add: drums and guitar at the built-in sound's level, a bass at about the known basses' (they
         play loud). */
     float addedPluginLevel (EngineCore::Slot slot) { return slot == EngineCore::Slot::bandBass ? 0.2f : 0.8f; }
@@ -589,7 +599,13 @@ bool MainComponent::chooseBandInstrument (EngineCore::Slot slot, int choice, boo
         auto& c = part.choices[(size_t) choice];
         engine.setBandPluginLevel (slot, slot == EngineCore::Slot::bandGuitar && engine.guitarPluginThroughAmp() ? guitarLevelThroughAmp : c.level);
         if (slot == EngineCore::Slot::bandGuitar)
+        {
             engine.setGuitarPluginTrim (c.trim);
+            const auto advance = guitarAdvanceSeconds (c.file, settings->getValue ("bandGuitarAdvanceMs"));
+            engine.setBandGuitarAdvance (advance);
+            if (advance > 0.0)
+                log ("Band guitar plugin plays " + juce::String (juce::roundToInt (advance * 1000)) + " ms ahead");
+        }
         playsPlugin = startBandInstrument (slot, c.file, c.silentUntilChosen, ! fresh);
         if (playsPlugin && c.added)
             c.name = engine.plugin (slot)->getName();

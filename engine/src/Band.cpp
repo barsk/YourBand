@@ -124,6 +124,10 @@ void BandProcessor::push (Command command)
 
 void BandProcessor::load (std::unique_ptr<Score> score)
 {
+    score->guitar.clear();
+    for (size_t i = 0; i < score->notes.size(); ++i)
+        if (score->notes[i].part == guitar)
+            score->guitar.push_back (i);
     owned.push_back (std::move (score));
     latest = owned.back().get();
     pending.store (latest);
@@ -154,6 +158,16 @@ size_t BandProcessor::firstNoteFrom (double q) const
                      - notes.begin());
 }
 
+size_t BandProcessor::firstGuitarNoteFrom (double q) const
+{
+    if (playingScore == nullptr)
+        return 0;
+    const auto& notes = playingScore->notes;
+    return (size_t) (std::lower_bound (playingScore->guitar.begin(), playingScore->guitar.end(), q - 1.0e-9,
+                                       [&notes] (size_t i, double at) { return notes[i].at < at; })
+                     - playingScore->guitar.begin());
+}
+
 void BandProcessor::addOff (Off off)
 {
     if (numOffs < (int) offs.size())
@@ -181,6 +195,7 @@ void BandProcessor::apply (const Command& c, juce::MidiBuffer& midi)
             countInLength = c.b;
             countInUntil = c.b > 0.0 ? c.a : none;
             cursor = firstNoteFrom (c.a);
+            guitarCursor = firstGuitarNoteFrom (c.a);
             playing = true;
             break;
         case Command::pause:
@@ -194,10 +209,39 @@ void BandProcessor::apply (const Command& c, juce::MidiBuffer& midi)
             quarter = c.a;
             countInUntil = none;
             cursor = firstNoteFrom (c.a);
+            guitarCursor = firstGuitarNoteFrom (c.a);
             break;
         case Command::speed:
             speed = c.a;
             break;
+    }
+}
+
+/** A note onto its instrument, at a sample of the block: the plugin as MIDI (its end noted for later), or the built-in
+    voice. <paramref name="time"/> is the note's own time (its end and release go from there). */
+void BandProcessor::emit (const BandNote& note, double time, int at, juce::MidiBuffer& midi)
+{
+    if (note.part == keys || onPlugin[(size_t) note.part].load())
+    {
+        // a drum hit is short; a bass note lets go just before the next, as a player's would
+        const auto length = note.part == drums ? juce::jmax (0.1, note.length) : note.part == bass ? note.length * 0.95 : note.length;
+        // bass plugins sound an octave below the note they get, as bass parts are written (MONSTER Bass
+        // and Ample Bass: note 40 is the low E, measured with plugin_probe --map)
+        const auto pitch = note.part == bass ? note.pitch + 12 : note.pitch;
+        midi.addEvent (juce::MidiMessage::noteOn (channelOf (note.part), pitch, note.velocity), at);
+        addOff ({ note.part, pitch, -1, time + length });
+    }
+    else if (note.part == drums)
+        kit.trigger (note.pitch, note.velocity, at);
+    else if (note.part == bass)
+    {
+        bassVoice.noteOn (note.pitch, note.velocity, at);
+        addOff ({ bass, note.pitch, ++bassSerial, time + note.length * 0.95 });
+    }
+    else if (note.part == guitar)
+    {
+        guitarVoice.noteOn (note.pitch, note.velocity, at);
+        addOff ({ guitar, note.pitch, 0, time + note.length });
     }
 }
 
@@ -217,6 +261,7 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         playing = false;
         countInUntil = none;
         cursor = firstNoteFrom (quarter);
+        guitarCursor = firstGuitarNoteFrom (quarter);
     }
     {
         const auto scope = fifo.read (fifo.getNumReady());
@@ -267,33 +312,21 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         while (cursor < s->notes.size() && s->notes[cursor].at < q1)
         {
             const auto& note = s->notes[cursor++];
+            if (note.part == guitar)  // the guitar has its own cursor, below
+                continue;
             if (note.at < q0 - 1.0e-9 || (countingIn && note.at < countInUntil - 1.0e-9))
                 continue;
-            if (note.part == guitar && ! guitarPlays.load())
+            emit (note, note.at, offsetOf (note.at), midi);
+        }
+
+        // the guitar, early by its plugin's lag: its notes go out that much before their time
+        const auto early = onPlugin[(size_t) guitar].load() ? guitarAdvance.load() * rate : 0.0;
+        while (guitarCursor < s->guitar.size() && s->notes[s->guitar[guitarCursor]].at - early < q1)
+        {
+            const auto& note = s->notes[s->guitar[guitarCursor++]];
+            if (note.at < q0 - 1.0e-9 || (countingIn && note.at < countInUntil - 1.0e-9) || ! guitarPlays.load())
                 continue;
-            const auto at = offsetOf (note.at);
-            if (note.part == keys || onPlugin[(size_t) note.part].load())
-            {
-                // a drum hit is short; a bass note lets go just before the next, as a player's would
-                const auto length = note.part == drums ? juce::jmax (0.1, note.length) : note.part == bass ? note.length * 0.95 : note.length;
-                // bass plugins sound an octave below the note they get, as bass parts are written (MONSTER Bass
-                // and Ample Bass: note 40 is the low E, measured with plugin_probe --map)
-                const auto pitch = note.part == bass ? note.pitch + 12 : note.pitch;
-                midi.addEvent (juce::MidiMessage::noteOn (channelOf (note.part), pitch, note.velocity), at);
-                addOff ({ note.part, pitch, -1, note.at + length });
-            }
-            else if (note.part == drums)
-                kit.trigger (note.pitch, note.velocity, at);
-            else if (note.part == bass)
-            {
-                bassVoice.noteOn (note.pitch, note.velocity, at);
-                addOff ({ bass, note.pitch, ++bassSerial, note.at + note.length * 0.95 });
-            }
-            else if (note.part == guitar)
-            {
-                guitarVoice.noteOn (note.pitch, note.velocity, at);
-                addOff ({ guitar, note.pitch, 0, note.at + note.length });
-            }
+            emit (note, note.at, offsetOf (note.at - early), midi);
         }
 
         quarter = q1;

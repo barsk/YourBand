@@ -87,6 +87,8 @@ public:
     void setGuitarPluginTrim (float gain);
     /** Whether the band's guitarist plays the rhythm (the song's strumming on its chords). */
     void setBandGuitarPlays (bool on) { bandProcessor->setGuitarPlays (on); }
+    /** The band guitar's notes go to its plugin this early (seconds), to make up for a sound that builds slowly. */
+    void setBandGuitarAdvance (double seconds) { bandProcessor->setGuitarAdvance (seconds); }
     bool bandGuitarPlays() const { return bandProcessor->guitarIsPlaying(); }
     /** Gives the keyboard plugin a sound ("2 - E_PIANO/1 - EP-Mark I"). Returns an error message, or empty. */
     juce::String setKeysSound (const juce::String& sound);
