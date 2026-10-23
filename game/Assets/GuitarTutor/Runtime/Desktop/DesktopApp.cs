@@ -78,6 +78,7 @@ namespace GuitarTutor.Runtime.Desktop
         string closeUp;           // screenshots: one musician framed (-cam)
         bool guitarForShots;      // screenshots: the band guitarist plays (-guitarplays; no engine to say so)
         VrMode vr;
+        float vrToggledAt = -10;  // when VR mode was last switched with a key
         bool bandViewBeforeVr;    // the band view as it was on the desktop
 
         static double Now => Time.realtimeSinceStartupAsDouble;
@@ -484,7 +485,17 @@ namespace GuitarTutor.Runtime.Desktop
                     }
                     break;
                 case Command.BandView: SetBandView(!bandView); break;
-                case Command.Vr: SetVr(!vr.Active); break;
+                case Command.Vr:
+                    // starting XR makes the input system see the keyboard again, and a key still down counts as
+                    // pressed once more: a second X within a few seconds is that, not the user
+                    if (Time.realtimeSinceStartup - vrToggledAt < 3f)
+                    {
+                        Debug.Log("GuitarTutor: VR switch ignored (too soon after the last)");
+                        break;
+                    }
+                    vrToggledAt = Time.realtimeSinceStartup;
+                    SetVr(!vr.Active);
+                    break;
                 case Command.Help: screen.ToggleHelp(); break;
                 case Command.Quit: Application.Quit(); break;
             }
