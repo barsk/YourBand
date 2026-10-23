@@ -96,12 +96,12 @@ namespace GuitarTutor.Core.Band
             return s;
         }
 
-        /// <summary>Driving eighths: louder hats, kick on 1, 3 and the and of 3, eighth-note bass.</summary>
+        /// <summary>Driving eighths: louder hats (open on the and of 4), kick on 1, 3 and the and of 3, eighth-note bass.</summary>
         static BandStyle Rock()
         {
             var s = new BandStyle { Name = "Rock", KeysVelocity = 78, KeysSound = "5 - ORGANS/4 - ROCK B3", KeysGain = 0.45 };
             for (int i = 0; i < 8; ++i)
-                s.Drums.Add((Drum.ClosedHat, i * 0.5, i % 2 == 0 ? 96 : 72));
+                s.Drums.Add((i == 7 ? Drum.OpenHat : Drum.ClosedHat, i * 0.5, i % 2 == 0 ? 96 : 72));  // the foot lets the hat open on the and of 4
             s.Drums.Add((Drum.Kick, 0, 110));
             s.Drums.Add((Drum.Kick, 2, 104));
             s.Drums.Add((Drum.Kick, 2.5, 90));
@@ -114,12 +114,12 @@ namespace GuitarTutor.Core.Band
             return s;
         }
 
-        /// <summary>Lighter and syncopated: kick on the and of 2, keys pushed ahead of the beat.</summary>
+        /// <summary>Lighter and syncopated: kick on the and of 2, hat open on the and of 4, keys pushed ahead of the beat.</summary>
         static BandStyle Pop()
         {
             var s = new BandStyle { Name = "Pop", KeysVelocity = 70, KeysSound = "1 - A_PIANO/1 - Model D 1983", KeysGain = 2.0 };
             for (int i = 0; i < 8; ++i)
-                s.Drums.Add((Drum.ClosedHat, i * 0.5, i % 2 == 0 ? 84 : 60));
+                s.Drums.Add((i == 7 ? Drum.OpenHat : Drum.ClosedHat, i * 0.5, i % 2 == 0 ? 84 : 60));
             s.Drums.Add((Drum.Kick, 0, 104));
             s.Drums.Add((Drum.Kick, 1.5, 84));
             s.Drums.Add((Drum.Kick, 2, 96));

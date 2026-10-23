@@ -68,7 +68,7 @@ namespace GuitarTutor.Runtime.Band
             foreach (var s in DrumPerformance.Plan(arrangement.Notes))
                 strokes[s.Limb].Add(s);
             if (Logging)
-                Debug.Log($"GuitarTutor drummer plays: " + string.Join(", ", strokes.Select(kv => $"{kv.Key} {kv.Value.Count}")));
+                Debug.Log($"GuitarTutor drummer plays: " + string.Join(", ", strokes.Select(kv => $"{kv.Key} {kv.Value.Count}")) + $" ({strokes.Values.SelectMany(x => x).Count(x => x.Open)} open hat)");
         }
 
         public override void Show(double q, double seconds)
@@ -304,13 +304,32 @@ namespace GuitarTutor.Runtime.Band
                 kick.beater.rotation = kick.beaterRest;
                 kick.beater.RotateAround(kick.axle, kick.axis, kick.hit * press);
             }
-            // hi-hat: closed, but for the open hits; the left foot keeps it so
-            var (hatBefore, hatAfter) = Around(Limb.RightHand);
-            var open = hatBefore != null && hatBefore.Value.Open && quarter - hatBefore.Value.AtQuarter < 0.45
-                    || hatAfter != null && hatAfter.Value.Open && hatAfter.Value.AtQuarter - quarter < 0.1;
-            Press(hihat, open ? 0f : 1f, Bone(HumanBodyBones.LeftUpperLeg), Bone(HumanBodyBones.LeftLowerLeg), Bone(HumanBodyBones.LeftFoot), Bone(HumanBodyBones.LeftToes));
+            // hi-hat: closed, but for the open hits: the foot lifts just before one and lets the hat shut again by the
+            // next beat; the top cymbal rises with it (it opens about half its gap)
+            var open = HatOpen();
+            Press(hihat, 1 - open, Bone(HumanBodyBones.LeftUpperLeg), Bone(HumanBodyBones.LeftLowerLeg), Bone(HumanBodyBones.LeftFoot), Bone(HumanBodyBones.LeftToes));
             if (hihatTop != null)
-                hihatTop.position = hatRestPosition + hatDropDirection * (open ? hatDrop * 0.45f : hatDrop);
+                hihatTop.position = hatRestPosition + hatDropDirection * (hatDrop * (1 - HatOpenShare * open));
+            if (Logging && open > 0)
+                Debug.Log($"GuitarTutor hi-hat q {quarter:0.00}: open {open:0.00}, top {(hihatTop != null ? (hihatTop.position - hatRestPosition).magnitude * 1000 : 0):0} mm below rest");
+        }
+
+        const float HatOpenShare = 0.55f;  // how much of its gap the hi-hat opens
+
+        /// <summary>How open the hi-hat is now (0 closed, 1 open): up quickly before an open hit, held a beat's
+        /// worth, then shut.</summary>
+        float HatOpen()
+        {
+            var (before, after) = Around(Limb.RightHand);
+            var open = 0f;
+            if (before != null && before.Value.Open && before.Value.Piece == KitPiece.HiHat)
+            {
+                var t = (float)(quarter - before.Value.AtQuarter);
+                open = t < 0.4f ? 1f : 1f - Smooth(Mathf.InverseLerp(0.4f, 0.55f, t));
+            }
+            if (after != null && after.Value.Open && after.Value.Piece == KitPiece.HiHat)
+                open = Mathf.Max(open, Smooth(Mathf.InverseLerp(0.3f, 0.05f, (float)(after.Value.AtQuarter - quarter))));
+            return open;
         }
 
         /// <summary>A pedal pressed (0 up, 1 down), and the foot on its footboard: heel on the heel plate, toes
