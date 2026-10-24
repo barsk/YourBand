@@ -334,15 +334,17 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
                 var ours = SectionLike(placed, section.Name, seen[name]);
                 PlacedLine current = null;
                 var fillsInLine = new List<TabBlock>();
+                var overLine = false;  // the tab sits under a line of chords without words: it plays over the whole line
                 var loose = new List<TabBlock>();
                 void Flush()
                 {
                     if (current == null || fillsInLine.Count == 0)
                         return;
                     var last = current.Chords.Last();  // fills sit in the line's last chord, one after the other
-                    var span = last.Quarters / fillsInLine.Count;
+                    var from = overLine ? current.At : last.AtQuarter;
+                    var span = (overLine ? current.End - current.At : last.Quarters) / fillsInLine.Count;
                     for (int i = 0; i < fillsInLine.Count; ++i)
-                        song.Riffs.Add(Riff($"Fill {++riffCount} ({section.Name})", fillsInLine[i], last.AtQuarter + i * span, span));
+                        song.Riffs.Add(Riff($"{(overLine ? "Riff" : "Fill")} {++riffCount} ({section.Name})", fillsInLine[i], from + i * span, span));
                     fills += fillsInLine.Count;
                     fillsInLine.Clear();
                 }
@@ -353,8 +355,16 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
                     {
                         Flush();
                         current = null;
+                        overLine = false;
                         if (string.IsNullOrWhiteSpace(line.Chords.Lyric))
+                        {
+                            // chords alone over a tab (an intro): the line of those chords in our section
+                            var names = line.Chords.Chords.Select(c => c.Name).ToList();
+                            current = placed.Lines.FirstOrDefault(p => p.Section == section.Name && p.Chords.Select(c => c.Name).SequenceEqual(names)
+                                                                       && (ours == null || (p.At >= ours.AtQuarter - 1e-9 && p.At < ours.AtQuarter + ours.Quarters - 1e-9)));
+                            overLine = current != null;
                             continue;
+                        }
                         var at = Find(placed, Normalise(line.Chords.Lyric), cursor);
                         if (at < 0)
                         {
