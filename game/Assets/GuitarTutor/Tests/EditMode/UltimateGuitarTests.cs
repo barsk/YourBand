@@ -180,6 +180,21 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
+        public void Import_ChordsPerBarFromTheLine()
+        {
+            // four chords: two bars of two; two chords: a chord a bar; three: the two written close together share a bar
+            const string content =
+                "[Verse]\n" +
+                "[ch]Em[/ch]   [ch]C[/ch]   [ch]D[/ch]   [ch]G[/ch]\n" +
+                "[ch]Em[/ch]                 [ch]G[/ch]\n" +
+                "[ch]Em[/ch]                 [ch]D[/ch] [ch]G[/ch]\n" +
+                "[ch]C[/ch]   [ch]D[/ch]                 [ch]G[/ch]\n";
+            var song = UgImporter.Import(UgPage.Parse(Page("Chords", content, false)), null, out _, 0);
+            var q = song.Chords.OrderBy(c => c.AtQuarter).Select(c => c.Quarters).ToArray();
+            CollectionAssert.AreEqual(new[] { 2.0, 2, 2, 2, 4, 4, 4, 2, 2, 2, 2, 4 }, q);
+        }
+
+        [Test]
         public void Import_BackingVocalsAreTheirOwnLineAndLinesDoNotOverlap()
         {
             // chords written close together over a long line, backing vocals in parentheses on the same line,

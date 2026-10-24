@@ -31,7 +31,7 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
     {
         public static Song Import(UgPage chords, UgPage tabs, out ImportReport report, int chordsPerBar = 1)
         {
-            chordsPerBar = Math.Max(1, chordsPerBar);
+            chordsPerBar = Math.Max(0, chordsPerBar);  // 0: from each line
             report = new ImportReport();
             var song = new Song();
             song.Info.Title = chords.Title;
@@ -56,11 +56,11 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
 
             // timing: the first guess, then checked against the recording's time marks in the tabs page
             var scale = 1.0;
-            var placed = Place(sheet, bar * scale / chordsPerBar, chordsPerBar);
+            var placed = Place(sheet, bar * scale / Math.Max(1, chordsPerBar), chordsPerBar);
             if (tabSheet != null)
                 scale = Calibrate(placed, tabSheet, song.Tempo, report);
             if (scale != 1.0)
-                placed = Place(sheet, bar * scale / chordsPerBar, chordsPerBar);
+                placed = Place(sheet, bar * scale / Math.Max(1, chordsPerBar), chordsPerBar);
 
             foreach (var section in placed.Sections)
                 song.Sections.Add(section);
@@ -114,6 +114,49 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
             public double End;
         }
 
+        /// <summary>
+        /// The bar each chord of a line without bar lines is in. Two chords a bar (four chords: two bars); a line of two
+        /// chords is a chord a bar, as a lone chord is one bar. With an odd count one bar holds a single chord and the
+        /// others pairs: the chords closest together in the line's text are the ones that share a bar.
+        /// </summary>
+        static List<int> BarsOfLine(List<SheetChord> chords)
+        {
+            var n = chords.Count;
+            var bars = new List<int>();
+            if (n <= 2)
+            {
+                for (int i = 0; i < n; ++i)
+                    bars.Add(i);
+                return bars;
+            }
+            var single = -1;  // the chord alone in its bar, when the count is odd
+            if (n % 2 == 1)
+            {
+                var best = double.MaxValue;
+                for (int s = 0; s < n; s += 2)
+                {
+                    // the pairs are (0,1)(2,3)... before the single and the rest after it: their gaps
+                    var cost = 0.0;
+                    for (int i = 0; i + 1 < n; ++i)
+                    {
+                        var paired = i < s ? i % 2 == 0 : (i - s) % 2 == 1;
+                        if (paired && i != s)
+                            cost += chords[i + 1].Column - chords[i].Column;
+                    }
+                    if (cost < best)
+                        (best, single) = (cost, s);
+                }
+            }
+            for (int i = 0, bar = -1; i < n; ++i)
+            {
+                var startsBar = i == single || (single < 0 ? i % 2 == 0 : i < single ? i % 2 == 0 : (i - single) % 2 == 1);
+                if (startsBar)
+                    ++bar;
+                bars.Add(bar);
+            }
+            return bars;
+        }
+
         static int WholeBars(int chords)
         {
             int n = 1;
@@ -136,12 +179,14 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
                     for (int r = 0; r < c.Repeat; ++r)
                     {
                         var placedLine = new PlacedLine { Section = section.Name, Source = c, At = at };
-                        if (c.Barred)
+                        if (c.Barred || chordsPerBar == 0)
                         {
-                            // bar lines say it: the chords between two of them share one bar
-                            foreach (var inBar in c.Chords.GroupBy(x => x.Bar))
+                            // bar lines say it: the chords between two of them share one bar. Without them (chords per
+                            // bar from the line), the line's chord count and the chords' spacing say it
+                            var barOf = c.Barred ? c.Chords.Select(x => x.Bar).ToList() : BarsOfLine(c.Chords);
+                            foreach (var inBar in c.Chords.Select((x, i) => (x, bar: barOf[i])).GroupBy(t => t.bar).Select(g => g.Select(t => t.x).ToList()))
                             {
-                                var share = slot * chordsPerBar / inBar.Count();
+                                var share = slot * Math.Max(1, chordsPerBar) / inBar.Count;
                                 foreach (var chord in inBar)
                                 {
                                     placedLine.Chords.Add(new ChordEvent { Name = chord.Name, AtQuarter = at, Quarters = share });

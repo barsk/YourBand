@@ -6,7 +6,7 @@ with Unity (open the game project once so `game/Library` exists).
 
 ```
 dotnet build tools/songtool -c Release
-tools/songtool/bin/Release/net8.0/songtool.exe import-ug <chords-page.html> [--tabs <tabs-page.html>] [--chords-per-bar n] -o <song.json>
+tools/songtool/bin/Release/net8.0/songtool.exe import-ug <chords-page.html> [--tabs <tabs-page.html>] [--chords-per-bar n|auto] -o <song.json>
 tools/songtool/bin/Release/net8.0/songtool.exe show <song.json> [--bars 1-16]
 ```
 
