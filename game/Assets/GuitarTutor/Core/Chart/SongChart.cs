@@ -341,11 +341,28 @@ namespace GuitarTutor.Core.Chart
         {
             if (pattern == null || pattern.Strokes.Count == 0 || pattern.Subdivision <= 0 || quarter < 0)
                 return (-1, 0);
-            var (_, inBar) = Song.Tempo.BarAt(quarter);
+            var (barIndex, inBar) = Song.Tempo.BarAt(quarter);
             var slot = 4.0 / pattern.Subdivision;
             var steps = inBar / slot;
             var step = (int)Math.Floor(steps + 1e-9);
-            return (step % pattern.Strokes.Count, steps - step);
+            return (StrokeIndex(pattern, barIndex, step), steps - step);
+        }
+
+        /// <summary>
+        /// Which stroke of a pattern a step of a bar is. A pattern repeats each bar, or more often if shorter; a pattern
+        /// of whole bars (32 sixteenths in 4/4) takes one bar of its strokes after another, from the section's start.
+        /// </summary>
+        public int StrokeIndex(StrumPattern pattern, int bar, int stepInBar)
+        {
+            var count = pattern.Strokes.Count;
+            var perBar = bar >= 0 && bar < bars.Count ? (int)Math.Round(bars[bar].Quarters / (4.0 / pattern.Subdivision)) : 0;
+            if (perBar > 0 && count > perBar && count % perBar == 0)
+            {
+                var section = SectionIndexOf(bar);
+                var first = section >= 0 ? sections[section].FirstBar : 0;
+                return ((bar - first) % (count / perBar)) * perBar + stepInBar % perBar;
+            }
+            return stepInBar % count;
         }
 
         /// <summary>The counts to show under a pattern's strokes: "1 & 2 &" for eighths, "1 e & a" for sixteenths.</summary>

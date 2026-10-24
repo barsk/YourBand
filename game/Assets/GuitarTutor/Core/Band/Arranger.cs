@@ -314,7 +314,7 @@ namespace GuitarTutor.Core.Band
                 var slot = last ? bar.Quarters : 4.0 / pattern.Subdivision;
                 for (int i = 0; i * slot < bar.Quarters - 1e-6; ++i)
                 {
-                    var stroke = last ? Stroke.Down : pattern.Strokes[i % pattern.Strokes.Count];
+                    var stroke = last ? Stroke.Down : pattern.Strokes[chart.StrokeIndex(pattern, bar.Index, i)];
                     if (stroke == Stroke.Rest)
                         continue;
                     var at = bar.AtQuarter + i * slot;

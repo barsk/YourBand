@@ -86,6 +86,24 @@ namespace GuitarTutor.Core.Tests
         static UgPage TabsPage(string intro = "00:00-00:17") => UgPage.Parse(Page("Tabs", TabsContent(intro), false));
 
         [Test]
+        public void Import_AStrummingPatternOfTwoBarsIsNotOneLongBar()
+        {
+            // 32 sixteenths are two bars of 4/4: the meter stays 4/4 (it was read as one bar of 32/16, 9 minutes long)
+            var page = ChordsPage;
+            page.Strummings[0].Denominator = 16;
+            page.Strummings[0].Measures.Clear();
+            for (int i = 0; i < 32; ++i)
+                page.Strummings[0].Measures.Add(i == 1 ? 3 : i == 3 ? 203 : i % 2 == 0 ? 1 : 202);
+            var song = UgImporter.Import(page, null, out var report);
+            Assert.AreEqual(4, song.Tempo.SignatureAtBar(0).Numerator);
+            Assert.AreEqual(4, song.Tempo.SignatureAtBar(0).Denominator);
+            // codes 3 and 203 are muted down and muted up strokes, not unknown
+            Assert.AreEqual(Stroke.MutedDown, song.Strumming[0].Strokes[1]);
+            Assert.AreEqual(Stroke.MutedUp, song.Strumming[0].Strokes[3]);
+            Assert.IsFalse(report.Notes.Any(n => n.Contains("Unknown strumming")));
+        }
+
+        [Test]
         public void Page_ReadsTheEmbeddedData()
         {
             var page = ChordsPage;

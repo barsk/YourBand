@@ -120,6 +120,22 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
+        public void StrokeAt_ALongPatternTakesOneBarAfterAnother()
+        {
+            // 32 sixteenths: two bars of 4/4. In a section starting at bar 0: bar 0 has strokes 0-15, bar 1 strokes 16-31, bar 2 again 0-15
+            var chart = new SongChart(DemoSong.Create());
+            var pattern = new StrumPattern { Subdivision = 16 };
+            for (int i = 0; i < 32; ++i)
+                pattern.Strokes.Add(Stroke.Down);
+            Assert.AreEqual(0, chart.StrokeAt(pattern, 0).index);
+            Assert.AreEqual(5, chart.StrokeAt(pattern, 1.25).index);
+            Assert.AreEqual(16, chart.StrokeAt(pattern, 4).index);
+            Assert.AreEqual(21, chart.StrokeAt(pattern, 5.25).index);
+            Assert.AreEqual(0, chart.StrokeAt(pattern, 8).index);
+            Assert.AreEqual(16, chart.StrokeIndex(pattern, 1, 0));
+        }
+
+        [Test]
         public void StrokeAt_FollowsTheEighths()
         {
             var chart = Demo();

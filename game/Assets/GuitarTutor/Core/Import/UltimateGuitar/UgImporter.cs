@@ -494,12 +494,15 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
                 var pattern = new StrumPattern { Name = s.Part, Subdivision = s.Denominator };
                 foreach (var code in s.Measures)
                 {
-                    // UG's stroke codes: 1 down, 101 up, 202 no stroke
+                    // UG's stroke codes: 1 down, 101 up, 202 no stroke; 3 and 203 come in down / up pairs among the
+                    // others (Heart of Gold's intro: a muted chuck on each eighth), so: muted down, muted up
                     switch (code)
                     {
                         case 1: pattern.Strokes.Add(Stroke.Down); break;
                         case 101: pattern.Strokes.Add(Stroke.Up); break;
                         case 202: pattern.Strokes.Add(Stroke.Rest); break;
+                        case 3: pattern.Strokes.Add(Stroke.MutedDown); break;
+                        case 203: pattern.Strokes.Add(Stroke.MutedUp); break;
                         default: pattern.Strokes.Add(Stroke.Rest); unknown.Add(code); break;
                     }
                 }
@@ -546,6 +549,10 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
         static TimeSignature Meter(int strokes, int denominator)
         {
             if (strokes <= 0 || denominator <= 0 || strokes == denominator)
+                return TimeSignature.FourFour;
+            // a pattern of whole 4/4 bars (32 sixteenths: two bars) is not one long bar; it is played over its bars
+            var quarters = strokes * 4.0 / denominator;
+            if (quarters >= 8 && Math.Abs(quarters % 4) < 1e-9)
                 return TimeSignature.FourFour;
             return new TimeSignature(strokes, denominator);
         }
