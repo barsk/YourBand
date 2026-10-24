@@ -25,7 +25,7 @@ namespace GuitarTutor.SongTool
                     return ImportUg(args);
                 if (args.Length >= 2 && args[0] == "show")
                     return Show(args);
-                Console.WriteLine("usage:\n  songtool import-ug <chords.html> [--tabs <tabs.html>] -o <song.json>\n  songtool show <song.json> [--bars a-b]");
+                Console.WriteLine("usage:\n  songtool import-ug <chords.html> [--tabs <tabs.html>] [--chords-per-bar n] -o <song.json>\n  songtool show <song.json> [--bars a-b]");
                 return 1;
             }
             catch (Exception e)
@@ -44,7 +44,8 @@ namespace GuitarTutor.SongTool
             var tabsPath = Option(args, "--tabs");
             var tabs = tabsPath != null ? UgPage.Load(tabsPath) : null;
             var output = Option(args, "-o") ?? Path.ChangeExtension(args[1], ".song.json");
-            var song = UgImporter.Import(chords, tabs, out var report);
+            int.TryParse(Option(args, "--chords-per-bar"), out var perBar);
+            var song = UgImporter.Import(chords, tabs, out var report, perBar);
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(output)));
             SongJson.Save(song, output);
             Console.WriteLine($"{song.Info.Artist} - {song.Info.Title} (key {song.Info.Key}, tuning {string.Join(" ", song.Info.Tuning)}, capo {song.Info.Capo})");

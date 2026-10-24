@@ -161,6 +161,25 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
+        public void Import_BarLinesAndChordsPerBarSetHowLongChordsLast()
+        {
+            const string content =
+                "[Verse]\n" +
+                "| [ch]Em[/ch] [ch]C[/ch] | [ch]D[/ch] |\n" +
+                "[ch]G[/ch]   [ch]D[/ch]\n";
+            var page = UgPage.Parse(Page("Chords", content, false));
+            // barred: Em and C share bar 1 (2 quarters each), D has bar 2 to itself
+            var song = UgImporter.Import(page, null, out _);
+            var chords = song.Chords.OrderBy(c => c.AtQuarter).ToList();
+            Assert.AreEqual(2, chords[0].Quarters, 1e-9);
+            Assert.AreEqual(4, chords[2].Quarters, 1e-9);
+            // not barred: a chord a bar, or two to a bar
+            Assert.AreEqual(4, chords[3].Quarters, 1e-9);
+            var two = UgImporter.Import(page, null, out _, 2).Chords.OrderBy(c => c.AtQuarter).ToList();
+            Assert.AreEqual(2, two[3].Quarters, 1e-9);
+        }
+
+        [Test]
         public void Import_BackingVocalsAreTheirOwnLineAndLinesDoNotOverlap()
         {
             // chords written close together over a long line, backing vocals in parentheses on the same line,

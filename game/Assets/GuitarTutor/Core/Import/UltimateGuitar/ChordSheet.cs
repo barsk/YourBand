@@ -101,7 +101,7 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
                 foreach (Match m in ChordTag.Matches(raw))
                 {
                     plain.Append(raw, at, m.Index - at);
-                    line.Chords.Add(new SheetChord { Name = m.Groups[1].Value.Trim(), Column = plain.Length });
+                    line.Chords.Add(new SheetChord { Name = m.Groups[1].Value.Trim(), Column = plain.Length, Bar = Bars(plain.ToString()) });
                     plain.Append(m.Groups[1].Value);
                     at = m.Index + m.Length;
                 }
@@ -112,12 +112,13 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
             {
                 foreach (Match m in Regex.Matches(raw, @"\S+"))
                     if (ChordName.IsChord(m.Value))
-                        line.Chords.Add(new SheetChord { Name = m.Value, Column = m.Index });
+                        line.Chords.Add(new SheetChord { Name = m.Value, Column = m.Index, Bar = Bars(raw.Substring(0, m.Index)) });
                 rest = Regex.Replace(raw, @"\S+", m => ChordName.IsChord(m.Value) ? " " : m.Value);
             }
             if (line.Chords.Count == 0)
                 return null;
-            var leftover = rest.Trim();
+            line.Barred = raw.Contains('|');
+            var leftover = rest.Replace('|', ' ').Trim();
             if (leftover.Length > 0)
             {
                 if (!Repeat.IsMatch(" " + leftover + " ") || Regex.Replace(leftover, @"[xX×\d()\s]", "").Length > 0)
@@ -126,6 +127,8 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
             }
             return line;
         }
+
+        static int Bars(string before) => before.Count(c => c == '|');
 
         // a tagged chord line with text beside the chords (rare): keep the chords, the text is a note
         static ChordLine WithLyricInline(ChordLine line, string text)
@@ -167,12 +170,15 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
         public string Lyric;
         public int Repeat = 1;
         public string Note;
+        /// <summary>The line has bar lines (| Em C | D G |): the chords between two of them share a bar.</summary>
+        public bool Barred;
     }
 
     public sealed class SheetChord
     {
         public string Name = "";
         public int Column;
+        public int Bar;  // how many bar lines come before it in its line
     }
 
     /// <summary>Six string lines of ASCII tab, the high E first; optionally a time span in the recording.</summary>
