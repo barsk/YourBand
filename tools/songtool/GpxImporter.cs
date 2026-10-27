@@ -97,6 +97,7 @@ namespace GuitarTutor.SongTool
 
             // ------------------------------------------------------------ sections
             Sections(score, song, tpq);
+            CarveLeadSections(score, track, song, tpq, report);
 
             // ------------------------------------------------------------ riffs + chords + voicings
             RiffsAndChords(score, staff, song, report, tpq);
@@ -106,6 +107,9 @@ namespace GuitarTutor.SongTool
 
             // ------------------------------------------------------------ lyrics (from whichever track carries them)
             Lyrics(score, song, tpq, report);
+
+            // ------------------------------------------------------------ the other instruments
+            Parts(score, track, song, tpq, report);
 
             // ------------------------------------------------------------ provenance
             song.Sources.Add(new Source
@@ -247,6 +251,147 @@ namespace GuitarTutor.SongTool
                     Quarters = Math.Max(0, end - start),
                 });
             }
+        }
+
+        // ------------------------------------------------------------ the other tracks: sections and parts
+        static bool IsVocal(Track t) =>
+            Regex.IsMatch(t.Name ?? "", "vocal|voice|sing|lyric|choir", RegexOptions.IgnoreCase)
+            || (t.PlaybackInfo != null && t.PlaybackInfo.Program >= 52 && t.PlaybackInfo.Program <= 54);
+
+        static bool IsBass(Track t) =>
+            Regex.IsMatch(t.Name ?? "", "bass", RegexOptions.IgnoreCase)
+            || (t.PlaybackInfo != null && t.PlaybackInfo.Program >= 32 && t.PlaybackInfo.Program <= 39)
+            || (t.Staves.Count > 0 && t.Staves[0].StringTuning.Tunings.Count is > 0 and <= 4);
+
+        /// <summary>The tracks that play a lead line besides the rhythm guitar: not its own, not drums, vocal or bass, with notes.</summary>
+        static List<Track> LeadTracks(Score score, Track strumTrack) =>
+            score.Tracks.Where(t => t != strumTrack && t.Staves.Count > 0 && !t.Staves[0].IsPercussion && !IsVocal(t) && !IsBass(t)
+                                    && BarActivity(t, score).Any(a => a)).ToList();
+
+        /// <summary>Per bar of the score, whether the track plays a note in it.</summary>
+        static bool[] BarActivity(Track track, Score score)
+        {
+            var active = new bool[score.MasterBars.Count];
+            var staff = track.Staves[0];
+            foreach (var bar in staff.Bars)
+                if (bar.Index >= 0 && bar.Index < active.Length)
+                    active[(int)bar.Index] = bar.Voices.SelectMany(v => v.Beats).Any(b => b.Notes.Count > 0);
+            return active;
+        }
+
+        /// <summary>
+        /// A lead track that plays only here and there (a harmonica solo) makes its stretches sections of their own:
+        /// "Harmonica Intro" inside an intro, else "Harmonica Solo"; what is left of the section after it is
+        /// "(cont.)". A track that plays most of the song (a second guitar doing fills) is not a solo.
+        /// </summary>
+        static void CarveLeadSections(Score score, Track strumTrack, Song song, double tpq, ImportReport report)
+        {
+            if (song.Sections.Count == 0)
+                return;
+            var bars = score.MasterBars;
+            double BarStart(int i) => bars[i].Start / tpq;
+            double BarEnd(int i) => i + 1 < bars.Count ? bars[i + 1].Start / tpq : song.Sections.Max(s => s.AtQuarter + s.Quarters);
+            foreach (var track in LeadTracks(score, strumTrack))
+            {
+                var active = BarActivity(track, score);
+                if (active.Count(a => a) > 0.4 * active.Length)
+                    continue;
+                for (int i = 0; i < active.Length;)
+                {
+                    if (!active[i])
+                    {
+                        ++i;
+                        continue;
+                    }
+                    var first = i;
+                    while (i < active.Length && active[i])
+                        ++i;
+                    var last = i - 1;
+                    if (last - first + 1 < 2)
+                        continue;
+                    // the stretch, a section at a time (it can cross one's end)
+                    double from = BarStart(first), to = BarEnd(last);
+                    while (from < to - 1e-6)
+                    {
+                        var s = song.Sections.FirstOrDefault(x => from >= x.AtQuarter - 1e-6 && from < x.AtQuarter + x.Quarters - 1e-6);
+                        if (s == null)
+                            break;
+                        var end = Math.Min(to, s.AtQuarter + s.Quarters);
+                        if (from <= s.AtQuarter + 1e-6 && end >= s.AtQuarter + s.Quarters - 1e-6)
+                        {
+                            from = end;  // it plays the whole section: the section keeps its name
+                            continue;
+                        }
+                        var baseName = Regex.Replace(s.Name, @" \(cont\.\)$", "");
+                        var name = $"{track.Name} " + (baseName.StartsWith("Intro", StringComparison.OrdinalIgnoreCase) ? "Intro" : "Solo");
+                        var index = song.Sections.IndexOf(s);
+                        song.Sections.RemoveAt(index);
+                        var pieces = new List<GuitarTutor.Core.Songs.Section>();
+                        if (from > s.AtQuarter + 1e-6)
+                            pieces.Add(new GuitarTutor.Core.Songs.Section { Name = s.Name, AtQuarter = s.AtQuarter, Quarters = from - s.AtQuarter });
+                        pieces.Add(new GuitarTutor.Core.Songs.Section { Name = name, AtQuarter = from, Quarters = end - from });
+                        if (end < s.AtQuarter + s.Quarters - 1e-6)
+                            pieces.Add(new GuitarTutor.Core.Songs.Section { Name = baseName + " (cont.)", AtQuarter = end, Quarters = s.AtQuarter + s.Quarters - end });
+                        song.Sections.InsertRange(index, pieces);
+                        from = end;
+                    }
+                }
+            }
+            if (song.Sections.Count > 0)
+                report.Add("Sections: " + string.Join(", ", song.Sections.Select(x => x.Name)) + ".");
+        }
+
+        /// <summary>
+        /// The file's other instruments as parts of the song: every track but the strummed guitar and the drums, with
+        /// its notes. The first two lead tracks (harmonica, lead guitar...) get the band's lead channels 1 and 2.
+        /// </summary>
+        static void Parts(Score score, Track strumTrack, Song song, double tpq, ImportReport report)
+        {
+            var leads = LeadTracks(score, strumTrack);
+            var masterByIndex = score.MasterBars.ToDictionary(mb => mb.Index);
+            foreach (var track in score.Tracks)
+            {
+                if (track == strumTrack || track.Staves.Count == 0 || track.Staves[0].IsPercussion)
+                    continue;
+                var staff = track.Staves[0];
+                var part = new SongPart
+                {
+                    Name = track.Name ?? "",
+                    Program = (int)(track.PlaybackInfo?.Program ?? 0),
+                    Role = IsVocal(track) ? "vocal" : IsBass(track) ? "bass" : "lead",
+                };
+                foreach (var bar in staff.Bars)
+                {
+                    if (!masterByIndex.TryGetValue(bar.Index, out var master))
+                        continue;
+                    foreach (var voice in bar.Voices)
+                        foreach (var beat in voice.Beats)
+                            foreach (var n in beat.Notes)
+                            {
+                                if (n.IsDead)
+                                    continue;
+                                var pitch = Pitch(staff, n);
+                                pitch = pitch >= 0 ? pitch + (int)staff.Capo : (int)n.RealValue;
+                                if (pitch < 0 || pitch > 127)
+                                    continue;
+                                var at = (master.Start + beat.DisplayStart) / tpq;
+                                var length = Math.Max(0, beat.DisplayDuration) / tpq;
+                                var last = part.Notes.LastOrDefault();
+                                if (n.IsTieDestination && last != null && last.Pitch == pitch)
+                                    last.Quarters = at + length - last.AtQuarter;  // a tied note goes on
+                                else
+                                    part.Notes.Add(new PartNote { Pitch = pitch, AtQuarter = at, Quarters = length });
+                            }
+                }
+                if (part.Notes.Count == 0)
+                    continue;
+                if (part.Role == "lead" && leads.Contains(track))
+                    part.Voice = song.Parts.Count(p => p.Voice > 0) < 2 ? song.Parts.Count(p => p.Voice > 0) + 1 : 0;
+                song.Parts.Add(part);
+            }
+            if (song.Parts.Count > 0)
+                report.Add("Parts: " + string.Join(", ", song.Parts.Select(p => $"{p.Name} ({p.Notes.Count} notes, "
+                                                                                + (p.Voice > 0 ? $"lead {p.Voice}" : p.Role + ", not played") + ")")) + ".");
         }
 
         // ------------------------------------------------------------ riffs, chords, voicings
@@ -807,7 +952,7 @@ namespace GuitarTutor.SongTool
         /// </summary>
         static string CanonicalName(string s)
         {
-            var n = Regex.Replace(Regex.Replace((s ?? "").ToLowerInvariant(), "[^a-z0-9]+", ""), @"\d+$", "");
+            var n = Regex.Replace(Regex.Replace(Regex.Replace((s ?? "").ToLowerInvariant(), @"\(cont\.\)", ""), "[^a-z0-9]+", ""), @"\d+$", "");  // ("Verse (cont.)" is the verse)
             foreach (var (canonical, aliases) in SectionNameSynonyms)
                 if (n == canonical || aliases.Contains(n))
                     return canonical;

@@ -20,7 +20,7 @@ namespace GuitarTutor.Core.Engine
         public const string ClockName = "Local\\GuitarTutorClock";
 
         /// <summary>The parts in the order the engine numbers them in "notes".</summary>
-        public static readonly BandPart[] Parts = { BandPart.Drums, BandPart.Bass, BandPart.Keys, BandPart.Guitar };
+        public static readonly BandPart[] Parts = { BandPart.Drums, BandPart.Bass, BandPart.Keys, BandPart.Guitar, BandPart.Lead1, BandPart.Lead2 };
 
         static string Line(JObject message) => message.ToString(Formatting.None);
 
@@ -58,6 +58,7 @@ namespace GuitarTutor.Core.Engine
                 ["voicings"] = voicings,
                 ["strokes"] = strokes,
                 ["spans"] = spans,
+                ["leads"] = new JArray(arrangement.LeadNames),
                 ["keys"] = keysSound ?? "",
                 ["origin"] = origin ?? "",
             });

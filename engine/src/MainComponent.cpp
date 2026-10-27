@@ -1,4 +1,5 @@
 #include "MainComponent.h"
+#include "NumaKeys.h"
 #include "WindowFront.h"
 
 namespace gt
@@ -19,6 +20,8 @@ namespace
             case EngineCore::Slot::bandDrums:  return "bandDrums";
             case EngineCore::Slot::bandBass:   return "bandBass";
             case EngineCore::Slot::bandGuitar: return "bandGuitar";
+            case EngineCore::Slot::bandLead1:  return "bandLead1";
+            case EngineCore::Slot::bandLead2:  return "bandLead2";
         }
         return "";
     }
@@ -31,8 +34,13 @@ namespace
 
     juce::String bandTitle (EngineCore::Slot slot)
     {
-        return slot == EngineCore::Slot::bandDrums ? "Band drums" : slot == EngineCore::Slot::bandBass ? "Band bass" : "Band guitar";
+        return slot == EngineCore::Slot::bandDrums ? "Band drums" : slot == EngineCore::Slot::bandBass ? "Band bass"
+             : slot == EngineCore::Slot::bandLead1 ? "Lead 1" : slot == EngineCore::Slot::bandLead2 ? "Lead 2" : "Band guitar";
     }
+
+    /** The lead channels play the song's other instruments (a harmonica, a lead guitar) on a plugin of your choice, as
+        stand-ins: there is no built-in sound for them. */
+    bool isLead (EngineCore::Slot slot) { return slot == EngineCore::Slot::bandLead1 || slot == EngineCore::Slot::bandLead2; }
 
     /** The instrument plugins the band knows, offered when you have them; any other can be added with "Other
         plugin...". A MONSTER plugin (and Kontakt) is silent until you choose a sound in it, Ample Bass plays its
@@ -45,7 +53,11 @@ namespace
                                        { EngineCore::Slot::bandBass, "MONSTER Bass*.vst3", "MONSTER Bass", true, 0.16f, 1.0f },
                                        { EngineCore::Slot::bandBass, "ABPL*.vst3", "Ample Bass P Lite", false, 0.21f, 1.0f },
                                        { EngineCore::Slot::bandGuitar, "MONSTER Guitar*.vst3", "MONSTER Guitar", true, 0.03f, 0.03f },
-                                       { EngineCore::Slot::bandGuitar, "Kontakt*.vst3", "Kontakt (Shreddage)", true, 0.8f, 1.0f } };
+                                       { EngineCore::Slot::bandGuitar, "Kontakt*.vst3", "Kontakt (Shreddage)", true, 0.8f, 1.0f },
+                                       { EngineCore::Slot::bandLead1, "Numa Player*.vst3", "Numa Player", true, 0.8f, 1.0f },
+                                       { EngineCore::Slot::bandLead1, "Kontakt*.vst3", "Kontakt", true, 0.8f, 1.0f },
+                                       { EngineCore::Slot::bandLead2, "Numa Player*.vst3", "Numa Player", true, 0.8f, 1.0f },
+                                       { EngineCore::Slot::bandLead2, "Kontakt*.vst3", "Kontakt", true, 0.8f, 1.0f } };
     constexpr float guitarLevelThroughAmp = 0.8f;  // as the built-in guitar's
 
     /** How early (seconds) the band guitar's notes go to a plugin: Kontakt's strummed guitars sound a little late (the
@@ -119,6 +131,10 @@ EngineOptions EngineOptions::fromCommandLine (const juce::StringArray& args)
             o.bandBass = args[++i].unquoted();
         else if (args[i] == "--band-guitar" && i + 1 < args.size())
             o.bandGuitar = args[++i].unquoted();
+        else if (args[i] == "--lead1" && i + 1 < args.size())
+            o.bandLead1 = args[++i].unquoted();
+        else if (args[i] == "--lead2" && i + 1 < args.size())
+            o.bandLead2 = args[++i].unquoted();
         else if (args[i] == "--snapshot" && i + 1 < args.size())
             o.snapshot = juce::File::getCurrentWorkingDirectory().getChildFile (args[++i].unquoted());
     }
@@ -186,6 +202,8 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
     setUpBandPart (EngineCore::Slot::bandDrums);
     setUpBandPart (EngineCore::Slot::bandBass);
     setUpBandPart (EngineCore::Slot::bandGuitar);
+    setUpBandPart (EngineCore::Slot::bandLead1);  // the song's other instruments: a plugin each, or silent
+    setUpBandPart (EngineCore::Slot::bandLead2);
     engine.setBandGuitarPlays (settings->getBoolValue ("bandGuitarPlays", false));
     guitarPlays.setToggleState (engine.bandGuitarPlays(), juce::dontSendNotification);
     guitarPlays.onClick = [this] { setBandGuitarPlays (guitarPlays.getToggleState()); };
@@ -239,8 +257,9 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
     // the band's mixer: your faders, on top of the level the game gives each sound; remembered between runs
     for (size_t i = 0; i < faders.size(); ++i)
     {
-        const juce::String part = i == 0 ? "drums" : i == 1 ? "bass" : i == 2 ? "keys" : "guitar";
-        faderLabels[i].setText (part.substring (0, 1).toUpperCase() + part.substring (1), juce::dontSendNotification);
+        const juce::String part = i == 0 ? "drums" : i == 1 ? "bass" : i == 2 ? "keys" : i == 3 ? "guitar" : i == 4 ? "lead1" : "lead2";
+        faderLabels[i].setText (i >= 4 ? "Lead " + juce::String (i - 3) : part.substring (0, 1).toUpperCase() + part.substring (1),
+                                juce::dontSendNotification);
         addAndMakeVisible (faderLabels[i]);
         auto& f = faders[i];
         f.setSliderStyle (juce::Slider::LinearHorizontal);
@@ -327,7 +346,7 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
             juce::MessageManager::callAsync ([] { juce::JUCEApplication::getInstance()->systemRequestedQuit(); });
     }
 
-    setSize (760, 820);
+    setSize (760, 930);
     startTimerHz (4);
 
     if (options.snapshot != juce::File())
@@ -379,6 +398,10 @@ void MainComponent::handle (const juce::var& message)
              + ", " + juce::String ((int) score->voicings.size()) + " voicing notes"
              + ", " + juce::String ((int) score->strokes.size()) + " strokes"
              + ", " + juce::String ((int) score->spans.size()) + " single-note stretches"
+             + (score->leads[0].isNotEmpty() || score->leads[1].isNotEmpty()
+                    ? ", leads: " + (score->leads[0].isNotEmpty() ? score->leads[0] : juce::String ("-"))
+                          + " / " + (score->leads[1].isNotEmpty() ? score->leads[1] : juce::String ("-"))
+                    : juce::String())
              + (score->origin.isNotEmpty() ? ", from " + score->origin : juce::String()));
         const auto notes = (int) score->notes.size();
         const auto keys = score->keys.isNotEmpty() ? score->keys : engine.keysSound();
@@ -474,7 +497,8 @@ void MainComponent::saveSettings()
         if (state.getSize() > 0)
             settings->setValue (slotKey (slot), state.toBase64Encoding());
     }
-    for (auto slot : { EngineCore::Slot::bandDrums, EngineCore::Slot::bandBass, EngineCore::Slot::bandGuitar })
+    for (auto slot : { EngineCore::Slot::bandDrums, EngineCore::Slot::bandBass, EngineCore::Slot::bandGuitar,
+                       EngineCore::Slot::bandLead1, EngineCore::Slot::bandLead2 })
         keepBandState (slot);
     settings->removeValue ("toneA");
     settings->removeValue ("toneB");
@@ -499,6 +523,12 @@ void MainComponent::setUpBandPart (EngineCore::Slot slot)
         last = options.bandBass;
     if (slot == EngineCore::Slot::bandGuitar && options.bandGuitar.isNotEmpty())
         last = options.bandGuitar;
+    if (slot == EngineCore::Slot::bandLead1 && options.bandLead1.isNotEmpty())
+        last = options.bandLead1;
+    if (slot == EngineCore::Slot::bandLead2 && options.bandLead2.isNotEmpty())
+        last = options.bandLead2;
+    if (isLead (slot) && last.isEmpty())
+        last = "synthesized";  // no lead plugin until you choose one (each is another instance to load)
     auto choice = choiceFor (slot, last);
     if (choice < 0 && last != "synthesized" && ! part.choices.empty())
         choice = 0;
@@ -516,7 +546,7 @@ void MainComponent::refreshBandPart (EngineCore::Slot slot)
     auto& part = bandParts[slot];
     const auto current = currentChoice (slot);
     part.box.clear (juce::dontSendNotification);
-    part.box.addItem ("Built-in sound", builtInId);
+    part.box.addItem (isLead (slot) ? "Off (no sound)" : "Built-in sound", builtInId);
     for (size_t i = 0; i < part.choices.size(); ++i)
         part.box.addItem (part.choices[i].name, (int) i + 2);
     part.box.addSeparator();
@@ -620,7 +650,7 @@ bool MainComponent::chooseBandInstrument (EngineCore::Slot slot, int choice, boo
             c.name = engine.plugin (slot)->getName();
     }
     else
-        log (bandTitle (slot) + ": built-in sound");
+        log (bandTitle (slot) + (isLead (slot) ? ": off" : ": built-in sound"));
     if (remember && ! engine.isSilent())
         settings->setValue (juce::String (slotKey (slot)) + "Plugin",
                             playsPlugin ? part.choices[(size_t) choice].file.getFullPathName() : juce::String ("synthesized"));
@@ -657,8 +687,23 @@ bool MainComponent::startBandInstrument (EngineCore::Slot slot, const juce::File
     if (restoreSound && value.isEmpty() && file.getFileName().startsWith ("MONSTER"))
         value = settings->getValue (slotKey (slot));
     juce::MemoryBlock state;
-    const auto saved = state.fromBase64Encoding (value) && state.getSize() > 0;
-    if (saved)
+    auto saved = state.fromBase64Encoding (value) && state.getSize() > 0;
+    // a new Numa Player is silent until a sound is picked in its window: a lead on it starts with the keys' sound
+    if (! saved && isLead (slot) && file.getFileName().startsWithIgnoreCase ("Numa Player"))
+    {
+        juce::String soundError;
+        state = numa::stateFor (settings->getValue ("keysSound", defaultKeysSound), soundError);
+        if (state.getSize() > 0)
+        {
+            engine.setPluginState (slot, state);
+            log (bandTitle (slot) + ": Numa Player starts with " + settings->getValue ("keysSound", defaultKeysSound) + " (change it in its window)");
+            saved = true;
+            value = {};
+        }
+        else
+            log (bandTitle (slot) + ": " + soundError);
+    }
+    if (saved && value.isNotEmpty())
     {
         // the host wrapper only takes states in its own XML format and refuses anything else without a word
         if (juce::AudioProcessor::getXmlFromBinary (state.getData(), (int) state.getSize()) == nullptr)
@@ -841,7 +886,8 @@ void MainComponent::resized()
     r.removeFromTop (10);
 
     // the band's drums, bass and guitar, and the band guitarist's tone
-    for (auto slot : { EngineCore::Slot::bandDrums, EngineCore::Slot::bandBass, EngineCore::Slot::bandGuitar })
+    for (auto slot : { EngineCore::Slot::bandDrums, EngineCore::Slot::bandBass, EngineCore::Slot::bandGuitar,
+                       EngineCore::Slot::bandLead1, EngineCore::Slot::bandLead2 })
     {
         auto& part = bandParts[slot];
         row = r.removeFromTop (28);
@@ -867,13 +913,18 @@ void MainComponent::resized()
     gameLabel.setBounds (r.removeFromTop (24));
     bandLabel.setBounds (r.removeFromTop (24));
     r.removeFromTop (4);
-    row = r.removeFromTop (26);
-    const auto quarter = row.getWidth() / (int) faders.size();
-    for (size_t i = 0; i < faders.size(); ++i)
+    // the faders: drums, bass, keys in a row, then guitar and the two leads
+    for (size_t first = 0; first < faders.size(); first += 3)
     {
-        auto cell = row.removeFromLeft (quarter);
-        faderLabels[i].setBounds (cell.removeFromLeft (50));
-        faders[i].setBounds (cell.reduced (2, 0));
+        row = r.removeFromTop (26);
+        const auto third = row.getWidth() / 3;
+        for (size_t i = first; i < first + 3 && i < faders.size(); ++i)
+        {
+            auto cell = row.removeFromLeft (third);
+            faderLabels[i].setBounds (cell.removeFromLeft (50));
+            faders[i].setBounds (cell.reduced (2, 0));
+        }
+        r.removeFromTop (2);
     }
     r.removeFromTop (6);
     logView.setBounds (r);

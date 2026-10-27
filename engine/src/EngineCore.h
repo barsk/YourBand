@@ -48,7 +48,7 @@ class EngineCore final : private juce::ChangeListener
 {
 public:
     /** The plugins: your guitar's amp, the band guitarist's amp, and the band's drum, bass and guitar instruments. */
-    enum class Slot { guitar, bandAmp, bandDrums, bandBass, bandGuitar };
+    enum class Slot { guitar, bandAmp, bandDrums, bandBass, bandGuitar, bandLead1, bandLead2 };
 
     EngineCore();
     ~EngineCore() override;
@@ -114,7 +114,7 @@ public:
 
     BandProcessor& band() { return *bandProcessor; }
 
-    /** The band's mixer, per part ("drums", "bass", "keys" or "guitar"). A part plays at the level the game gives its
+    /** The band's mixer, per part ("drums", "bass", "keys", "guitar", "lead1" or "lead2"). A part plays at the level the game gives its
         sound (the keys per style: an organ sits lower than a piano) times your fader (1: the balanced mix).
         False if there is no such part. */
     bool setSoundLevel (const juce::String& part, float gain);
@@ -155,16 +155,17 @@ private:
     SharedClock clock;
     Node::Ptr input, output, guitarTone, bandNode, bandAmp, guitarTrim, keysNode, drumsMix, bassMix, keysMix, guitarMix, bandBus;
     Node::Ptr drumsPlugin, bassPlugin, guitarPlugin, keysChannel, drumsChannel, bassChannel, guitarChannel;
+    Node::Ptr lead1Plugin, lead2Plugin, lead1Mix, lead2Mix, lead1Channel, lead2Channel;  // the two lead channels
     BandProcessor* bandProcessor = nullptr;
     juce::String currentKeysSound;
     // drums, bass, keys, guitar: the built-in bass a DI sound (as loud as the bass plugins at 1.75, measured), the
     // guitar after its amp
-    std::array<float, 4> soundLevels { 0.8f, 1.75f, 1.3f, 0.8f }, faderLevels { 1.0f, 1.0f, 1.0f, 1.0f };
-    std::array<float, 4> pluginLevels { 0.8f, 0.8f, 0.8f, 0.8f };  // on their plugins (the keys always are)
+    std::array<float, 6> soundLevels { 0.8f, 1.75f, 1.3f, 0.8f, 0.8f, 0.8f }, faderLevels { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
+    std::array<float, 6> pluginLevels { 0.8f, 0.8f, 0.8f, 0.8f, 0.8f, 0.8f };  // on their plugins (the keys always are)
     int inputChannel = 1;
     bool silent = false;
     bool guitarThroughAmp = true;
-    std::array<bool, 4> bandWants {};  // per part: on its plugin (useBandInstrument)
+    std::array<bool, 6> bandWants {};  // per part: on its plugin (useBandInstrument)
     Node::Ptr spareNode;  // a connection to it or not: a different graph, for one more rebuild (unloadBandInstrument)
     bool spareLinked = false;
     std::map<juce::AudioProcessor*, int> stateChanges;  // the latest change per plugin: only it resumes the audio

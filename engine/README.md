@@ -73,6 +73,13 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
 
 - The game writes the parts (`game/Assets/GuitarTutor/Core/Band/Arranger.cs`) in one of three styles:
   Ballad (the default below 120 BPM), Rock and Pop. B switches style in the game.
+- Two lead channels ("Lead 1", "Lead 2", MIDI channels 4 and 5) play the song's other instruments (a Guitar Pro
+  file's harmonica, lead guitar...) as stand-ins on a plugin of your choice: Numa Player or Kontakt (any of its
+  instruments; each lead is its own instance), or "Other plugin...". They have no built-in sound and are off
+  until you choose a plugin; a lead on Numa Player starts with the keys' sound (change it in its window). The
+  load message carries their notes as parts 4 and 5 and `leads`, their names, which the log shows. Faders
+  "lead1" and "lead2". `tools/lead_session.py` records a silent test of them (`--lead1`, `--lead2` on the
+  engine's command line choose the plugins).
 - The band's drums and bass each play their built-in sound or an instrument plugin, chosen in the control
   panel's "Band drums" and "Band bass" dropdowns, also while the band plays:
   - Built-in sound: a synthesized kit, and a finger-played bass string built from its harmonics

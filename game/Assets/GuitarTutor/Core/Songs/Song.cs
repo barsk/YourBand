@@ -26,6 +26,8 @@ namespace GuitarTutor.Core.Songs
         /// <summary>Where sources disagree: the chords another source gives for a stretch (the chart editor offers them).</summary>
         public List<ChordAlternative> Alternatives { get; set; } = new List<ChordAlternative>();
         public List<Source> Sources { get; set; } = new List<Source>();
+        /// <summary>The other instruments of the source (a Guitar Pro file's harmonica, lead guitar, vocal, bass): their notes.</summary>
+        public List<SongPart> Parts { get; set; } = new List<SongPart>();
 
         /// <summary>The chord sounding at a position (null before the first chord or in a gap).</summary>
         public ChordEvent ChordAt(double quarter) =>
@@ -150,6 +152,30 @@ namespace GuitarTutor.Core.Songs
         public double Quarters { get; set; }
         /// <summary>As written in tab: "b" bend, "s" slide, "h" hammer-on, "p" pull-off, "~" vibrato; empty if none.</summary>
         public string Technique { get; set; } = "";
+    }
+
+    /// <summary>
+    /// One instrument of the source file besides the rhythm guitar. <see cref="Voice"/> says which of the band's two
+    /// lead channels plays it (1 or 2; 0: not played), the players being stand-ins for whatever instrument it is.
+    /// </summary>
+    public sealed class SongPart
+    {
+        public string Name { get; set; } = "";
+        /// <summary>The file's General MIDI program for the track (22: harmonica).</summary>
+        public int Program { get; set; }
+        /// <summary>"lead", "vocal" or "bass".</summary>
+        public string Role { get; set; } = "lead";
+        public int Voice { get; set; }
+        public List<PartNote> Notes { get; set; } = new List<PartNote>();
+    }
+
+    /// <summary>A note of a part: its sounding MIDI pitch (capo included), when, how long, how hard.</summary>
+    public sealed class PartNote
+    {
+        public int Pitch { get; set; }
+        public double AtQuarter { get; set; }
+        public double Quarters { get; set; }
+        public int Velocity { get; set; } = 84;
     }
 
     /// <summary>Another source's chords for a stretch of the song (as names, in order).</summary>

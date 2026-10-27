@@ -14,6 +14,10 @@ namespace GuitarTutor.Core.Band
         Keys,
         /// <summary>The band guitarist's rhythm: the song's strumming on its chord shapes.</summary>
         Guitar,
+        /// <summary>The song's first lead line (harmonica, lead guitar...), on whatever plugin is chosen for it.</summary>
+        Lead1,
+        /// <summary>The second.</summary>
+        Lead2,
     }
 
     /// <summary>A note the band plays: a MIDI note number (drums: the General MIDI drum map), when, how long, how hard.</summary>
@@ -87,6 +91,8 @@ namespace GuitarTutor.Core.Band
     public sealed class Arrangement
     {
         public string Style { get; set; } = "";
+        /// <summary>What the two lead channels play in this song (the parts' names), empty for none.</summary>
+        public string[] LeadNames { get; set; } = { "", "" };
         public List<BandNote> Notes { get; } = new List<BandNote>();
         /// <summary>The guitarist's strokes (its strumming on the chords), in time order.</summary>
         public List<BandStroke> Strokes { get; } = new List<BandStroke>();
@@ -273,6 +279,13 @@ namespace GuitarTutor.Core.Band
                 }
             }
             Strum(chart, chords, arrangement, Humanise);
+            // the song's other instruments on the lead channels (their notes as the file has them)
+            foreach (var part in chart.Song.Parts.Where(p => p.Voice == 1 || p.Voice == 2))
+            {
+                arrangement.LeadNames[part.Voice - 1] = part.Name;
+                foreach (var n in part.Notes)
+                    notes.Add(new BandNote(part.Voice == 1 ? BandPart.Lead1 : BandPart.Lead2, n.Pitch, n.AtQuarter, Math.Max(0.05, n.Quarters), n.Velocity));
+            }
             notes.Sort((a, b) => a.AtQuarter != b.AtQuarter ? a.AtQuarter.CompareTo(b.AtQuarter) : a.Part.CompareTo(b.Part));
             return arrangement;
         }

@@ -71,6 +71,9 @@ std::unique_ptr<Score> Score::fromMessage (const juce::var& message, juce::Strin
     score->style = message["style"].toString();
     score->keys = message["keys"].toString();
     score->origin = message["origin"].toString();
+    if (auto* leads = message["leads"].getArray())
+        for (int i = 0; i < 2 && i < leads->size(); ++i)
+            score->leads[i] = (*leads)[i].toString();
 
     if (auto* tempos = message["tempos"].getArray())
         for (const auto& t : *tempos)
@@ -117,7 +120,7 @@ std::unique_ptr<Score> Score::fromMessage (const juce::var& message, juce::Strin
         note.length = (double) n[3];
         note.velocity = juce::jlimit (0.0f, 1.0f, (float) (int) n[4] / 127.0f);
         note.single = n.size() >= 6 && (int) n[5] != 0;
-        if (note.part >= 0 && note.part <= 3 && note.pitch >= 0 && note.pitch < 128)
+        if (note.part >= 0 && note.part < BandProcessor::numParts && note.pitch >= 0 && note.pitch < 128)
             score->notes.push_back (note);
     }
     std::stable_sort (score->notes.begin(), score->notes.end(), [] (const BandNote& a, const BandNote& b) { return a.at < b.at; });
@@ -259,7 +262,7 @@ void BandProcessor::releaseAll (juce::MidiBuffer& midi)
 {
     for (int i = 0; i < numOffs; ++i)
         midi.addEvent (juce::MidiMessage::noteOff (channelOf (offs[(size_t) i].part), offs[(size_t) i].pitch), 0);
-    for (auto part : { keys, bass, guitar, drums })
+    for (auto part : { keys, bass, guitar, drums, lead1, lead2 })
         midi.addEvent (juce::MidiMessage::allNotesOff (channelOf (part)), 0);
     numOffs = 0;
     strumModeOn = false;  // allNotesOff let go of the strumming-mode keyswitch

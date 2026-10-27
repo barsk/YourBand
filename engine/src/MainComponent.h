@@ -26,6 +26,7 @@ struct EngineOptions
     int parent = 0;            // --parent <process id>: started by the game; hidden, and gone with the game
     juce::String bandBass;     // --band-bass <plugin file name, e.g. ABPL | synthesized>: instead of your choice
     juce::String bandGuitar;   // --band-guitar <plugin file name, e.g. "Kontakt 8" | synthesized>: the same
+    juce::String bandLead1, bandLead2;  // --lead1 / --lead2 <plugin file name, e.g. "Numa Player" | synthesized (off)>: the same
     juce::File snapshot;       // --snapshot <file.png>: a picture of the control panel 3 s after the start (tests)
 
     static EngineOptions fromCommandLine (const juce::StringArray& args);
@@ -100,9 +101,9 @@ private:
     std::map<EngineCore::Slot, juce::MemoryBlock> blankStates;  // an instrument plugin's state before a sound is chosen
     juce::TextButton previousButton { "< Previous" }, nextButton { "Next >" };
     juce::Label latencyLabel, cpuLabel, footLabel, gameLabel, bandLabel;
-    // the band's mixer: drums, bass, keys, guitar
-    std::array<juce::Slider, 4> faders;
-    std::array<juce::Label, 4> faderLabels;
+    // the band's mixer: drums, bass, keys, guitar, lead 1, lead 2
+    std::array<juce::Slider, 6> faders;
+    std::array<juce::Label, 6> faderLabels;
     juce::TextEditor logView;
 
     std::map<EngineCore::Slot, std::unique_ptr<juce::DocumentWindow>> windows;

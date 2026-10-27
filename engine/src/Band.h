@@ -46,6 +46,7 @@ struct Score
     /** A stretch where the guitarist plays single-string notes, not strums (quarter notes, from and to). */
     struct Span { double from, to; };
 
+    juce::String leads[2];  // what the two lead channels play in this song (the parts' names)
     juce::String title, style, keys, origin;  // origin: where the game says the song is from (its format)
     std::vector<Tempo> tempos;
     std::vector<Meter> meters;
@@ -66,9 +67,14 @@ struct Score
 class BandProcessor final : public SimpleProcessor
 {
 public:
-    enum Part { drums = 0, bass = 1, keys = 2, guitar = 3 };
+    /** lead1 and lead2: the song's other instruments (harmonica, lead guitar...), only ever on a plugin. */
+    enum Part { drums = 0, bass = 1, keys = 2, guitar = 3, lead1 = 4, lead2 = 5 };
+    static constexpr int numParts = 6;
     /** The MIDI channel each part plays on when it goes to a plugin. */
-    static int channelOf (int part) { return part == drums ? 10 : part == bass ? 2 : part == guitar ? 3 : 1; }
+    static int channelOf (int part)
+    {
+        return part == drums ? 10 : part == bass ? 2 : part == guitar ? 3 : part == lead1 ? 4 : part == lead2 ? 5 : 1;
+    }
 
     explicit BandProcessor (SharedClock&);
 
@@ -146,7 +152,7 @@ private:
     std::vector<std::unique_ptr<Score>> owned;  // message thread; freed once neither pending nor in use
     const Score* latest = nullptr;
     std::atomic<double> outputLatency { 0.0 };
-    std::array<std::atomic<bool>, 4> onPlugin {};  // per part; the keys are always on their plugin
+    std::array<std::atomic<bool>, numParts> onPlugin {};  // per part; the keys are always on their plugin
     std::atomic<bool> guitarPlays { false };
     std::atomic<double> guitarAdvance { 0.0 };
     std::atomic<bool> strummingMode { false };

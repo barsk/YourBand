@@ -18,6 +18,12 @@ folder is not in git: song pages and lyrics are licensed content and stay on you
 
 ## Guitar Pro import (`import-gpx`)
 
+Besides the strummed guitar, the other tracks come along: their notes are `parts` of the song (harmonica, lead
+guitar, vocal, bass; drums not yet), the first two lead tracks (not vocal or bass) playing on the band's lead
+channels 1 and 2. A lead track that plays only here and there makes its stretches sections of their own
+("Harmonica Intro" in an intro, else "Harmonica Solo"; what is left of the section is "(cont.)"); `gpx-info
+<file>` shows which tracks play in which bars.
+
 Reads a Guitar Pro file with [alphaTab](https://www.nuget.org/packages/AlphaTab) (the `AlphaTab` NuGet package,
 kept in this tool so the game never takes the dependency) and writes the same `song.json` the UG importer does.
 It imports what the current song model holds:

@@ -143,6 +143,36 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
+        public void Arrangement_PlaysTheSongsOtherInstrumentsOnTheTwoLeadChannels()
+        {
+            var song = DemoSong.Create();
+            var harmonica = new SongPart { Name = "Harmonica", Program = 22, Voice = 1 };
+            harmonica.Notes.Add(new PartNote { Pitch = 72, AtQuarter = 4, Quarters = 1.5, Velocity = 90 });
+            harmonica.Notes.Add(new PartNote { Pitch = 74, AtQuarter = 5.5, Quarters = 0.5 });
+            var lead = new SongPart { Name = "Guitar 1", Voice = 2 };
+            lead.Notes.Add(new PartNote { Pitch = 64, AtQuarter = 8, Quarters = 1 });
+            var vocal = new SongPart { Name = "Vocal", Role = "vocal", Voice = 0 };  // not played
+            vocal.Notes.Add(new PartNote { Pitch = 60, AtQuarter = 0, Quarters = 1 });
+            song.Parts.AddRange(new[] { harmonica, lead, vocal });
+            var a = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"));
+            Assert.AreEqual(2, a.Part(BandPart.Lead1).Count());
+            Assert.AreEqual(72, a.Part(BandPart.Lead1).First().Pitch);
+            Assert.AreEqual(90, a.Part(BandPart.Lead1).First().Velocity);
+            Assert.AreEqual(1, a.Part(BandPart.Lead2).Count());
+            CollectionAssert.AreEqual(new[] { "Harmonica", "Guitar 1" }, a.LeadNames);
+            // the engine: parts 4 and 5, and what they play
+            var (_, message) = EngineProtocol.Read(EngineProtocol.Load("x", song.Tempo, a, ""));
+            Assert.AreEqual(2, message["notes"].Count(n => (int)n[0] == 4));
+            Assert.AreEqual(1, message["notes"].Count(n => (int)n[0] == 5));
+            Assert.AreEqual("Harmonica", (string)message["leads"][0]);
+            // the song file keeps them
+            var again = SongJson.Read(SongJson.Write(song));
+            Assert.AreEqual(3, again.Parts.Count);
+            Assert.AreEqual(1, again.Parts[0].Voice);
+            Assert.AreEqual(2, again.Parts[0].Notes.Count);
+        }
+
+        [Test]
         public void Guitar_LetsGoABitBeforeTheChordChanges()
         {
             var song = DemoSong.Create();
