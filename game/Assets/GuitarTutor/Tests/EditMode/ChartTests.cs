@@ -160,6 +160,24 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
+        public void Counts_FollowTheMeter()
+        {
+            var eighths = new StrumPattern { Subdivision = 8 };
+            for (int i = 0; i < 12; ++i)
+                eighths.Strokes.Add(Stroke.Down);
+            // 3/4: six eighths a bar, two to a beat; the pattern is two bars
+            Assert.AreEqual(6, SongChart.SlotsPerBar(eighths, new TimeSignature(3, 4)));
+            CollectionAssert.AreEqual(new[] { "1", "&", "2", "&", "3", "&", "4", "&" }, new System.Collections.Generic.List<string>(SongChart.Counts(eighths, new TimeSignature(3, 4))).GetRange(0, 8));
+            // 6/8: six eighths a bar, counted in two beats of three
+            Assert.AreEqual(6, SongChart.SlotsPerBar(eighths, new TimeSignature(6, 8)));
+            Assert.AreEqual(3, SongChart.SlotsPerBeat(eighths, new TimeSignature(6, 8)));
+            CollectionAssert.AreEqual(new[] { "1", "&", "a", "2", "&", "a" }, new System.Collections.Generic.List<string>(SongChart.Counts(eighths, new TimeSignature(6, 8))).GetRange(0, 6));
+            // 2/4 sixteenths: eight a bar
+            var sixteenths = new StrumPattern { Subdivision = 16 };
+            Assert.AreEqual(8, SongChart.SlotsPerBar(sixteenths, new TimeSignature(2, 4)));
+        }
+
+        [Test]
         public void Rows_HoldFourBarsAndStartAtSections()
         {
             var chart = Demo();

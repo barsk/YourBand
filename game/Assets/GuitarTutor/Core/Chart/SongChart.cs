@@ -370,10 +370,26 @@ namespace GuitarTutor.Core.Chart
         /// sixteenths the same, on every second slot (the slots between have none). The beats count on through the
         /// bars of a long pattern (1-4, then 5-8).
         /// </summary>
-        public static IReadOnlyList<string> Counts(StrumPattern pattern)
+        public static IReadOnlyList<string> Counts(StrumPattern pattern) => Counts(pattern, TimeSignature.FourFour);
+
+        /// <summary>The slots of a pattern in a beat of a meter (a quarter in 4/4 and 3/4, an eighth in 7/8, a dotted quarter in 6/8).</summary>
+        public static int SlotsPerBeat(StrumPattern pattern, TimeSignature meter)
         {
-            var perBeat = Math.Max(1, pattern.Subdivision / 4);
-            string[] names = perBeat == 2 ? new[] { "", "&" } : perBeat == 4 ? new[] { "", "", "&", "" } : perBeat == 3 ? new[] { "", "&", "a" } : new[] { "" };
+            var compound = meter.Denominator == 8 && meter.Numerator % 3 == 0 && meter.Numerator > 3;
+            var beatQuarters = compound ? 1.5 : 4.0 / meter.Denominator;
+            return Math.Max(1, (int)Math.Round(beatQuarters * pattern.Subdivision / 4.0));
+        }
+
+        /// <summary>The slots of a pattern in a bar of a meter.</summary>
+        public static int SlotsPerBar(StrumPattern pattern, TimeSignature meter) =>
+            Math.Max(1, (int)Math.Round(meter.QuartersPerBar * pattern.Subdivision / 4.0));
+
+        /// <summary>The counts of a pattern in a meter (beats as the meter counts them; see <see cref="SlotsPerBeat"/>).</summary>
+        public static IReadOnlyList<string> Counts(StrumPattern pattern, TimeSignature meter)
+        {
+            var perBeat = SlotsPerBeat(pattern, meter);
+            string[] names = perBeat == 2 ? new[] { "", "&" } : perBeat == 4 ? new[] { "", "", "&", "" } : perBeat == 3 ? new[] { "", "&", "a" }
+                : perBeat == 6 ? new[] { "", "", "&", "", "a", "" } : new[] { "" };
             var counts = new List<string>();
             for (int i = 0; i < pattern.Strokes.Count; ++i)
             {

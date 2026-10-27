@@ -1,4 +1,5 @@
 using GuitarTutor.Core.Chart;
+using GuitarTutor.Core.Music;
 using GuitarTutor.Core.Songs;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -21,6 +22,7 @@ namespace GuitarTutor.Runtime.UI
         int perRow = 8, perBeat = 2;
 
         StrumPattern pattern;
+        TimeSignature meter = TimeSignature.FourFour;
         int now = -1;
 
         public StrumView()
@@ -28,23 +30,26 @@ namespace GuitarTutor.Runtime.UI
             generateVisualContent += Draw;
         }
 
-        public void Show(StrumPattern shown)
+        /// <param name="shown">The pattern: any number of bars of the meter.</param>
+        /// <param name="signature">The meter its bars are in: a row is a bar, a beat is what the meter counts.</param>
+        public void Show(StrumPattern shown, TimeSignature signature)
         {
-            if (shown == pattern)
+            if (shown == pattern && signature.Equals(meter))
                 return;
             pattern = shown;
+            meter = signature;
             now = -1;
             Clear();
             if (pattern == null)
                 return;
-            // a bar to a row (4/4): as many slots as four beats have
-            perBeat = Mathf.Max(1, pattern.Subdivision / 4);
-            perRow = Mathf.Min(pattern.Strokes.Count, 4 * perBeat);
+            // a bar to a row: as many slots as the meter's bar has (a pattern shorter than a bar is one short row)
+            perBeat = SongChart.SlotsPerBeat(pattern, meter);
+            perRow = Mathf.Min(pattern.Strokes.Count, SongChart.SlotsPerBar(pattern, meter));
             var rows = Mathf.CeilToInt(pattern.Strokes.Count / (float)perRow);
             Cell = Mathf.Min(MaxCell, MaxWidth / perRow);
             style.width = Cell * perRow;
             style.height = rows * RowHeight;
-            var counts = SongChart.Counts(pattern);
+            var counts = SongChart.Counts(pattern, meter);
             for (int i = 0; i < counts.Count; ++i)
             {
                 if (counts[i].Length == 0)
@@ -122,8 +127,10 @@ namespace GuitarTutor.Runtime.UI
         /// </summary>
         void DrawBrackets(Painter2D p, int i, int col, float top)
         {
-            var bars = perBeat >= 4 ? 2 : perBeat >= 2 ? 1 : 0;
-            var span = perBeat >= 4 ? perBeat / 2 : 1;
+            // by the note length of the slots: sixteenths two bars and a bracket over two of them, eighths one bar and one
+            var sub = pattern.Subdivision;
+            var bars = sub >= 16 ? 2 : sub >= 8 ? 1 : 0;
+            var span = sub >= 16 ? sub / 8 : 1;
             if (bars == 0 || i % span != 0)
                 return;
             var left = col * Cell + Cell * 0.15f;

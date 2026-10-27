@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using GuitarTutor.Core.Chart;
+using GuitarTutor.Core.Music;
 using GuitarTutor.Core.Songs;
 using UnityEngine.UIElements;
 
@@ -64,6 +65,7 @@ namespace GuitarTutor.Runtime.UI
             var chordsPanel = AddPanel(Panel.Chords, "CHORDS", middle);
             chordRow = ChartLook.Box("gt-panel__row", chordsPanel);
             var strumPanel = AddPanel(Panel.Strumming, "STRUMMING", middle);
+            strumPanel.style.minWidth = 480;  // room for the pattern's name beside where it is from, whatever its length
             strum = new StrumView();
             strumPanel.Add(strum);
             strumName = ChartLook.Label("", "gt-strum__name", strumPanel);
@@ -184,7 +186,7 @@ namespace GuitarTutor.Runtime.UI
             tab.SetSong(chart, song.Info.Tuning);
             cards.Clear();
             chordRow.Clear();
-            strum.Show(null);
+            strum.Show(null, TimeSignature.FourFour);
 
             info.Clear();
             info.Add(panelTitles[Panel.Song]);
@@ -244,7 +246,9 @@ namespace GuitarTutor.Runtime.UI
             {
                 var patterns = chart.PatternsFor(section);
                 var shown = patterns.Count > 0 ? patterns[((pattern % patterns.Count) + patterns.Count) % patterns.Count] : null;
-                strum.Show(shown);
+                // the meter of the section's first bar: one odd bar in the middle of it does not change the panel
+                var meter = (section != null ? chart.BarOf(section.AtQuarter) : null)?.Signature ?? bar?.Signature ?? TimeSignature.FourFour;
+                strum.Show(shown, meter);
                 strum.EnableInClassList("gt-hidden", shown == null);
                 strumEmpty.EnableInClassList("gt-hidden", shown != null);
                 strumOrigin.text = shown == null ? "" : "from " + SongOrigin.Name(SongOrigin.Of(song, shown));
