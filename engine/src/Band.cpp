@@ -209,8 +209,9 @@ size_t BandProcessor::firstVoicingFrom (double q) const
     if (playingScore == nullptr)
         return 0;
     const auto& v = playingScore->voicings;
-    return (size_t) (std::lower_bound (v.begin(), v.end(), q - 1.0e-9,
-                                       [] (const Score::Voicing& x, double at) { return x.at < at; })
+    // the first voicing note still held at q (one begun before it, in the middle of its chord, counts)
+    return (size_t) (std::lower_bound (v.begin(), v.end(), q + 1.0e-9,
+                                       [] (const Score::Voicing& x, double at) { return x.at + x.length <= at; })
                      - v.begin());
 }
 
@@ -433,11 +434,15 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
             while (voicingCursor < s->voicings.size() && s->voicings[voicingCursor].at - early < q1)
             {
                 const auto& v = s->voicings[voicingCursor++];
-                if (v.at < q0 - 1.0e-9 || (countingIn && v.at < countInUntil - 1.0e-9) || ! guitarPlays.load())
+                // a chord over before this block is skipped; one begun before it (a restart in the middle of a chord)
+                // is held from the block's start
+                if (v.at + v.length <= q0 + 1.0e-9 || (countingIn && v.at < countInUntil - 1.0e-9) || ! guitarPlays.load())
                     continue;
                 const auto at = juce::jmax (0, offsetOf (v.at - early) - 4);
                 midi.addEvent (juce::MidiMessage::noteOn (channelOf (guitar), v.pitch, (juce::uint8) 96), at);
-                addOff ({ guitar, v.pitch, -1, v.at + v.length });
+                // let go as early as the next chord's notes go out (a hair before), so a strum never hears two
+                // chords and a note both chords hold is not cut by the old chord's release after the new one's start
+                addOff ({ guitar, v.pitch, -1, v.at + v.length - early - 0.001 });
             }
             // the strokes: a strum keyswitch (down G#5, up A5) a hair after each beat, as a hand takes a
             // moment to turn and to reach a new chord. The key is held until the next stroke (or the cap):

@@ -418,7 +418,7 @@ namespace GuitarTutor.SongTool
                     bassWeight[s.Bass] = (bassWeight.TryGetValue(s.Bass, out var w) ? w : 0) + s.Duration;
                 var bass = bassWeight.OrderByDescending(kv => kv.Value).First().Key;
 
-                var frets = g.GroupBy(s => VoicingFrets(s.Frets)).OrderByDescending(x => x.Count()).First().First().Frets;
+                var frets = RegionFrets(g, total);
 
                 // the file's own name for the region: its strums' most common written name, when they have one
                 var written = g.Where(s => s.ChordName != null).Select(s => s.ChordName).ToList();
@@ -473,6 +473,27 @@ namespace GuitarTutor.SongTool
                     frets[si] = (int)n.Fret;
             }
             return frets;
+        }
+
+        /// <summary>
+        /// The shape of a chord region: for each string, the fret most of the region's strum time plays on it, if the
+        /// string sounds for a fifth of the region or more. A chord struck as a bass note and then the top strings (the
+        /// G of Wonderwall: 3 2 . . then . . 0 3 3) is the whole shape, not whichever strum was the commonest.
+        /// </summary>
+        static int[] RegionFrets(List<Strum> group, double total)
+        {
+            var shape = new int[6];
+            for (int str = 0; str < 6; ++str)
+            {
+                var weight = new Dictionary<int, double>();
+                foreach (var s in group)
+                    if (s.Frets[str] >= 0)
+                        weight[s.Frets[str]] = (weight.TryGetValue(s.Frets[str], out var w) ? w : 0) + s.Duration;
+                var best = weight.Count > 0 ? weight.OrderByDescending(kv => kv.Value).First() : default;
+                shape[str] = weight.Count > 0 && weight.Values.Sum() >= 0.2 * total ? best.Key : -1;
+            }
+            // nothing reached a fifth (a region of many short strums): the commonest strum as before
+            return shape.Any(f => f >= 0) ? shape : group.GroupBy(s => VoicingFrets(s.Frets)).OrderByDescending(x => x.Count()).First().First().Frets;
         }
 
         static string VoicingFrets(int[] frets) => string.Concat(frets.Select(f => f < 0 ? "x" : f.ToString()));
