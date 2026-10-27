@@ -133,8 +133,10 @@ namespace GuitarTutor.Runtime.UI
             var span = sub >= 16 ? sub / 8 : 1;
             if (bars == 0 || i % span != 0)
                 return;
-            var left = col * Cell + Cell * 0.15f;
-            var right = (col + span) * Cell - Cell * 0.15f;
+            // each bracket stops short of its slots' edges, leaving a gap to the next (the panel stays as wide)
+            var inset = Mathf.Min(11f, Cell * span * 0.3f);
+            var left = col * Cell + inset;
+            var right = (col + span) * Cell - inset;
             var y = top + BracketY;
             var colour = ChartLook.Dim;
             for (int b = 0; b < bars; ++b)
