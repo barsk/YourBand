@@ -16,7 +16,7 @@ namespace GuitarTutor.Runtime.UI
     {
         const float MaxCell = 58, MaxWidth = 620;
         // one row: accent marks above the arrows, the arrows, the counts, the brackets
-        const float ArrowTop = 22, ArrowBottom = 62, CountsTop = 66, CountsHeight = 24, BracketY = 96, RowHeight = 104;
+        const float ArrowTop = 20, ArrowBottom = 74, CountsTop = 78, CountsHeight = 24, BracketY = 108, RowHeight = 116;
 
         float Cell = MaxCell;  // narrower for a long row (16 slots), so the panels still fit on one row
         int perRow = 8, perBeat = 2;
@@ -97,26 +97,26 @@ namespace GuitarTutor.Runtime.UI
                 var tail = new Vector2(x, top + (down ? ArrowTop + 4 : ArrowBottom - 4));
                 var head = new Vector2(x, top + (down ? ArrowBottom - 4 : ArrowTop + 4));
                 var back = down ? -1 : 1;
-                ChartLook.Line(p, tail, head + new Vector2(0, back * 10), colour, 6);
+                ChartLook.Line(p, tail, head + new Vector2(0, back * 9), colour, 4.5f);
                 p.fillColor = colour;
                 p.BeginPath();
                 p.MoveTo(head);
-                p.LineTo(head + new Vector2(-13, back * 20));
-                p.LineTo(head + new Vector2(13, back * 20));
+                p.LineTo(head + new Vector2(-10, back * 17));
+                p.LineTo(head + new Vector2(10, back * 17));
                 p.ClosePath();
                 p.Fill();
-                var mark = new Vector2(x, top + ArrowTop - 12);
+                var mark = new Vector2(x, top + ArrowTop - 9);
                 if (stroke == Stroke.AccentDown || stroke == Stroke.AccentUp)
                 {
                     // a > over the arrow
-                    ChartLook.Line(p, mark + new Vector2(-8, -8), mark + new Vector2(8, 0), colour, 4);
-                    ChartLook.Line(p, mark + new Vector2(-8, 8), mark + new Vector2(8, 0), colour, 4);
+                    ChartLook.Line(p, mark + new Vector2(-5, -6), mark + new Vector2(5, 0), colour, 3);
+                    ChartLook.Line(p, mark + new Vector2(-5, 6), mark + new Vector2(5, 0), colour, 3);
                 }
                 else if (stroke == Stroke.MutedDown || stroke == Stroke.MutedUp)
                 {
                     // an x over the arrow
-                    ChartLook.Line(p, mark + new Vector2(-7, -7), mark + new Vector2(7, 7), colour, 4);
-                    ChartLook.Line(p, mark + new Vector2(-7, 7), mark + new Vector2(7, -7), colour, 4);
+                    ChartLook.Line(p, mark + new Vector2(-5, -5), mark + new Vector2(5, 5), colour, 3);
+                    ChartLook.Line(p, mark + new Vector2(-5, 5), mark + new Vector2(5, -5), colour, 3);
                 }
             }
         }
