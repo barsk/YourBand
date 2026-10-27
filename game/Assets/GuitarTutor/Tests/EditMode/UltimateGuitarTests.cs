@@ -180,6 +180,28 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
+        public void Origin_SaysWhereTheSongAndItsStrummingCameFrom()
+        {
+            var song = UgImporter.Import(ChordsPage, TabsPage(), out _);
+            Assert.IsTrue(song.Strumming.All(p => p.Origin == SongOrigin.UltimateGuitar));
+            var text = SongOrigin.Describe(song, "x/song.json");
+            StringAssert.Contains("Ultimate Guitar chords page", text);
+            StringAssert.Contains("Ultimate Guitar tabs page", text);
+            StringAssert.Contains("strumming: Ultimate Guitar page", text);
+            // a Guitar Pro file whose strumming is overridden from a page, and an older song without origins
+            var gp = new Song();
+            gp.Sources.Add(new Source { Kind = "guitar-pro", Url = "gpx/Wonderwall.gp" });
+            gp.Sources.Add(new Source { Kind = "ultimate-guitar-strumming", Url = "pages/w.html" });
+            gp.Strumming.Add(new StrumPattern { Origin = SongOrigin.UltimateGuitar });
+            StringAssert.Contains("Guitar Pro file 'Wonderwall.gp' + Ultimate Guitar strumming 'w.html'", SongOrigin.Describe(gp));
+            var old = new Song();
+            old.Sources.Add(new Source { Kind = "guitar-pro" });
+            old.Strumming.Add(new StrumPattern());
+            Assert.AreEqual(SongOrigin.GuitarPro, SongOrigin.Of(old, old.Strumming[0]));
+            Assert.AreEqual("none (the band plays a downstroke on every beat)", SongOrigin.Strumming(new Song()));
+        }
+
+        [Test]
         public void Import_ChordsPerBarFromTheLine()
         {
             // four chords: two bars of two; two chords: a chord a bar; three: the two written close together share a bar

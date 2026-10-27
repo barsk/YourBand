@@ -45,7 +45,7 @@ namespace GuitarTutor.Runtime.UI
         readonly Dictionary<Panel, Label> panelTitles = new Dictionary<Panel, Label>();
         readonly VisualElement chordRow, info;
         readonly StrumView strum;
-        readonly Label strumName, strumEmpty;
+        readonly Label strumName, strumEmpty, strumOrigin;
         readonly TabTape tab;
         readonly List<(string name, VisualElement card, Label tag)> cards = new List<(string, VisualElement, Label)>();
         SongChart chart;
@@ -65,6 +65,7 @@ namespace GuitarTutor.Runtime.UI
             strumPanel.Add(strum);
             strumName = ChartLook.Label("", "gt-strum__name", strumPanel);
             strumEmpty = ChartLook.Label("No strumming pattern in this song", "gt-panel__empty", strumPanel);
+            strumOrigin = ChartLook.Label("", "gt-strum__origin", strumPanel);
             info = AddPanel(Panel.Song, "SONG", middle);
 
             // the tab, across the screen above the chart
@@ -229,6 +230,7 @@ namespace GuitarTutor.Runtime.UI
                 strum.Show(shown);
                 strum.EnableInClassList("gt-hidden", shown == null);
                 strumEmpty.EnableInClassList("gt-hidden", shown != null);
+                strumOrigin.text = shown == null ? "" : "from " + SongOrigin.Name(SongOrigin.Of(song, shown));
                 strumName.text = shown == null ? "" : patterns.Count > 1 ? $"{shown.Name}  ({pattern % patterns.Count + 1} of {patterns.Count}, P for the next)" : shown.Name;
                 strum.SetNow(countIn == null && transport.Playing ? chart.StrokeAt(shown, quarter).index : -1);
             }

@@ -108,6 +108,8 @@ namespace GuitarTutor.Core.Songs
         public List<Stroke> Strokes { get; set; } = new List<Stroke>();
         /// <summary>The sections it is used in (empty: the whole song).</summary>
         public List<string> Sections { get; set; } = new List<string>();
+        /// <summary>Where the pattern comes from: "guitar-pro", "ultimate-guitar" or "default" (see SongOrigin); empty in older songs.</summary>
+        public string Origin { get; set; } = "";
     }
 
     /// <summary>A chord shape: per string from the lowest, the fret (-1 not played, 0 open) and finger (0 none, 1 index ... 4 little).</summary>

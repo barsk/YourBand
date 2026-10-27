@@ -65,6 +65,7 @@ std::unique_ptr<Score> Score::fromMessage (const juce::var& message, juce::Strin
     score->title = message["title"].toString();
     score->style = message["style"].toString();
     score->keys = message["keys"].toString();
+    score->origin = message["origin"].toString();
 
     if (auto* tempos = message["tempos"].getArray())
         for (const auto& t : *tempos)

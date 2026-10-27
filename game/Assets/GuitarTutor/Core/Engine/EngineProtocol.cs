@@ -28,7 +28,7 @@ namespace GuitarTutor.Core.Engine
 
         /// <summary>The song's tempo map and the band's notes, as [part, pitch, at, length, velocity]; the
         /// guitarist's held voicings as [pitch, at, length] and its strokes as [at, direction, velocity, muted].</summary>
-        public static string Load(string title, TempoMap tempo, Arrangement arrangement, string keysSound)
+        public static string Load(string title, TempoMap tempo, Arrangement arrangement, string keysSound, string origin = "")
         {
             var notes = new JArray();
             foreach (var n in arrangement.Notes)
@@ -50,6 +50,7 @@ namespace GuitarTutor.Core.Engine
                 ["voicings"] = voicings,
                 ["strokes"] = strokes,
                 ["keys"] = keysSound ?? "",
+                ["origin"] = origin ?? "",
             });
         }
 

@@ -569,7 +569,7 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
             var patterns = new List<StrumPattern>();
             foreach (var s in page.Strummings)
             {
-                var pattern = new StrumPattern { Name = s.Part, Subdivision = s.Denominator };
+                var pattern = new StrumPattern { Name = s.Part, Subdivision = s.Denominator, Origin = SongOrigin.UltimateGuitar };
                 foreach (var code in s.Measures)
                 {
                     // UG's stroke codes, each identified against the page's own rendering or its strumming editor:

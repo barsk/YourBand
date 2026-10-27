@@ -159,10 +159,13 @@ namespace GuitarTutor.Runtime.Desktop
             startingEngine = startedEngine != null;
         }
 
+        string songPath;  // the song file being played (null: the demo)
+
         void Load(int index)
         {
             songIndex = (index % songs.Count + songs.Count) % songs.Count;
             var path = songs[songIndex];
+            songPath = path;  // before the band is arranged: the engine is told where the song is from
             Song song;
             try
             {
@@ -184,6 +187,7 @@ namespace GuitarTutor.Runtime.Desktop
             var styleName = Environment.GetCommandLineArgs().SkipWhile(a => a != "-style").Skip(1).FirstOrDefault();
             Arrange(styleName != null ? BandStyle.Named(styleName) : Arranger.DefaultStyle(song));
             Debug.Log($"GuitarTutor: {song.Info.Artist} - {song.Info.Title}, {chart.Bars.Count} bars ({path ?? "demo"})");
+            Debug.Log("GuitarTutor: song from " + SongOrigin.Describe(song, path));
         }
 
         /// <summary>Writes the band's parts in a style and gives them to the engine (which stops playing).</summary>
@@ -203,7 +207,7 @@ namespace GuitarTutor.Runtime.Desktop
 
         void SendSong()
         {
-            link.Send(EngineProtocol.Load(chart.Song.Info.Title, chart.Song.Tempo, arrangement, bandStyle.KeysSound));
+            link.Send(EngineProtocol.Load(chart.Song.Info.Title, chart.Song.Tempo, arrangement, bandStyle.KeysSound, SongOrigin.Describe(chart.Song, songPath)));
             link.Send(EngineProtocol.Mix(BandPart.Keys, bandStyle.KeysGain));
         }
 

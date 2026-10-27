@@ -67,6 +67,8 @@ namespace GuitarTutor.SongTool
                 Console.Error.WriteLine("songtool: --strum-map has no effect without --strum");
             var output = Option(args, "-o") ?? Path.ChangeExtension(input, ".song.json");
             var song = GpxImporter.Import(input, out var report, track, strum, strumMap);
+            if (strum != null)  // the strumming override is a source of its own
+                song.Sources.Add(new Source { Kind = "ultimate-guitar-strumming", Url = strumOption, Supplies = { "strumming" } });
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(output)));
             SongJson.Save(song, output);
             Console.WriteLine($"{song.Info.Artist} - {song.Info.Title} (key {song.Info.Key}, tuning {string.Join(" ", song.Info.Tuning)}, capo {song.Info.Capo})");

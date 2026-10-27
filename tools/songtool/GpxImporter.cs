@@ -648,7 +648,7 @@ namespace GuitarTutor.SongTool
                 if (ugFor.Pattern != null)
                 {
                     // the page's pattern, kept whole: the chart lays it out from the section's start (StrokeIndex)
-                    pattern = new StrumPattern { Name = kv.Key, Subdivision = ugFor.Pattern.Subdivision, Sections = { kv.Key } };
+                    pattern = new StrumPattern { Name = kv.Key, Subdivision = ugFor.Pattern.Subdivision, Sections = { kv.Key }, Origin = SongOrigin.UltimateGuitar };
                     pattern.Strokes.AddRange(ugFor.Pattern.Strokes);
                 }
                 else
@@ -662,7 +662,7 @@ namespace GuitarTutor.SongTool
                         .ThenBy(x => keys.IndexOf(x.First()))
                         .First().First();
                     var matching = grids.Where(g => Key(g.Grid) == dominant).Select(g => g.Rec).ToList();
-                    pattern = new StrumPattern { Name = kv.Key, Subdivision = 16, Sections = { kv.Key } };
+                    pattern = new StrumPattern { Name = kv.Key, Subdivision = 16, Sections = { kv.Key }, Origin = SongOrigin.GuitarPro };
                     for (int i = 0; i < dominant.Length; ++i)
                         pattern.Strokes.Add(dominant[i] == '1' ? Direction(matching, i) : Stroke.Rest);
                 }

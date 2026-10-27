@@ -43,7 +43,7 @@ struct Score
     /** A stroke of its pick: a strum keyswitch on the held voicing (direction 0 down, 1 up). */
     struct Stroke { double at; int dir; int velocity; bool muted; };
 
-    juce::String title, style, keys;
+    juce::String title, style, keys, origin;  // origin: where the game says the song is from (its format)
     std::vector<Tempo> tempos;
     std::vector<Meter> meters;
     std::vector<BandNote> notes;

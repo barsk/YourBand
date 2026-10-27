@@ -148,6 +148,13 @@
     color: var(--gt-text);
     -unity-font-style: bold;
 }
+.gt-strum__origin {
+    position: absolute;
+    right: 14px;
+    bottom: 8px;
+    font-size: 14px;
+    color: var(--gt-faint);
+}
 .gt-strum__name {
     font-size: 15px;
     color: var(--gt-faint);
