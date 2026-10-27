@@ -26,6 +26,14 @@ namespace GuitarTutor.SongTool
                         if (beat.IsPalmMute) flags.Append(" palm-mute");
                         if (beat.PickStroke != PickStroke.None) flags.Append(" pick-" + beat.PickStroke);
                         if (beat.IsRest) flags.Append(" rest");
+                        flags.Append(" dyn-" + beat.Dynamics);
+                        if (beat.Fade != FadeType.None) flags.Append(" fade-" + beat.Fade);
+                        if (beat.Vibrato != VibratoType.None) flags.Append(" vibrato");
+                        if (!string.IsNullOrEmpty(beat.Text)) flags.Append(" text:'" + beat.Text + "'");
+                        if (beat.BrushType != BrushType.None) flags.Append(" brush-" + beat.BrushType);
+                        if (beat.Notes.Any(n => n.HarmonicType != HarmonicType.None)) flags.Append(" harmonic");
+                        if (beat.Notes.Any(n => n.Accentuated != AccentuationType.None)) flags.Append(" accent");
+                        if (beat.Notes.Any(n => n.SlideOutType != SlideOutType.None || n.SlideInType != SlideInType.None)) flags.Append(" slide");
                         Console.WriteLine($"bar {i + 1} beat {beat.Index} start {beat.DisplayStart} dur {beat.DisplayDuration}{flags}  "
                                           + string.Join(" ", beat.Notes.Select(n => $"s{n.String}:{(n.IsDead ? "x" : n.Fret.ToString())}"
                                               + (n.IsGhost ? "g" : "") + (n.IsHammerPullOrigin ? "h" : "") + (n.IsTieDestination ? "t" : "")
@@ -45,7 +53,8 @@ namespace GuitarTutor.SongTool
                 var notes = staff.Bars.SelectMany(b => b.Voices).SelectMany(v => v.Beats).Sum(b => b.Notes.Count);
                 var strings = staff.Tuning != null ? staff.Tuning.Count : 0;
                 Console.WriteLine($"  [{t}] {track.Name} ({track.ShortName})  program {track.PlaybackInfo.Program}  "
-                                  + $"{(staff.IsPercussion ? "percussion" : strings + " strings")}  {notes} notes");
+                                  + $"{(staff.IsPercussion ? "percussion" : strings + " strings")}  {notes} notes"
+                                  + (staff.IsPercussion || staff.Tuning == null ? "" : "  tuning " + string.Join(" ", staff.Tuning.Select(v => (int)v)) + "  capo " + (int)staff.Capo));
             }
             Console.WriteLine("bars: one letter per track (the track's number of notes: . none, a few, # many)");
             for (int i = 0; i < score.MasterBars.Count; ++i)
