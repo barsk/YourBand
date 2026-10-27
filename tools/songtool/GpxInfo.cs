@@ -10,6 +10,30 @@ namespace GuitarTutor.SongTool
     /// <summary>What is in a Guitar Pro file: its tracks, and which of them play in each bar.</summary>
     static class GpxInfo
     {
+        /// <summary>The beats of one track's bars (<c>from-to</c>, 1-based): each note's string, fret and flags.</summary>
+        public static int Beats(string path, int track, string bars)
+        {
+            var score = ScoreLoader.LoadScoreFromBytes(File.ReadAllBytes(path));
+            var range = bars.Split('-');
+            var from = int.Parse(range[0]);
+            var to = range.Length > 1 ? int.Parse(range[1]) : from;
+            var staff = score.Tracks[track].Staves[0];
+            for (int i = from - 1; i < to && i < staff.Bars.Count; ++i)
+                foreach (var voice in staff.Bars[i].Voices)
+                    foreach (var beat in voice.Beats)
+                    {
+                        var flags = new StringBuilder();
+                        if (beat.IsPalmMute) flags.Append(" palm-mute");
+                        if (beat.PickStroke != PickStroke.None) flags.Append(" pick-" + beat.PickStroke);
+                        if (beat.IsRest) flags.Append(" rest");
+                        Console.WriteLine($"bar {i + 1} beat {beat.Index} start {beat.DisplayStart} dur {beat.DisplayDuration}{flags}  "
+                                          + string.Join(" ", beat.Notes.Select(n => $"s{n.String}:{(n.IsDead ? "x" : n.Fret.ToString())}"
+                                              + (n.IsGhost ? "g" : "") + (n.IsHammerPullOrigin ? "h" : "") + (n.IsTieDestination ? "t" : "")
+                                              + (n.IsLetRing ? "L" : "") + (n.IsPalmMute ? "m" : "") + (n.IsStaccato ? "s" : ""))));
+                    }
+            return 0;
+        }
+
         public static int Print(string path)
         {
             var score = ScoreLoader.LoadScoreFromBytes(File.ReadAllBytes(path));

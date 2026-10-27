@@ -29,7 +29,9 @@ kept in this tool so the game never takes the dependency) and writes the same `s
 It imports what the current song model holds:
 
 - the main guitar track's notes as the tab (one riff, exact string/fret/timing, plus the one technique symbol the
-  model keeps: bend, slide, hammer-on, vibrato);
+  model keeps: bend, slide, hammer-on, vibrato). Dead notes (the "x" of a muted strum, which the file stores as
+  fret 0) are left out of the tab and the chords — they would read as open strings — and make a muted stroke when
+  the strums are taken from the file; `gpx-info <file> --beats <track> <bars>` lists a track's notes with their flags;
 - the chords and their voicings. The strums are grouped into regions — a run of strums with the same bass note and
   no long pause, with a brief passing strum (e.g. a leading-tone shape into the next chord) merged into the
   neighbor it most resembles. Where the file writes a chord name it is used as-is; otherwise the name is

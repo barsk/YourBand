@@ -37,7 +37,7 @@ namespace GuitarTutor.SongTool
                 if (args.Length >= 2 && args[0] == "band-guitar")
                     return BandGuitar(args);
                 if (args.Length >= 2 && args[0] == "gpx-info")
-                    return GpxInfo.Print(args[1]);
+                    return args.Length >= 5 && args[2] == "--beats" ? GpxInfo.Beats(args[1], int.Parse(args[3]), args[4]) : GpxInfo.Print(args[1]);
                 if (args.Length >= 2 && args[0] == "band-midi")
                     return BandMidiFile(args);
                 Console.WriteLine("usage:\n  songtool import-ug <chords.html> [--tabs <tabs.html>] [--chords-per-bar n|auto] -o <song.json>\n  songtool import-gpx <file.gpx> [--track n] [--strum <chords.html|strum.json>] [--strum-map \"Section=Pattern;…\"] -o <song.json>\n  songtool export-strum <chords.html> -o <strum.json>\n  songtool diag-strum <file.gpx> [--track n]\n  songtool show <song.json> [--bars a-b]");

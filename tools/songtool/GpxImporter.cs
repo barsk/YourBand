@@ -435,7 +435,8 @@ namespace GuitarTutor.SongTool
                     {
                         var at = (master.Start + beat.DisplayStart) / tpq;
                         var length = Math.Max(0, beat.DisplayDuration) / tpq;
-                        var notes = beat.Notes.Where(n => n.String >= 1).ToList();
+                        // (a dead note, the "x" of a muted strum, has fret 0 in the file but no pitch: not an open string)
+                        var notes = beat.Notes.Where(n => n.String >= 1 && !n.IsDead).ToList();
 
                         // the tab: every note, at its position
                         foreach (var n in notes)
@@ -912,7 +913,7 @@ namespace GuitarTutor.SongTool
             if (stroke == PickStroke.None)
                 return Stroke.Rest;
             var down = stroke == PickStroke.Down;
-            var muted = beat.IsPalmMute || beat.Notes.Any(n => n.IsGhost);
+            var muted = beat.IsPalmMute || beat.Notes.Any(n => n.IsGhost || n.IsDead);
             return down ? (muted ? Stroke.MutedDown : Stroke.Down) : (muted ? Stroke.MutedUp : Stroke.Up);
         }
 
