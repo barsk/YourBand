@@ -105,6 +105,12 @@ Checked on Wicked Game. The data is JSON embedded in the page (`js-store`).
 
 Neither page has bar lines or chord lengths.
 
+![The strumming pattern as Ultimate Guitar shows it](images/ug-strumming-pattern.png)
+
+The strumming pattern: down and up strokes on an 8th-note grid (1 & 2 & 3 & 4 &), a muted stroke (the bar
+under the arrow), an accent (>), and a rest (the double bar). The importer reads these into the song's
+strumming patterns.
+
 ### Combining sources
 
 - The pages share lyric lines and section names; those match the sources up, line by line.
