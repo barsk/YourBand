@@ -98,6 +98,9 @@ namespace GuitarTutor.Core.Songs
         Up,
         MutedDown,
         MutedUp,
+        /// <summary>A stroke with an accent (UG's arrow with a > mark): played harder, drawn with a > over the arrow.</summary>
+        AccentDown,
+        AccentUp,
     }
 
     /// <summary>One bar of strumming on a grid (Subdivision 8: eighth notes).</summary>

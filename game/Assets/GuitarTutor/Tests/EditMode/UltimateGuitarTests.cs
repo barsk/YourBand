@@ -93,13 +93,14 @@ namespace GuitarTutor.Core.Tests
             page.Strummings[0].Denominator = 16;
             page.Strummings[0].Measures.Clear();
             for (int i = 0; i < 32; ++i)
-                page.Strummings[0].Measures.Add(i == 1 ? 3 : i == 3 ? 203 : i % 2 == 0 ? 1 : 202);
+                page.Strummings[0].Measures.Add(i == 1 ? 3 : i == 3 ? 203 : i == 5 ? 103 : i % 2 == 0 ? 1 : 202);
             var song = UgImporter.Import(page, null, out var report);
             Assert.AreEqual(4, song.Tempo.SignatureAtBar(0).Numerator);
             Assert.AreEqual(4, song.Tempo.SignatureAtBar(0).Denominator);
-            // code 3 is a muted down stroke, 203 (two vertical bars) a rest; neither is unknown
-            Assert.AreEqual(Stroke.MutedDown, song.Strumming[0].Strokes[1]);
+            // code 3 is an accented down stroke (a > over the arrow), 203 (two vertical bars) a rest; neither is unknown
+            Assert.AreEqual(Stroke.AccentDown, song.Strumming[0].Strokes[1]);
             Assert.AreEqual(Stroke.Rest, song.Strumming[0].Strokes[3]);
+            Assert.AreEqual(Stroke.AccentUp, song.Strumming[0].Strokes[5]);  // 103: an up stroke with an accent
             Assert.IsFalse(report.Notes.Any(n => n.Contains("Unknown strumming")));
         }
 

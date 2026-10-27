@@ -11,7 +11,7 @@ namespace GuitarTutor.Runtime.UI
     /// </summary>
     public sealed class StrumView : VisualElement
     {
-        const float MaxCell = 58, MaxWidth = 620, ArrowTop = 6, ArrowBottom = 88, CountsTop = 94, Height = 124;
+        const float MaxCell = 58, MaxWidth = 620, ArrowTop = 24, ArrowBottom = 106, CountsTop = 112, Height = 142;  // room above the arrows for an accent's >
 
         float Cell = MaxCell;  // narrower for a long pattern (16 steps), so the panels still fit on one row
 
@@ -77,7 +77,7 @@ namespace GuitarTutor.Runtime.UI
                     ChartLook.Disc(p, new Vector2(x, (ArrowTop + ArrowBottom) / 2), 4, colour);
                     continue;
                 }
-                var down = stroke == Stroke.Down || stroke == Stroke.MutedDown;
+                var down = stroke == Stroke.Down || stroke == Stroke.MutedDown || stroke == Stroke.AccentDown;
                 var tail = new Vector2(x, down ? ArrowTop + 4 : ArrowBottom - 4);
                 var head = new Vector2(x, down ? ArrowBottom - 4 : ArrowTop + 4);
                 var back = down ? -1 : 1;
@@ -90,6 +90,13 @@ namespace GuitarTutor.Runtime.UI
                 p.LineTo(head + new Vector2(13, back * 20));
                 p.ClosePath();
                 p.Fill();
+                if (stroke == Stroke.AccentDown || stroke == Stroke.AccentUp)
+                {
+                    // a > over the arrow
+                    var top = new Vector2(x, ArrowTop - 12);
+                    ChartLook.Line(p, top + new Vector2(-8, -8), top + new Vector2(8, 0), colour, 4);
+                    ChartLook.Line(p, top + new Vector2(-8, 8), top + new Vector2(8, 0), colour, 4);
+                }
                 if (stroke == Stroke.MutedDown || stroke == Stroke.MutedUp)
                 {
                     var c = new Vector2(x, (ArrowTop + ArrowBottom) / 2);

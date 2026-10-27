@@ -596,16 +596,15 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
                 foreach (var code in s.Measures)
                 {
                     // UG's stroke codes, each identified against the page's own rendering or its strumming editor:
-                    // 1 → down arrow, 3 → down arrow with a small mark above (a muted down, per UG's notation
-                    // help), 101 → up arrow, 103 → up arrow with an accent mark (confirmed in the page's strumming
-                    // editor), 202 → blank, 203 → two vertical bars; the blank and the double bars are both a rest.
-                    // The accent in 103 has no place in the model yet, so 103 is read as a plain up stroke.
+                    // 1 → down arrow, 3 → down arrow with an accent mark (>), 101 → up arrow, 103 → up arrow with an
+                    // accent mark (confirmed in the page's strumming editor), 202 → blank, 203 → two vertical bars;
+                    // the blank and the double bars are both a rest: that stroke is skipped.
                     switch (code)
                     {
                         case 1: pattern.Strokes.Add(Stroke.Down); break;
-                        case 3: pattern.Strokes.Add(Stroke.MutedDown); break;
+                        case 3: pattern.Strokes.Add(Stroke.AccentDown); break;
                         case 101: pattern.Strokes.Add(Stroke.Up); break;
-                        case 103: pattern.Strokes.Add(Stroke.Up); break;
+                        case 103: pattern.Strokes.Add(Stroke.AccentUp); break;
                         case 202: pattern.Strokes.Add(Stroke.Rest); break;
                         case 203: pattern.Strokes.Add(Stroke.Rest); break;
                         default: pattern.Strokes.Add(Stroke.Rest); unknownCodes.Add(code); break;

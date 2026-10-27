@@ -186,7 +186,7 @@ namespace GuitarTutor.SongTool
 
         static string Symbol(Stroke s) => s switch
         {
-            Stroke.Down => "D", Stroke.Up => "U", Stroke.MutedDown => "d", Stroke.MutedUp => "u", _ => "-",
+            Stroke.Down => "D", Stroke.Up => "U", Stroke.MutedDown => "d", Stroke.MutedUp => "u", Stroke.AccentDown => "D>", Stroke.AccentUp => "U>", _ => "-",
         };
 
         static string Clock(double seconds)

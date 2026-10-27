@@ -367,11 +367,12 @@ namespace GuitarTutor.Core.Band
                     var played = Enumerable.Range(0, 6).Where(s => frets[s] >= 0).ToList();
                     if (played.Count == 0)
                         continue;
-                    var down = stroke == Stroke.Down || stroke == Stroke.MutedDown;
+                    var down = stroke == Stroke.Down || stroke == Stroke.MutedDown || stroke == Stroke.AccentDown;
                     var muted = stroke == Stroke.MutedDown || stroke == Stroke.MutedUp;
+                    var accent = stroke == Stroke.AccentDown || stroke == Stroke.AccentUp;
                     var order = down ? played : (played.Count(s => s >= 2) >= 2 ? played.Where(s => s >= 2) : played).Reverse().ToList();
                     var onBeat = Math.Abs(i * slot - Math.Round(i * slot)) < 1e-6;
-                    var velocity = muted ? 64 : !down ? 72 : onBeat ? 96 : 84;
+                    var velocity = muted ? 64 : accent ? (down ? 116 : 104) : !down ? 72 : onBeat ? 96 : 84;
                     arrangement.Strokes.Add(new BandStroke(at, !down, humanise(velocity), muted));
                     var perString = (down ? DownSpread : UpSpread) * song.Tempo.BpmAt(at) / 60.0;  // in quarter notes
                     var chordEnd = span.AtQuarter + span.Quarters;
