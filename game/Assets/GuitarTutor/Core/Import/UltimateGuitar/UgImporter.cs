@@ -558,27 +558,48 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
                 report.Add("No chord shapes on the page for: " + string.Join(", ", missing));
         }
 
-        static void Strumming(UgPage page, Song song, ImportReport report)
+        /// <summary>
+        /// The page's strumming patterns as the song model holds them (name, subdivision, strokes; sections left
+        /// empty for the caller to assign). Shared with the Guitar Pro importer, which reads the same direction
+        /// codes to fill in a GPX grid the file did not record.
+        /// </summary>
+        public static List<StrumPattern> StrumPatterns(UgPage page, out SortedSet<int> unknownCodes)
         {
-            var unknown = new SortedSet<int>();
+            unknownCodes = new SortedSet<int>();
+            var patterns = new List<StrumPattern>();
             foreach (var s in page.Strummings)
             {
                 var pattern = new StrumPattern { Name = s.Part, Subdivision = s.Denominator };
                 foreach (var code in s.Measures)
                 {
-                    // UG's stroke codes: 1 down, 101 up, 202 no stroke; 3 and 203 come in down / up pairs among the
-                    // others (Heart of Gold's intro: a muted chuck on each eighth), so: muted down, muted up
+                    // UG's stroke codes, each identified against the page's own rendering or its strumming editor:
+                    // 1 → down arrow, 3 → down arrow with a small mark above (a muted down, per UG's notation
+                    // help), 101 → up arrow, 103 → up arrow with an accent mark (confirmed in the page's strumming
+                    // editor), 202 → blank, 203 → two vertical bars; the blank and the double bars are both a rest.
+                    // The accent in 103 has no place in the model yet, so 103 is read as a plain up stroke.
                     switch (code)
                     {
                         case 1: pattern.Strokes.Add(Stroke.Down); break;
-                        case 101: pattern.Strokes.Add(Stroke.Up); break;
-                        case 202: pattern.Strokes.Add(Stroke.Rest); break;
                         case 3: pattern.Strokes.Add(Stroke.MutedDown); break;
-                        case 203: pattern.Strokes.Add(Stroke.MutedUp); break;
-                        default: pattern.Strokes.Add(Stroke.Rest); unknown.Add(code); break;
+                        case 101: pattern.Strokes.Add(Stroke.Up); break;
+                        case 103: pattern.Strokes.Add(Stroke.Up); break;
+                        case 202: pattern.Strokes.Add(Stroke.Rest); break;
+                        case 203: pattern.Strokes.Add(Stroke.Rest); break;
+                        default: pattern.Strokes.Add(Stroke.Rest); unknownCodes.Add(code); break;
                     }
                 }
-                var section = song.Sections.FirstOrDefault(x => SameSection(x.Name, s.Part));
+                patterns.Add(pattern);
+            }
+            return patterns;
+        }
+
+        static void Strumming(UgPage page, Song song, ImportReport report)
+        {
+            SortedSet<int> unknown;
+            var patterns = StrumPatterns(page, out unknown);
+            foreach (var pattern in patterns)
+            {
+                var section = song.Sections.FirstOrDefault(x => SameSection(x.Name, pattern.Name));
                 if (section != null)
                     pattern.Sections.Add(section.Name);
                 song.Strumming.Add(pattern);

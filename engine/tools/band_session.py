@@ -7,6 +7,7 @@ plugins, starts the game with `-keys <keys> -keyshots <out>` and the other optio
 -song <file>, -parts drums), and waits for both. Then check the recording with wav_check.py.
 """
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -17,9 +18,22 @@ ENGINE = os.path.join(REPO, "engine", "build", "Release", "gt_engine_artefacts",
 GAME = os.path.join(REPO, "game", "Builds", "Desktop", "GuitarTutor.exe")
 
 
+def require_port_free(port=47800):
+    """The engine must be able to listen for the game; if another engine holds the port, the game would play
+    through that engine and this one would record silence."""
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        probe.bind(("127.0.0.1", port))
+    except OSError:
+        sys.exit("port %d is in use: another GuitarTutor Engine is running; close it (or its game) and try again" % port)
+    finally:
+        probe.close()
+
+
 def main(args):
     if len(args) < 3 or "--keys" not in args:
         sys.exit(__doc__)
+    require_port_free()
     out = os.path.abspath(args[0])
     rest = args[1:]
     keys = rest[rest.index("--keys") + 1]

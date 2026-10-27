@@ -84,7 +84,11 @@ A song is stored in our own versioned file format, in layers:
 | Arrangement | Generated band parts |
 | Provenance | Source URLs and revisions, and which source was chosen where they disagree |
 
-Importers: Ultimate Guitar (chords and tabs pages), ChordPro, MIDI, later Guitar Pro.
+Importers: Ultimate Guitar (chords and tabs pages), ChordPro, MIDI, and Guitar Pro (`.gpx`, via `songtool
+import-gpx` with alphaTab). The Guitar Pro import is phase 1: it fills the layers above from the busiest
+six-string guitar track (the rhythm guitar, by note count) — the tab, the chords and voicings derived from the
+strums, sections, lyrics, tempo. The richer Guitar Pro data — the other tracks, full technique detail, dynamics,
+strumming patterns — waits on a model extension.
 
 ### What Ultimate Guitar pages contain
 
@@ -340,3 +344,10 @@ to recordings.
   reach every target, 0 mm), his elbows follow the capture, and the hi-hat opens on the and of 4 (Rock, Pop).
   Still different from the mockup: the bass roots are not moved to frets 5-10 (long reaches at the nut), and the
   three styles differ little in how the drums look.
+- 2026-10-24: Guitar Pro import (`songtool import-gpx`, alphaTab) phase 1. It reads the busiest six-string guitar
+  track (the rhythm guitar, by note count; `--track n` overrides) into the current model: the tab, chords and
+  voicings derived from the strums, plus sections, tempo, lyrics. Chord names are detected, not read — the strums
+  are grouped into regions (same bass, no long pause; a brief passing strum merged into the neighbor it most
+  resembles) and each name comes from the notes that dominate the region, anchored to the bass (the root), so a G
+  stays a G and an Em7 is not read as a G6. Checked on Heart of Gold (Guitar 2, 3127 notes): a clean
+  C/G/Em/D/Em7 progression, no wobble.

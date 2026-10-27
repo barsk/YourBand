@@ -26,12 +26,19 @@ namespace GuitarTutor.Core.Engine
 
         public static string Hello() => Line(new JObject { ["type"] = "hello", ["client"] = "GuitarTutor", ["protocol"] = Version });
 
-        /// <summary>The song's tempo map and the band's notes, as [part, pitch, at, length, velocity].</summary>
+        /// <summary>The song's tempo map and the band's notes, as [part, pitch, at, length, velocity]; the
+        /// guitarist's held voicings as [pitch, at, length] and its strokes as [at, direction, velocity, muted].</summary>
         public static string Load(string title, TempoMap tempo, Arrangement arrangement, string keysSound)
         {
             var notes = new JArray();
             foreach (var n in arrangement.Notes)
                 notes.Add(new JArray(Array.IndexOf(Parts, n.Part), n.Pitch, Math.Round(n.AtQuarter, 6), Math.Round(n.Quarters, 6), n.Velocity));
+            var voicings = new JArray();
+            foreach (var v in arrangement.Voicings)
+                voicings.Add(new JArray(v.Pitch, Math.Round(v.AtQuarter, 6), Math.Round(v.Quarters, 6)));
+            var strokes = new JArray();
+            foreach (var s in arrangement.Strokes)
+                strokes.Add(new JArray(Math.Round(s.AtQuarter, 6), s.Up ? 1 : 0, s.Velocity, s.Muted ? 1 : 0));
             return Line(new JObject
             {
                 ["type"] = "load",
@@ -40,6 +47,8 @@ namespace GuitarTutor.Core.Engine
                 ["tempos"] = new JArray(tempo.Tempos.Select(t => new JArray(t.AtQuarter, t.Bpm))),
                 ["meters"] = new JArray(tempo.Meters.Select(m => new JArray(m.AtBar, m.Numerator, m.Denominator))),
                 ["notes"] = notes,
+                ["voicings"] = voicings,
+                ["strokes"] = strokes,
                 ["keys"] = keysSound ?? "",
             });
         }

@@ -25,4 +25,9 @@
     </Reference>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Guitar Pro parsing for import-gpx. Kept in the tool, not in Core, so the game never takes the dependency. -->
+    <PackageReference Include="AlphaTab" Version="1.8.4" />
+  </ItemGroup>
+
 </Project>

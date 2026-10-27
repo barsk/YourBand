@@ -89,6 +89,9 @@ public:
     void setBandGuitarPlays (bool on) { bandProcessor->setGuitarPlays (on); }
     /** The band guitar's notes go to its plugin this early (seconds), to make up for a sound that builds slowly. */
     void setBandGuitarAdvance (double seconds) { bandProcessor->setGuitarAdvance (seconds); }
+    /** The band guitar's plugin is strum-capable (Shreddage's strumming mode): its strokes go to it as strum
+        keyswitches on its held voicing, instead of its per-string notes. */
+    void setBandGuitarStrummingMode (bool on) { bandProcessor->setStrummingMode (on); }
     bool bandGuitarPlays() const { return bandProcessor->guitarIsPlaying(); }
     /** Gives the keyboard plugin a sound ("2 - E_PIANO/1 - EP-Mark I"). Returns an error message, or empty. */
     juce::String setKeysSound (const juce::String& sound);

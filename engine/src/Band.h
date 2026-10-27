@@ -38,12 +38,18 @@ struct Score
 {
     struct Tempo { double at, bpm; };
     struct Meter { double at; int numerator, denominator; };  // at: where the bar starts, in quarter notes
+    /** A string of the guitarist's held chord, one per string: what a strum-capable guitar strums. */
+    struct Voicing { int pitch; double at, length; };
+    /** A stroke of its pick: a strum keyswitch on the held voicing (direction 0 down, 1 up). */
+    struct Stroke { double at; int dir; int velocity; bool muted; };
 
     juce::String title, style, keys;
     std::vector<Tempo> tempos;
     std::vector<Meter> meters;
     std::vector<BandNote> notes;
     std::vector<size_t> guitar;  // the indices of the guitar's notes, in time order (the guitar has its own cursor)
+    std::vector<Voicing> voicings;  // in time order
+    std::vector<Stroke> strokes;  // in time order
 
     double bpmAt (double quarter) const;
     /** A beat's length in quarter notes at a position (1 in 4/4, 0.5 in 6/8). */
@@ -77,13 +83,22 @@ public:
 
     void setOutputLatency (double seconds) { outputLatency.store (seconds); }
     /** Plays a part (drums, bass, guitar) on an instrument plugin (as MIDI) instead of the synthesized one. */
-    void setPluginFor (Part part, bool on) { onPlugin[(size_t) part].store (on); }
+    void setPluginFor (Part part, bool on)
+    {
+        const auto was = onPlugin[(size_t) part].load();
+        onPlugin[(size_t) part].store (on);
+        if (part == guitar && was != on)  // the guitar's sound changed: it drops what it holds, starts from now
+            guitarResync.store (true);
+    }
     bool usesPluginFor (Part part) const { return onPlugin[(size_t) part].load(); }
     /** Whether the band's guitarist plays (the rhythm: the song's strumming on its chords). */
     void setGuitarPlays (bool on) { guitarPlays.store (on); }
     /** How early (seconds) the guitar's notes go to its plugin, when it plays on one: a plugin whose sound builds
         slowly (Kontakt's strummed guitars) is heard late by about that much. */
     void setGuitarAdvance (double seconds) { guitarAdvance.store (juce::jlimit (0.0, 0.2, seconds)); }
+    /** The guitar plays on a strum-capable plugin (Shreddage's strumming mode): its strokes go to it as strum
+        keyswitches on its held voicing, instead of its per-string notes. */
+    void setStrummingMode (bool on) { if (strummingMode.exchange (on) != on) guitarResync.store (true); }
     bool guitarIsPlaying() const { return guitarPlays.load(); }
 
     // any thread: for the window
@@ -107,6 +122,8 @@ private:
     void releaseAll (juce::MidiBuffer&);
     size_t firstNoteFrom (double quarter) const;
     size_t firstGuitarNoteFrom (double quarter) const;
+    size_t firstVoicingFrom (double quarter) const;
+    size_t firstStrokeFrom (double quarter) const;
     void emit (const BandNote&, double dueAt, int sample, juce::MidiBuffer&);
     void addOff (Off);
     void collectGarbage();
@@ -127,12 +144,15 @@ private:
     std::array<std::atomic<bool>, 4> onPlugin {};  // per part; the keys are always on their plugin
     std::atomic<bool> guitarPlays { false };
     std::atomic<double> guitarAdvance { 0.0 };
+    std::atomic<bool> strummingMode { false };
+    std::atomic<bool> guitarResync { false };  // the guitar's sound changed: drop what it holds, start from now
 
     // audio thread
     const Score* playingScore = nullptr;
     bool playing = false;
     double quarter = 0.0, speed = 1.0, countInUntil = 0.0, countInLength = 0.0;
-    size_t cursor = 0, guitarCursor = 0;
+    size_t cursor = 0, guitarCursor = 0, voicingCursor = 0, strokeCursor = 0;
+    bool strumModeOn = false;  // Shreddage's F#5 strumming-mode keyswitch (note 78), held while the plugin strums
     std::array<Off, 256> offs;
     int numOffs = 0, bassSerial = 0;
 

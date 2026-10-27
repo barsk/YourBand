@@ -44,11 +44,51 @@ namespace GuitarTutor.Core.Band
             OpenHat = 46, MidTom = 47, Crash = 49, HighTom = 50, Ride = 51;
     }
 
+    /// <summary>
+    /// A stroke of the band guitarist's pick: when, down or up, how hard, and whether it is muted. A strum-
+    /// capable guitar (Shreddage) plays it as a strum keyswitch on its held chord; the other guitars play the
+    /// per-string notes the arranger writes for it.
+    /// </summary>
+    public readonly struct BandStroke
+    {
+        public double AtQuarter { get; }
+        public bool Up { get; }
+        public int Velocity { get; }
+        public bool Muted { get; }
+
+        public BandStroke(double atQuarter, bool up, int velocity, bool muted)
+        {
+            AtQuarter = atQuarter;
+            Up = up;
+            Velocity = velocity;
+            Muted = muted;
+        }
+    }
+
+    /// <summary>A string of the band guitarist's held chord: its pitch, and the chord's span.</summary>
+    public readonly struct VoicingNote
+    {
+        public int Pitch { get; }
+        public double AtQuarter { get; }
+        public double Quarters { get; }
+
+        public VoicingNote(int pitch, double atQuarter, double quarters)
+        {
+            Pitch = pitch;
+            AtQuarter = atQuarter;
+            Quarters = quarters;
+        }
+    }
+
     /// <summary>The band's parts for a whole song.</summary>
     public sealed class Arrangement
     {
         public string Style { get; set; } = "";
         public List<BandNote> Notes { get; } = new List<BandNote>();
+        /// <summary>The guitarist's strokes (its strumming on the chords), in time order.</summary>
+        public List<BandStroke> Strokes { get; } = new List<BandStroke>();
+        /// <summary>The guitarist's chords as held voicings, one note per string, in time order.</summary>
+        public List<VoicingNote> Voicings { get; } = new List<VoicingNote>();
         public IEnumerable<BandNote> Part(BandPart part) => Notes.Where(n => n.Part == part);
     }
 
@@ -227,7 +267,7 @@ namespace GuitarTutor.Core.Band
                         notes.Add(new BandNote(BandPart.Keys, pitch + capo, bar.AtQuarter + at, end - bar.AtQuarter - at, velocity));
                 }
             }
-            Strum(chart, chords, notes, Humanise);
+            Strum(chart, chords, arrangement, Humanise);
             notes.Sort((a, b) => a.AtQuarter != b.AtQuarter ? a.AtQuarter.CompareTo(b.AtQuarter) : a.Part.CompareTo(b.Part));
             return arrangement;
         }
@@ -302,10 +342,11 @@ namespace GuitarTutor.Core.Band
         /// top four, high to low), and each string rings until it is struck again or the chord changes; a muted
         /// stroke is a short chuck. The last bar is one chord, held.
         /// </summary>
-        static void Strum(SongChart chart, List<ChordEvent> chords, List<BandNote> notes, Func<int, int> humanise)
+        static void Strum(SongChart chart, List<ChordEvent> chords, Arrangement arrangement, Func<int, int> humanise)
         {
             var song = chart.Song;
             var open = OpenStrings(song.Info);
+            var notes = arrangement.Notes;
             var strikes = new List<(double at, int str, int pitch, int velocity, bool muted, double chordEnd)>();
             foreach (var bar in chart.Bars)
             {
@@ -331,11 +372,22 @@ namespace GuitarTutor.Core.Band
                     var order = down ? played : (played.Count(s => s >= 2) >= 2 ? played.Where(s => s >= 2) : played).Reverse().ToList();
                     var onBeat = Math.Abs(i * slot - Math.Round(i * slot)) < 1e-6;
                     var velocity = muted ? 64 : !down ? 72 : onBeat ? 96 : 84;
+                    arrangement.Strokes.Add(new BandStroke(at, !down, humanise(velocity), muted));
                     var perString = (down ? DownSpread : UpSpread) * song.Tempo.BpmAt(at) / 60.0;  // in quarter notes
                     var chordEnd = span.AtQuarter + span.Quarters;
                     for (int k = 0; k < order.Count; ++k)
                         strikes.Add((at + k * perString, order[k], open[order[k]] + frets[order[k]], humanise(velocity), muted, chordEnd));
                 }
+            }
+            // the held voicings, chord by chord: what a strum-capable guitar strums
+            foreach (var span in chords)
+            {
+                var chord = Chord.Parse(span.Name);
+                var voicing = song.VoicingFor(span);
+                var frets = voicing != null && voicing.Frets.Count == 6 ? voicing.Frets : GuitarShape(chord);
+                for (int s = 0; s < 6; ++s)
+                    if (frets[s] >= 0)
+                        arrangement.Voicings.Add(new VoicingNote(open[s] + frets[s], span.AtQuarter, span.Quarters));
             }
             // each string rings until it is struck again, or the chord ends
             foreach (var onString in strikes.GroupBy(s => s.str))

@@ -1,0 +1,877 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
+using AlphaTab.Importer;
+using AlphaTab.Model;
+using GuitarTutor.Core.Import.UltimateGuitar;
+using GuitarTutor.Core.Music;
+using GuitarTutor.Core.Songs;
+
+namespace GuitarTutor.SongTool
+{
+    /// <summary>
+    /// Builds a song from a Guitar Pro file (.gpx, .gp, .gp3/.gp4/.gp5) with alphaTab.
+    ///
+    /// What the current <see cref="Song"/> model holds: the busiest guitar track's notes become the tab (one riff)
+    /// and, grouped into simultaneous sets, the chords (the file's own names where it writes them, else detected
+    /// from the notes) and their voicings; the sections, tempo, time signatures, lyrics and song info come from
+    /// the score; and the strumming is the track's strums as a per-bar grid on sixteenth-note slots, each stroke's
+    /// direction from the file's recorded pick stroke, else an optional Ultimate Guitar strumming, else the
+    /// standard rule (down on the beat, up on the off-beat). The richer Guitar Pro data — the other tracks (bass,
+    /// drums, second guitar, vocals) and full technique detail (bend points, slide targets, dynamics) — is left
+    /// out for a later model extension.
+    /// </summary>
+    public static class GpxImporter
+    {
+        static readonly string[] NoteNames = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+
+        /// <summary>alphaTab's internal resolution: ticks per quarter note (verified against a real file).</summary>
+        const double FallbackTicksPerQuarter = 960;
+
+        /// <summary>A pause longer than this (in quarters) starts a new chord region.</summary>
+        const double RegionGap = 0.5;
+
+        /// <summary>A chord region shorter than this (in quarters) is a passing strum, merged into a neighbor.</summary>
+        const double MinRegion = 0.75;
+
+        /// <summary>Chord qualities, simplest first, as (suffix, intervals in semitones above the root).</summary>
+        static readonly (string Name, int[] Intervals)[] Qualities =
+        {
+            ("5",    new[] { 0, 7 }),
+            ("",     new[] { 0, 4, 7 }),
+            ("m",    new[] { 0, 3, 7 }),
+            ("sus2", new[] { 0, 2, 7 }),
+            ("sus4", new[] { 0, 5, 7 }),
+            ("7",    new[] { 0, 4, 7, 10 }),
+            ("m7",   new[] { 0, 3, 7, 10 }),
+            ("maj7", new[] { 0, 4, 7, 11 }),
+            ("6",    new[] { 0, 4, 7, 9 }),
+            ("m6",   new[] { 0, 3, 7, 9 }),
+            ("dim",  new[] { 0, 3, 6 }),
+            ("aug",  new[] { 0, 4, 8 }),
+            ("m7b5", new[] { 0, 3, 6, 10 }),
+            ("dim7", new[] { 0, 3, 6, 9 }),
+            ("add9", new[] { 0, 4, 7, 14 }),
+            ("6/9",  new[] { 0, 4, 7, 9, 14 }),
+            ("maj9", new[] { 0, 4, 7, 11, 14 }),
+            ("9",    new[] { 0, 4, 7, 10, 14 }),
+            ("m9",   new[] { 0, 3, 7, 10, 14 }),
+        };
+
+        public static Song Import(string path, out ImportReport report, int trackIndex = -1, List<StrumPattern> ugStrumming = null,
+            Dictionary<string, string> ugSectionMap = null)
+        {
+            report = new ImportReport();
+            var score = ScoreLoader.LoadScoreFromBytes(File.ReadAllBytes(path));
+            if (score.Tracks.Count == 0)
+                throw new InvalidDataException("no tracks in the Guitar Pro file");
+
+            var song = new Song();
+            var tpq = TicksPerQuarter(score);
+
+            // ------------------------------------------------------------ info
+            song.Info.Title = score.Title ?? "";
+            song.Info.Artist = score.Artist ?? "";
+            var track = PickTrack(score, trackIndex, report);
+            var staff = track.Staves[0];
+            song.Info.Tuning = Tuning(staff);
+            song.Info.Capo = (int)staff.Capo;
+            song.Info.Key = Key(staff, report);
+
+            // ------------------------------------------------------------ tempo + meters
+            var bpm = Tempo(score, report);
+            var first = score.MasterBars.Count > 0
+                ? new TimeSignature((int)score.MasterBars[0].TimeSignatureNumerator, (int)score.MasterBars[0].TimeSignatureDenominator)
+                : TimeSignature.FourFour;
+            song.Tempo = new TempoMap(bpm, first);
+            foreach (var mb in score.MasterBars)
+            {
+                var sig = new TimeSignature((int)mb.TimeSignatureNumerator, (int)mb.TimeSignatureDenominator);
+                if (mb.Index > 0 && !sig.Equals(first))
+                    song.Tempo.SetMeter((int)mb.Index, sig);
+            }
+
+            // ------------------------------------------------------------ sections
+            Sections(score, song, tpq);
+
+            // ------------------------------------------------------------ riffs + chords + voicings
+            RiffsAndChords(score, staff, song, report, tpq);
+
+            // ------------------------------------------------------------ strumming (the grid the track plays, with a direction per stroke)
+            Strumming(score, staff, song, report, tpq, ugStrumming, ugSectionMap);
+
+            // ------------------------------------------------------------ lyrics (from whichever track carries them)
+            Lyrics(score, song, tpq, report);
+
+            // ------------------------------------------------------------ provenance
+            song.Sources.Add(new Source
+            {
+                Kind = "guitar-pro",
+                Url = path,
+                Revision = "",
+                Supplies = { "sections", "chords", "riffs", "voicings", "strumming", "lyrics", "tempo" },
+            });
+
+            var end = song.Riffs.SelectMany(r => r.Notes).DefaultIfEmpty().Max(n => n.AtQuarter + n.Quarters);
+            var bars = song.Tempo.BarAt(Math.Max(0, end - 1e-6)).bar + 1;
+            report.Add($"{song.Sections.Count} sections, {song.Chords.Count} chords, "
+                       + $"{song.Riffs.Sum(r => r.Notes.Count)} tab notes, {song.Lyrics.Count} lyric lines, "
+                       + $"{bars} bars at {bpm:0.#} BPM in {first} (track '{track.Name}').");
+            return song;
+        }
+
+        // ------------------------------------------------------------ the main guitar track
+        /// <summary>
+        /// The track to read the tab and chords from: an explicit index when given, else the busiest six-string
+        /// guitar-like track (the most notes). The rhythm guitar strums full chords — far more notes than a lead
+        /// line — and the chords come from that part, so the busiest guitar is the one to read. Failing a guitar
+        /// by name or MIDI program, the first six-string, non-percussion track.
+        /// </summary>
+        static Track PickTrack(Score score, int index, ImportReport report)
+        {
+            if (index >= 0 && index < score.Tracks.Count)
+                return score.Tracks[index];
+
+            bool Guitar(Track t) =>
+                t.Staves.Count > 0 && t.Staves[0].StringTuning.Tunings.Count == 6 && !t.Staves[0].IsPercussion
+                && ((t.Name ?? "").Contains("Guitar", StringComparison.OrdinalIgnoreCase)
+                    || (t.PlaybackInfo != null && t.PlaybackInfo.Program >= 24 && t.PlaybackInfo.Program <= 51));
+
+            int Notes(Track t) =>
+                t.Staves.SelectMany(st => st.Bars).SelectMany(b => b.Voices).SelectMany(v => v.Beats).Sum(b => b.Notes.Count);
+
+            var guitars = score.Tracks.Where(Guitar).ToList();
+            var pick = guitars.Count > 0
+                ? guitars.OrderByDescending(Notes).First()
+                : score.Tracks.FirstOrDefault(t =>
+                    t.Staves.Count > 0 && t.Staves[0].StringTuning.Tunings.Count == 6 && !t.Staves[0].IsPercussion);
+            if (pick == null)
+                throw new InvalidDataException("no six-string, non-percussion track to read the tab from; pass --track N");
+            if (guitars.Count > 1)
+                report.Add($"Several guitar tracks; using '{pick.Name}' (the busiest, {Notes(pick)} notes). Pass --track N to choose.");
+            else if (!Guitar(pick))
+                report.Add($"No track named 'Guitar' found; using '{pick.Name}' (the first six-string track).");
+            return pick;
+        }
+
+        // ------------------------------------------------------------ conversions
+        /// <summary>alphaTab's ticks per quarter, derived from the first two bars (robust to a changed constant).</summary>
+        static double TicksPerQuarter(Score score)
+        {
+            var bars = score.MasterBars;
+            for (int i = 0; i + 1 < bars.Count; ++i)
+            {
+                var qpb = bars[i].TimeSignatureNumerator * 4.0 / bars[i].TimeSignatureDenominator;
+                var ticks = bars[i + 1].Start - bars[i].Start;
+                if (qpb > 0 && ticks > 0)
+                    return ticks / qpb;
+            }
+            return FallbackTicksPerQuarter;
+        }
+
+        /// <summary>The open strings, lowest first, as note names (alphaTab's tuning is highest first).</summary>
+        static List<string> Tuning(Staff staff)
+        {
+            var tunings = staff.StringTuning.Tunings;
+            var list = new List<string>(tunings.Count);
+            for (int i = tunings.Count - 1; i >= 0; --i)
+                list.Add(MidiName((int)tunings[i]));
+            return list;
+        }
+
+        static string MidiName(int midi) => NoteNames[((midi % 12) + 12) % 12] + (midi / 12 - 1);
+
+        /// <summary>The MIDI pitch of a note, from the track's tuning and its fret (not from alphaTab's Tone).</summary>
+        static int Pitch(Staff staff, Note note)
+        {
+            var tunings = staff.StringTuning.Tunings;
+            var stringIndex = (int)note.String - 1;  // alphaTab: 1 = lowest string
+            if (stringIndex < 0 || stringIndex >= tunings.Count)
+                return -1;
+            return (int)tunings[tunings.Count - 1 - stringIndex] + (int)note.Fret;
+        }
+
+        static string Key(Staff staff, ImportReport report)
+        {
+            var bar = staff.Bars.FirstOrDefault();
+            if (bar == null)
+                return "";
+            var name = bar.KeySignature.ToString().Replace("Sharp", "#");
+            if (bar.KeySignatureType == KeySignatureType.Minor)
+                name += "m";
+            return name;
+        }
+
+        static double Tempo(Score score, ImportReport report)
+        {
+            foreach (var mb in score.MasterBars)
+            {
+                var a = mb.TempoAutomations.FirstOrDefault(x => x.Type == AutomationType.Tempo);
+                if (a != null && a.Value > 0)
+                    return a.Value;
+            }
+            report.Add("No tempo in the file: using 120 BPM.");
+            return 120;
+        }
+
+        // ------------------------------------------------------------ sections
+        static void Sections(Score score, Song song, double tpq)
+        {
+            var bars = score.MasterBars;
+            var sectionBars = new List<(int Index, string Text)>();
+            for (int i = 0; i < bars.Count; ++i)
+            {
+                var text = bars[i].Section?.Text;
+                if (!string.IsNullOrWhiteSpace(text))
+                    sectionBars.Add((i, text.Trim()));
+            }
+            double SongEnd()
+            {
+                var last = bars[bars.Count - 1];
+                var qpb = last.TimeSignatureNumerator * 4.0 / last.TimeSignatureDenominator;
+                return (last.Start + qpb * tpq) / tpq;
+            }
+            for (int s = 0; s < sectionBars.Count; ++s)
+            {
+                var (index, text) = sectionBars[s];
+                var start = bars[index].Start / tpq;
+                var end = s + 1 < sectionBars.Count ? bars[sectionBars[s + 1].Index].Start / tpq : SongEnd();
+                song.Sections.Add(new GuitarTutor.Core.Songs.Section
+                {
+                    Name = text,
+                    AtQuarter = start,
+                    Quarters = Math.Max(0, end - start),
+                });
+            }
+        }
+
+        // ------------------------------------------------------------ riffs, chords, voicings
+        /// <summary>A strummed chord beat: when it sounds, for how long, its pitches and per-string frets.</summary>
+        sealed class Strum
+        {
+            public double At;
+            public double Duration;
+            public List<int> Pitches;
+            public HashSet<int> Pcs;
+            public int[] Frets;
+            public string ChordName;   // the file's own chord name, if it writes one
+            public int Bass => Pitches.Count > 0 ? Pitches.Min() % 12 : -1;
+        }
+
+        /// <summary>A chord region: a run of strums sounding the same chord, with its detected name and shape.</summary>
+        sealed class ChordRegion
+        {
+            public double Start;
+            public double Duration;
+            public HashSet<int> CorePcs;
+            public int Bass;
+            public int[] Frets;
+            public string ChordName;   // the file's own name for the region, if its strums agree on one
+        }
+
+        static void RiffsAndChords(Score score, Staff staff, Song song, ImportReport report, double tpq)
+        {
+            var riff = new Riff { Name = staff.Track.Name };
+            var voicings = new Dictionary<string, Voicing>();
+            var strums = new List<Strum>();
+            var masterByIndex = score.MasterBars.ToDictionary(mb => mb.Index);
+
+            foreach (var bar in staff.Bars)
+            {
+                if (!masterByIndex.TryGetValue(bar.Index, out var master))
+                    continue;
+                foreach (var voice in bar.Voices)
+                {
+                    foreach (var beat in voice.Beats)
+                    {
+                        var at = (master.Start + beat.DisplayStart) / tpq;
+                        var length = Math.Max(0, beat.DisplayDuration) / tpq;
+                        var notes = beat.Notes.Where(n => n.String >= 1).ToList();
+
+                        // the tab: every note, at its position
+                        foreach (var n in notes)
+                            riff.Notes.Add(new TabNote
+                            {
+                                StringIndex = (int)n.String - 1,
+                                Fret = (int)n.Fret,
+                                AtQuarter = at,
+                                Quarters = length,
+                                Technique = Technique(n),
+                            });
+
+                        // the chords: only beats that sound two or more notes (strummed chords)
+                        if (notes.Count >= 2)
+                        {
+                            var pitches = notes.Select(n => Pitch(staff, n)).Where(p => p >= 0).ToList();
+                            if (pitches.Count >= 2)
+                                strums.Add(new Strum
+                                {
+                                    At = at,
+                                    Duration = length,
+                                    Pitches = pitches,
+                                    Pcs = new HashSet<int>(pitches.Select(p => p % 12)),
+                                    Frets = FretsFor(notes, staff),
+                                    ChordName = ChordName(beat),
+                                });
+                        }
+                    }
+                }
+            }
+
+            if (riff.Notes.Count > 0)
+                song.Riffs.Add(riff);
+
+            foreach (var region in ChordRegions(strums))
+            {
+                // the file's own chord name wins when its strums agree on one; otherwise the notes decide
+                var name = region.ChordName ?? DetectChord(region.CorePcs, region.Bass);
+                var frets = region.Frets;
+                var voicingId = $"{name}-{VoicingFrets(frets)}";
+                if (!voicings.TryGetValue(voicingId, out var voicing))
+                {
+                    voicing = new Voicing { Id = voicingId, Chord = name, Frets = new List<int>(frets), Fingers = new List<int>(frets.Length) };
+                    voicings[voicingId] = voicing;
+                }
+                song.Chords.Add(new ChordEvent
+                {
+                    Name = name,
+                    AtQuarter = region.Start,
+                    Quarters = Math.Max(0, region.Duration),
+                    Voicing = voicingId,
+                });
+            }
+
+            song.Voicings.AddRange(voicings.Values);
+            if (song.Chords.Count == 0)
+                report.Add("No chords detected (the track has no simultaneous notes); the tab is there but the chart has no chord names.");
+        }
+
+        /// <summary>
+        /// The strums, grouped into chord regions. A region is a run of strums with the same bass note (the root,
+        /// stable within a chord) and no long pause; a region shorter than <see cref="MinRegion"/> is a passing
+        /// strum (e.g. the leading-tone shape into the next chord) and is merged into the neighbor it most
+        /// resembles. Each region's notes are the pitch classes that sound for more than half its duration, so a
+        /// brief transition shape cannot pull the chord toward Gmaj7 or G6/9.
+        /// </summary>
+        static List<ChordRegion> ChordRegions(List<Strum> strums)
+        {
+            if (strums.Count == 0)
+                return new List<ChordRegion>();
+
+            // 1) raw regions: same bass, no long pause between strums
+            var raw = new List<List<Strum>> { new List<Strum> { strums[0] } };
+            for (int i = 1; i < strums.Count; ++i)
+            {
+                var s = strums[i];
+                var prev = raw[raw.Count - 1][raw[raw.Count - 1].Count - 1];
+                var gap = s.At - (prev.At + prev.Duration);
+                if (s.Bass == prev.Bass && gap <= RegionGap)
+                    raw[raw.Count - 1].Add(s);
+                else
+                    raw.Add(new List<Strum> { s });
+            }
+
+            // 2) merge each short region (a passing strum) into the neighbor it most resembles — the one it shares
+            //    the most notes with (a leading-tone tail shares the previous chord; a pickup shares the next).
+            //    On a tie it goes left, so a chord keeps its full length and the next starts on its first strum.
+            var groups = new List<List<Strum>>(raw);
+            bool merged = true;
+            while (merged)
+            {
+                merged = false;
+                for (int i = 0; groups.Count >= 2 && i < groups.Count; ++i)
+                {
+                    var dur = groups[i].Sum(s => s.Duration);
+                    if (dur >= MinRegion)
+                        continue;
+                    var target = i == 0 ? 1 : i == groups.Count - 1 ? i - 1 : Nearest(groups, i);
+                    var into = groups[target];
+                    if (target > i) into.InsertRange(0, groups[i]); else into.AddRange(groups[i]);
+                    groups.RemoveAt(i);
+                    merged = true;
+                    break;
+                }
+            }
+
+            // 3) each group's summary: the notes it mostly sounds, its bass, and its most common shape
+            var regions = new List<ChordRegion>();
+            for (int i = 0; i < groups.Count; ++i)
+            {
+                var g = groups[i];
+                var start = g.Min(s => s.At);
+                var end = g.Max(s => s.At + s.Duration);
+                var nextStart = i + 1 < groups.Count ? groups[i + 1].Min(s => s.At) : double.PositiveInfinity;
+
+                var total = g.Sum(s => s.Duration);
+                var weight = new Dictionary<int, double>();
+                foreach (var s in g)
+                    foreach (var p in s.Pcs)
+                        weight[p] = (weight.TryGetValue(p, out var w) ? w : 0) + s.Duration;
+                var core = weight.Where(kv => kv.Value > 0.5 * total).Select(kv => kv.Key).ToHashSet();
+
+                var bassWeight = new Dictionary<int, double>();
+                foreach (var s in g)
+                    bassWeight[s.Bass] = (bassWeight.TryGetValue(s.Bass, out var w) ? w : 0) + s.Duration;
+                var bass = bassWeight.OrderByDescending(kv => kv.Value).First().Key;
+
+                var frets = g.GroupBy(s => VoicingFrets(s.Frets)).OrderByDescending(x => x.Count()).First().First().Frets;
+
+                // the file's own name for the region: its strums' most common written name, when they have one
+                var written = g.Where(s => s.ChordName != null).Select(s => s.ChordName).ToList();
+                var writtenName = written.Count > 0
+                    ? written.GroupBy(n => n).OrderByDescending(x => x.Count()).ThenBy(x => x.First()).First().First()
+                    : null;
+
+                regions.Add(new ChordRegion
+                {
+                    Start = start,
+                    Duration = Math.Max(0, Math.Min(end, nextStart) - start),
+                    CorePcs = core,
+                    Bass = bass,
+                    Frets = frets,
+                    ChordName = writtenName,
+                });
+            }
+            return regions;
+        }
+
+        /// <summary>
+        /// For the short region at <paramref name="i"/>, the index of the neighbor (i-1 or i+1) it shares the most
+        /// pitch classes with. On a tie, the left neighbor.
+        /// </summary>
+        static int Nearest(List<List<Strum>> groups, int i)
+        {
+            var self = Union(groups[i]);
+            var left = Union(groups[i - 1]);
+            var right = Union(groups[i + 1]);
+            int Overlap(HashSet<int> a, HashSet<int> b) => a.Count(p => b.Contains(p));
+            return Overlap(self, right) > Overlap(self, left) ? i + 1 : i - 1;
+        }
+
+        static HashSet<int> Union(List<Strum> group)
+        {
+            var u = new HashSet<int>();
+            foreach (var s in group)
+                u.UnionWith(s.Pcs);
+            return u;
+        }
+
+        /// <summary>The chord's frets per string, lowest first (-1 not played).</summary>
+        static int[] FretsFor(List<Note> notes, Staff staff)
+        {
+            var count = staff.StringTuning.Tunings.Count;
+            var frets = new int[count];
+            Array.Fill(frets, -1);
+            foreach (var n in notes)
+            {
+                var si = (int)n.String - 1;
+                if (si >= 0 && si < count)
+                    frets[si] = (int)n.Fret;
+            }
+            return frets;
+        }
+
+        static string VoicingFrets(int[] frets) => string.Concat(frets.Select(f => f < 0 ? "x" : f.ToString()));
+
+        /// <summary>The chord name the file writes for a beat, if it has one (else null: the notes decide).</summary>
+        static string ChordName(Beat beat) =>
+            beat.HasChord && beat.Chord != null && !string.IsNullOrWhiteSpace(beat.Chord.Name)
+                ? beat.Chord.Name.Trim()
+                : null;
+
+        /// <summary>The one technique symbol the current model holds: bend, slide, hammer-on or vibrato.</summary>
+        static string Technique(Note n)
+        {
+            if (n.Vibrato != VibratoType.None)
+                return "~";
+            if (n.BendType != BendType.None)
+                return "b";
+            if (n.SlideInType != SlideInType.None || n.SlideOutType != SlideOutType.None)
+                return "s";
+            if (n.IsHammerPullOrigin)
+                return "h";
+            return "";
+        }
+
+        /// <summary>
+        /// A chord name from a set of pitch classes and its bass note. The root is the bass (the lowest note, which
+        /// is the root in strummed voicings); among the qualities rooted there, the simplest one that covers the
+        /// notes wins. Anchoring to the bass is what keeps Em7 from reading as G6 and G from reading as Gmaj7 on a
+        /// stray note. If no bass-rooted chord fits (more strays than notes), other roots are tried as a fallback.
+        /// </summary>
+        static string DetectChord(HashSet<int> pcs, int bass)
+        {
+            if (pcs.Count == 0)
+                return "";
+            if (pcs.Count == 1)
+                return NoteNames[pcs.First()];
+
+            int Score(int root, int[] intervals)
+            {
+                var chord = new HashSet<int>(intervals.Select(i => (root + i) % 12));
+                int covered = 0, strays = 0;
+                foreach (var p in pcs)
+                    if (chord.Contains(p)) covered++; else strays++;
+                return covered * 4 - strays * 6 - intervals.Length;
+            }
+
+            var bestRoot = bass;
+            var bestName = "";
+            var bestScore = int.MinValue;
+            foreach (var (name, intervals) in Qualities)
+            {
+                var s = Score(bass, intervals);
+                if (s > bestScore)
+                {
+                    bestScore = s;
+                    bestRoot = bass;
+                    bestName = name;
+                }
+            }
+            if (bestScore < 0)   // even the best bass-rooted chord leaves more strays than notes: try other roots
+            {
+                for (int root = 0; root < 12; ++root)
+                {
+                    if (root == bass)
+                        continue;
+                    foreach (var (name, intervals) in Qualities)
+                    {
+                        var s = Score(root, intervals) - 2;
+                        if (s > bestScore)
+                        {
+                            bestScore = s;
+                            bestRoot = root;
+                            bestName = name;
+                        }
+                    }
+                }
+            }
+            return NoteNames[bestRoot] + bestName;
+        }
+
+        // ------------------------------------------------------------ strumming
+        /// <summary>
+        /// The strumming: when an Ultimate Guitar strumming is given, each section's pattern is the page's pattern
+        /// kept whole — a continuous multi-bar pattern the chart lays out from the section's first bar, repeating
+        /// (SongChart.StrokeIndex). Otherwise the track's strums form a per-bar grid on sixteenth-note slots and
+        /// each section's most common grid becomes its pattern, a stroke's direction from the file's recorded pick
+        /// stroke where present, else the standard rule — down on the beat, up on the off-beat. (A GPX file often
+        /// records no strokes at all.)
+        /// </summary>
+        static void Strumming(Score score, Staff staff, Song song, ImportReport report, double tpq, List<StrumPattern> ug, Dictionary<string, string> ugMap)
+        {
+            if (ug != null && ug.Count == 0)
+                ug = null;
+            if (song.Sections.Count == 0)
+                return;
+            var masterByIndex = score.MasterBars.ToDictionary(mb => mb.Index);
+
+            // 1) per bar: which sixteenth slots strum, and the recorded direction of each strummed slot
+            var byBar = new Dictionary<double, (char[] Grid, Stroke[] Recorded)>();
+            foreach (var bar in staff.Bars)
+            {
+                if (!masterByIndex.TryGetValue(bar.Index, out var master))
+                    continue;
+                var barStart = master.Start / tpq;
+                var slots = (int)Math.Round(master.TimeSignatureNumerator * 4.0 / master.TimeSignatureDenominator * 4);
+                var grid = new char[slots];
+                var rec = new Stroke[slots];
+                Array.Fill(grid, '.');
+                Array.Fill(rec, Stroke.Rest);
+                foreach (var voice in bar.Voices)
+                    foreach (var beat in voice.Beats)
+                    {
+                        if (beat.Notes.Count(n => n.String >= 1) < 2)
+                            continue;   // not a strummed chord
+                        var slot = (int)Math.Round(((master.Start + beat.DisplayStart) / tpq - barStart) * 4);
+                        if (slot < 0 || slot >= slots)
+                            continue;
+                        grid[slot] = 'X';
+                        rec[slot] = Recorded(beat);
+                    }
+                byBar[bar.Index] = (grid, rec);
+            }
+            if (byBar.Count == 0)
+                return;
+
+            // 2) group each bar's grid under the section that starts it
+            var bySection = new Dictionary<string, List<(char[] Grid, Stroke[] Rec)>>();
+            foreach (var kv in byBar.OrderBy(x => x.Key))   // bars in order, so “first to appear” is stable
+            {
+                var barStart = masterByIndex[kv.Key].Start / tpq;
+                var section = song.Sections.FirstOrDefault(s => barStart >= s.AtQuarter - 1e-6 && barStart < s.AtQuarter + s.Quarters - 1e-6);
+                if (section == null)
+                    continue;
+                if (!bySection.TryGetValue(section.Name, out var list))
+                    bySection[section.Name] = list = new List<(char[], Stroke[])>();
+                list.Add(kv.Value);
+            }
+            if (bySection.Count == 0)
+                return;
+
+            // 3) per section: the Ultimate Guitar pattern when one is given (kept whole — a continuous multi-bar
+            //    pattern the chart lays out from the section's first bar, repeating), else the file's most common
+            //    grid with a direction for each of its active slots
+            var sectionNames = bySection.Keys.ToList();
+            var map = ug != null ? CheckMap(ugMap, ug, song, bySection, report) : null;
+            var picks = new List<(string Section, StrumPattern Pattern, string How)>();
+            var made = 0;
+            foreach (var kv in bySection)
+            {
+                var ugFor = ug != null ? UgForSection(ug, kv.Key, sectionNames, map) : (null, "");
+                StrumPattern pattern;
+                if (ugFor.Pattern != null)
+                {
+                    // the page's pattern, kept whole: the chart lays it out from the section's start (StrokeIndex)
+                    pattern = new StrumPattern { Name = kv.Key, Subdivision = ugFor.Pattern.Subdivision, Sections = { kv.Key } };
+                    pattern.Strokes.AddRange(ugFor.Pattern.Strokes);
+                }
+                else
+                {
+                    string Key(char[] g) => new string(g.Select(c => c == 'X' ? '1' : '0').ToArray());
+                    var grids = kv.Value;
+                    // the most common grid; ties broken by the one that establishes first in the section (bars are in order)
+                    var keys = grids.Select(g => Key(g.Grid)).ToList();
+                    var dominant = keys.GroupBy(k => k)
+                        .OrderByDescending(x => x.Count())
+                        .ThenBy(x => keys.IndexOf(x.First()))
+                        .First().First();
+                    var matching = grids.Where(g => Key(g.Grid) == dominant).Select(g => g.Rec).ToList();
+                    pattern = new StrumPattern { Name = kv.Key, Subdivision = 16, Sections = { kv.Key } };
+                    for (int i = 0; i < dominant.Length; ++i)
+                        pattern.Strokes.Add(dominant[i] == '1' ? Direction(matching, i) : Stroke.Rest);
+                }
+                song.Strumming.Add(pattern);
+                if (ug != null)
+                    picks.Add((kv.Key, ugFor.Pattern, ugFor.How));
+                ++made;
+            }
+            report.Add(ug != null
+                ? $"Strumming: {made} section pattern(s) from Ultimate Guitar, kept whole (the chart lays each out from its section's first bar, repeating)."
+                : $"Strumming: {made} section pattern(s) on a sixteenth grid (direction: recorded pick stroke → down on the beat, up on the off-beat).");
+            if (ug != null)
+                report.Add("UG strumming: " + string.Join(", ", picks.Select(p => $"{p.Section} → '{p.Pattern.Name}' ({p.How})")));
+        }
+
+        /// <summary>
+        /// The explicit section→pattern pairs (from <c>--strum-map</c>) that are usable: the section must be one of
+        /// the sections that got a pattern, and the pattern one of the Ultimate Guitar patterns. Bad entries are
+        /// reported and dropped, so the rest of the mapping still applies.
+        /// </summary>
+        static Dictionary<string, string> CheckMap(Dictionary<string, string> ugMap, List<StrumPattern> ug, Song song,
+            Dictionary<string, List<(char[] Grid, Stroke[] Rec)>> bySection, ImportReport report)
+        {
+            if (ugMap == null || ugMap.Count == 0)
+                return null;
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kv in ugMap)
+            {
+                if (kv.Key != "*" && !song.Sections.Exists(s => string.Equals(s.Name, kv.Key, StringComparison.OrdinalIgnoreCase)))
+                {
+                    report.Add($"Strumming: map entry '{kv.Key}={kv.Value}' ignored: no section named '{kv.Key}' in the file.");
+                    continue;
+                }
+                if (kv.Key != "*" && !bySection.Keys.Any(k => string.Equals(k, kv.Key, StringComparison.OrdinalIgnoreCase)))
+                {
+                    report.Add($"Strumming: map entry '{kv.Key}={kv.Value}' ignored: the section has no strummed bars.");
+                    continue;
+                }
+                if (!ug.Any(p => string.Equals(p.Name, kv.Value, StringComparison.OrdinalIgnoreCase)))
+                {
+                    report.Add($"Strumming: map entry '{kv.Key}={kv.Value}' ignored: no UG pattern named '{kv.Value}'.");
+                    continue;
+                }
+                map[kv.Key] = kv.Value;
+            }
+            return map.Count > 0 ? map : null;
+        }
+
+        /// <summary>
+        /// The per-bar strum grid a Guitar Pro file records (X = strummed slot, . = none) with the recorded pick
+        /// direction (or R for none), for inspecting what the importer sees before it picks each section's pattern.
+        /// </summary>
+        public static void DiagStrum(string path, int trackIndex)
+        {
+            var report = new ImportReport();
+            var score = ScoreLoader.LoadScoreFromBytes(File.ReadAllBytes(path));
+            if (score.Tracks.Count == 0)
+                throw new InvalidDataException("no tracks in the Guitar Pro file");
+            var tpq = TicksPerQuarter(score);
+            var track = PickTrack(score, trackIndex, report);
+            var staff = track.Staves[0];
+            var masterByIndex = score.MasterBars.ToDictionary(mb => mb.Index);
+            Console.WriteLine($"track '{track.Name}' of {score.Tracks.Count}:");
+            var n = 0;
+            var distinct = new Dictionary<string, int>();
+            foreach (var bar in staff.Bars)
+            {
+                if (!masterByIndex.TryGetValue(bar.Index, out var master))
+                    continue;
+                var barStart = master.Start / tpq;
+                var slots = (int)Math.Round(master.TimeSignatureNumerator * 4.0 / master.TimeSignatureDenominator * 4);
+                var grid = new char[slots];
+                var rec = new Stroke[slots];
+                Array.Fill(grid, '.');
+                Array.Fill(rec, Stroke.Rest);
+                foreach (var voice in bar.Voices)
+                    foreach (var beat in voice.Beats)
+                    {
+                        if (beat.Notes.Count(x => x.String >= 1) < 2)
+                            continue;
+                        var slot = (int)Math.Round(((master.Start + beat.DisplayStart) / tpq - barStart) * 4);
+                        if (slot < 0 || slot >= slots)
+                            continue;
+                        grid[slot] = 'X';
+                        rec[slot] = Recorded(beat);
+                    }
+                    var key = new string(grid.Select(c => c == 'X' ? '1' : '0').ToArray());
+                    distinct.TryGetValue(key, out var c); distinct[key] = c + 1;
+                    var strokes = string.Join("", grid.Zip(rec, (g, s) => g == 'X' ? s.ToString()[0] : '.'));
+                    Console.WriteLine($"bar {n,3} {master.TimeSignatureNumerator}/{master.TimeSignatureDenominator}  {new string(grid)}  {strokes}");
+                    ++n;
+            }
+            Console.WriteLine($"\ndistinct grids: {distinct.Count}");
+            foreach (var kv in distinct.OrderByDescending(x => x.Value))
+                Console.WriteLine($"  x{kv.Value,-3} {kv.Key}");
+        }
+
+        /// <summary>The direction a GPX beat records, or <see cref="Stroke.Rest"/> when it records none.</summary>
+        static Stroke Recorded(Beat beat)
+        {
+            var stroke = beat.PickStroke;
+            if (stroke == PickStroke.None)
+                return Stroke.Rest;
+            var down = stroke == PickStroke.Down;
+            var muted = beat.IsPalmMute || beat.Notes.Any(n => n.IsGhost);
+            return down ? (muted ? Stroke.MutedDown : Stroke.Down) : (muted ? Stroke.MutedUp : Stroke.Up);
+        }
+
+        /// <summary>
+        /// The direction of one active slot: the recorded pick stroke when the matching bars agree on it, else the
+        /// standard rule (down on the beat, up on the off-beat).
+        /// </summary>
+        static Stroke Direction(List<Stroke[]> recorded, int slot)
+        {
+            var rec = recorded.Select(r => r[slot]).Where(s => s != Stroke.Rest).ToList();
+            if (rec.Count > 0 && rec.All(s => s == rec[0]))
+                return rec[0];
+            return slot % 4 == 0 ? Stroke.Down : Stroke.Up;   // 16th grid: a beat is every fourth slot
+        }
+
+        /// <summary>
+        /// Section-name synonyms, canonical first: the page and the file may come from different authors, and
+        /// authors name the same kind of section differently. Compared after <see cref="CanonicalName"/>.
+        /// </summary>
+        static readonly (string Canonical, string[] Aliases)[] SectionNameSynonyms =
+        {
+            ("intro",        new[] { "introduction", "leadin", "opening", "start" }),
+            ("verse",        new[] { "vrs", "stanza", "theme", "maintheme" }),
+            ("chorus",       new[] { "refrain", "hook", "bigchorus", "finalchorus" }),
+            ("bridge",       new[] { "middle", "middleeight", "interlude", "turnaround", "solobridge" }),
+            ("solo",         new[] { "guitarsolo", "basssolo", "instrumentalsolo" }),
+            ("instrumental", new[] { "inst", "riff" }),
+            ("breakdown",    new[] { "drop" }),
+            ("build",        new[] { "buildup", "ramp" }),
+            ("outro",        new[] { "ending", "end", "coda", "tag", "final", "close" }),
+            ("fill",         new[] { "transition" }),
+        };
+
+        /// <summary>
+        /// A section name reduced for comparison: lowercased, punctuation removed, trailing numbers removed, common
+        /// synonyms equated. “Verse 1” and “Stanza” both become “verse”; “Middle 8” and “Bridge” both become “bridge”.
+        /// </summary>
+        static string CanonicalName(string s)
+        {
+            var n = Regex.Replace(Regex.Replace((s ?? "").ToLowerInvariant(), "[^a-z0-9]+", ""), @"\d+$", "");
+            foreach (var (canonical, aliases) in SectionNameSynonyms)
+                if (n == canonical || aliases.Contains(n))
+                    return canonical;
+            return n;
+        }
+
+        /// <summary>
+        /// The Ultimate Guitar pattern for a section, and how it was chosen: an explicit <c>--strum-map</c> entry
+        /// (“mapped”), else one named after it (“named”), else the “main” pattern (the one not named after any
+        /// section, “main”), else the first (“first”). Names are compared as canonical names (see
+        /// <see cref="CanonicalName"/>), since the page and the file may come from different authors.
+        /// </summary>
+        static (StrumPattern Pattern, string How) UgForSection(List<StrumPattern> ug, string section, List<string> sections, Dictionary<string, string> map)
+        {
+            StrumPattern ByName(string name) =>
+                ug.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+            if (map != null && map.TryGetValue(section, out var mapped) && ByName(mapped) is { } p)
+                return (p, "mapped");
+            if (map != null && map.TryGetValue("*", out var all) && ByName(all) is { } q)
+                return (q, "mapped");
+            var named = ug.FirstOrDefault(p => CanonicalName(p.Name) == CanonicalName(section));
+            if (named != null)
+                return (named, "named");
+            var main = ug.FirstOrDefault(p => !sections.Any(s => CanonicalName(p.Name) == CanonicalName(s)));
+            if (main != null)
+                return (main, "main");
+            return (ug.FirstOrDefault(), "first");
+        }
+
+        // ------------------------------------------------------------ lyrics
+        /// <summary>
+        /// The words, in time order, from whichever track carries them. A new line starts after a gap of more than a
+        /// bar or at a section boundary.
+        /// </summary>
+        static void Lyrics(Score score, Song song, double tpq, ImportReport report)
+        {
+            var masterByIndex = score.MasterBars.ToDictionary(mb => mb.Index);
+            var sectionAt = new Dictionary<double, string>();
+            foreach (var mb in score.MasterBars)
+                if (mb.Section != null && !string.IsNullOrWhiteSpace(mb.Section.Text))
+                    sectionAt[mb.Start / tpq] = mb.Section.Text.Trim();
+
+            var words = new List<(double At, string Text)>();
+            foreach (var track in score.Tracks)
+            {
+                foreach (var staff in track.Staves)
+                {
+                    foreach (var bar in staff.Bars)
+                    {
+                        if (!masterByIndex.TryGetValue(bar.Index, out var master))
+                            continue;
+                        foreach (var voice in bar.Voices)
+                        {
+                            foreach (var beat in voice.Beats)
+                            {
+                                var lyrics = beat.Lyrics;
+                                if (lyrics == null)
+                                    continue;
+                                var at = (master.Start + beat.DisplayStart) / tpq;
+                                foreach (var text in lyrics)
+                                    if (!string.IsNullOrWhiteSpace(text))
+                                        words.Add((at, text.Trim()));
+                            }
+                        }
+                    }
+                }
+            }
+
+            words.Sort((a, b) => a.At.CompareTo(b.At));
+            LyricLine line = null;
+            double lastAt = 0;
+            string lastSection = null;
+            foreach (var (at, text) in words)
+            {
+                string section = null;
+                foreach (var kv in sectionAt)
+                    if (kv.Key <= at)
+                        section = kv.Value;
+                if (line == null || at - lastAt > 4 || (section != null && section != lastSection))
+                {
+                    line = new LyricLine { AtQuarter = at };
+                    song.Lyrics.Add(line);
+                    lastSection = section;
+                }
+                line.Words.Add(new LyricWord { Text = text, AtQuarter = at });
+                lastAt = at;
+            }
+        }
+    }
+}

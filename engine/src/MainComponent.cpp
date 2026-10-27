@@ -375,7 +375,9 @@ void MainComponent::handle (const juce::var& message)
             log ("Game sent a song the band cannot read: " + error);
             return;
         }
-        log ("Song: " + score->title + ", " + score->style + ", " + juce::String ((int) score->notes.size()) + " notes");
+        log ("Song: " + score->title + ", " + score->style + ", " + juce::String ((int) score->notes.size()) + " notes"
+             + ", " + juce::String ((int) score->voicings.size()) + " voicing notes"
+             + ", " + juce::String ((int) score->strokes.size()) + " strokes");
         const auto notes = (int) score->notes.size();
         const auto keys = score->keys.isNotEmpty() ? score->keys : engine.keysSound();
         band.load (std::move (score));
@@ -593,6 +595,11 @@ bool MainComponent::chooseBandInstrument (EngineCore::Slot slot, int choice, boo
     engine.unloadBandInstrument (slot);
     bandPlugins.erase (slot);
     blankStates.erase (slot);
+    // a strum-capable guitar (Shreddage in strumming mode) hears the strokes as strum keyswitches on its
+    // held voicing, instead of the per-string notes
+    if (slot == EngineCore::Slot::bandGuitar)
+        engine.setBandGuitarStrummingMode (choice >= 0
+                                           && part.choices[(size_t) choice].file.getFileName().startsWithIgnoreCase ("Kontakt"));
     auto playsPlugin = false;
     if (choice >= 0)
     {
@@ -650,7 +657,16 @@ bool MainComponent::startBandInstrument (EngineCore::Slot slot, const juce::File
     juce::MemoryBlock state;
     const auto saved = state.fromBase64Encoding (value) && state.getSize() > 0;
     if (saved)
-        engine.setPluginState (slot, state);
+    {
+        // the host wrapper only takes states in its own XML format and refuses anything else without a word
+        if (juce::AudioProcessor::getXmlFromBinary (state.getData(), (int) state.getSize()) == nullptr)
+            log (bandTitle (slot) + ": saved sound not in the host's state format: not restored");
+        else
+        {
+            engine.setPluginState (slot, state);
+            log (bandTitle (slot) + ": restored saved sound (" + juce::String (state.getSize()) + " bytes)");
+        }
+    }
     const auto plays = saved || ! silentUntilChosen;
     engine.useBandInstrument (slot, plays);
     log (bandTitle (slot) + ": " + engine.plugin (slot)->getName()
@@ -662,7 +678,11 @@ void MainComponent::keepBandState (EngineCore::Slot slot)
 {
     // a band instrument's sound, once it plays for the band (a test run leaves your settings as they are)
     if (const auto it = bandPlugins.find (slot); it != bandPlugins.end() && engine.usesBandInstrument (slot) && ! engine.isSilent())
-        settings->setValue (stateKey (slot, it->second), engine.pluginState (slot).toBase64Encoding());
+    {
+        const auto state = engine.pluginState (slot);
+        settings->setValue (stateKey (slot, it->second), state.toBase64Encoding());
+        log (bandTitle (slot) + ": saved sound (" + juce::String (state.getSize()) + " bytes)");
+    }
 }
 
 void MainComponent::refreshInputs()

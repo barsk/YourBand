@@ -100,12 +100,26 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   Stratus FREE. A guitar plugin goes through a trim into the amp (MONSTER Guitar plays about 30 dB louder
   than a guitar: -30 dB), or straight to the mixer with "through band guitar tone" off. Guitar plugins get
   the notes as they sound (MONSTER Guitar: note 40 is E2).
-  Kontakt's Shreddage strum speaks a little late (recorded silently: the first strum reaches half its peak
-  36 ms after the beat, the built-in guitar's 11 ms), so the band sends Kontakt its guitar notes 20 ms early
-  (`bandGuitarAdvanceMs` in the settings changes it; 0 turns it off; the log says "plays 20 ms ahead" when
-  it is on). The band has a cursor of its own for the guitar's notes, so this works with seeking and the
-  count-in. Shreddage's own keyswitches, effects and MIDI channel are saved with Kontakt's state: if the
-  guitar is silent or muted, look at its window first.
+  On Kontakt the band plays Shreddage in its strumming mode: the chord goes to it as a held voicing (silent
+  there) and each stroke as a strum keyswitch (down G#5, up A5). The strumming-mode keyswitch F#5 is held
+  automatically (let go on pause, seek or a new score). Measured with plugin_probe: the plugin rings the
+  strummed chord at full level for as long as the strum keyswitch is held and damps it (a fast release) when
+  the key is let go, so the band holds each key until the next stroke (100 ms before it, so the chord has
+  started to damp when the hand comes back) or 1.2 s at most (a held key sustains the chord at full level,
+  so a longer hold rings it like a synth); the key must be held at least 80 ms (below ~40 ms the sweep is
+  partial or silent, and a zero-length key plucks only one string on an up-strum). A chord change damps the
+  active strum early, as a hand moving to the new chord would (a clean stroke rings about 1.1 s to -25 dB).
+  A muted stroke adds the Mute keyswitch C6 around the strum (a few samples before it, let go 40 ms after):
+  a fast chug (about 0.5 s to -25 dB) (C#6 would choke it; the song model has no choke yet). A stroke lands
+  15 ms after its beat, as a hand takes a moment to turn. It needs the strumming-mode setup in the Shreddage
+  window (Strumming Mode off + Keyswitchable on, so F#5 switches the mode; Strum Speed/Volume from velocity)
+  and the TACT Mute articulation left off (an enabled Mute damps every strum). The strum's pick lands about 13-20 ms after its
+  keyswitch (its chord body builds for another 100 ms or so, as a strummed guitar's does), so the band sends
+  Kontakt its guitar 20 ms early and the pick lands just after the beat (`bandGuitarAdvanceMs` in the
+  settings changes it; 0 turns it off; the log says "plays 20 ms ahead" when it is on). The band has a cursor
+  of its own for the guitar's notes, so this works with seeking and the count-in. Shreddage's own
+  keyswitches, effects and MIDI channel are saved with Kontakt's state: if the guitar is silent or muted,
+  look at its window first.
 - Bass plugins sound an octave below the note they get (as bass parts are written; MONSTER Bass and Ample
   Bass both), so the band sends them its bass notes an octave up. The built-in bass is a DI sound, and the
   plugins have their own amps and effects: all go straight to the mixer. Each known plugin has a level that

@@ -7,12 +7,69 @@ with Unity (open the game project once so `game/Library` exists).
 ```
 dotnet build tools/songtool -c Release
 tools/songtool/bin/Release/net8.0/songtool.exe import-ug <chords-page.html> [--tabs <tabs-page.html>] [--chords-per-bar n|auto] -o <song.json>
+tools/songtool/bin/Release/net8.0/songtool.exe import-gpx <file.gpx> [--track n] [--strum <chords-page.html|strum.json>] -o <song.json>
+tools/songtool/bin/Release/net8.0/songtool.exe export-strum <chords-page.html> -o <strum.json>
 tools/songtool/bin/Release/net8.0/songtool.exe show <song.json> [--bars 1-16]
 ```
 
-Save the Ultimate Guitar pages from the browser ("Save page as", HTML) into `songs-local/pages/`, and write the
-songs to `songs-local/`. That folder is not in git: song pages and lyrics are licensed content and stay on your
-machine.
+Save the Ultimate Guitar pages from the browser ("Save page as", HTML) into `songs-local/pages/`, and Guitar Pro
+files (`.gpx`, or `.gp`/`.gp3`/`.gp4`/`.gp5`) into `songs-local/gpx/`; write the songs to `songs-local/`. That
+folder is not in git: song pages and lyrics are licensed content and stay on your machine.
+
+## Guitar Pro import (`import-gpx`)
+
+Reads a Guitar Pro file with [alphaTab](https://www.nuget.org/packages/AlphaTab) (the `AlphaTab` NuGet package,
+kept in this tool so the game never takes the dependency) and writes the same `song.json` the UG importer does.
+It imports what the current song model holds:
+
+- the main guitar track's notes as the tab (one riff, exact string/fret/timing, plus the one technique symbol the
+  model keeps: bend, slide, hammer-on, vibrato);
+- the chords and their voicings. The strums are grouped into regions — a run of strums with the same bass note and
+  no long pause, with a brief passing strum (e.g. a leading-tone shape into the next chord) merged into the
+  neighbor it most resembles. Where the file writes a chord name it is used as-is; otherwise the name is
+  **detected** from the pitch classes that dominate the region, anchored to its bass note (the root): that is what
+  keeps an Em7 from reading as a G6 and a G from reading as a Gmaj7 on a stray note;
+- the sections, tempo, time signatures, lyrics and song info (title, artist, key, capo, tuning);
+- the strumming, as described below.
+
+`--track n` picks the track to read the tab from (by index). By default it is the busiest six-string guitar track
+(the most notes): the rhythm guitar strums full chords, so it carries the chords, while a lead line is sparser.
+The richer Guitar Pro data — the other tracks (bass, drums, second guitar, vocals) and full technique detail
+(bend points, slide targets, dynamics) — is not imported yet; that needs a later song-model extension.
+
+### Strumming (`--strum`)
+
+With `--strum <chords-page.html>` (read in this same process) or `--strum <strum.json>` (written by
+`export-strum`), each section's pattern is the **Ultimate Guitar pattern kept whole** — a continuous multi-bar
+pattern (one, two, three or more bars; the page's subdivision, sixteenth notes for these pages). The chart lays each
+pattern out from the section's first bar and repeats it (`SongChart.StrokeIndex`): a two-bar pattern gives the
+section's bars 1–2 the whole pattern, bars 3–4 it again, and so on. A section always starts at the beginning of its
+pattern, even when the previous one ended mid-pattern.
+
+Without `--strum`, the track's strums become a per-bar grid on **sixteenth-note slots** (the `StrumPattern`
+subdivision is 16) and each section's most common grid becomes its pattern. A stroke's **direction** is, in order:
+
+1. the file's recorded pick stroke (`PickStroke`), muted where it is a palm mute or ghost; a GPX file often records
+   no strokes at all, so this usually does not fire;
+2. the standard rule: **down on the beat, up on the off-beat**.
+
+**Matching a pattern to a section.** The page and the file may come from different authors, who name the same kind
+of section differently, so names are compared in a canonical form: lowercase, punctuation and trailing numbers
+removed, common synonyms equated (“stanza” = “verse”, “refrain”/“hook” = “chorus”, “introduction” = “intro”,
+“middle 8”/“interlude” = “bridge”, “coda”/“tag”/“ending” = “outro”, …). The choice is, in order: an explicit
+`--strum-map` entry, else a pattern named after the section, else the “main” pattern (the one not named after any
+section of the file), else the first pattern. With `--strum` the report prints the result per section, e.g.
+`Verse 1 → 'Verse' (named), Bridge 1 → 'Verse' (first)`, so a mismatched name is visible.
+
+`--strum-map "Section=Pattern;…"` assigns patterns explicitly, where the section `*` stands for every section and
+names match as the report prints them (case-insensitive). An entry with an unknown section or pattern is reported
+and dropped, the rest still apply. This is the escape hatch when the two sources' naming is beyond the synonyms.
+
+`export-strum <chords-page.html>` writes just a page's strumming patterns to a `strum.json` (the rest of the page
+is skipped) so one UG strumming can be reused across several GPX files or inspected on its own.
+
+Note: Guitar Pro stores lyrics per syllable, so words come out split ("mi ner"); merging them into words is a
+later refinement.
 
 ## Experiment E3 (2026-10-21): Wicked Game
 
