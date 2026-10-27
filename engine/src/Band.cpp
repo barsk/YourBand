@@ -26,8 +26,10 @@ namespace
     constexpr double strokeHoldMinSec = 0.080;  // the shortest key hold: below ~40 ms the sweep is partial
     constexpr double strokeHoldMaxSec = 1.2;    // the longest: a held key sustains the chord at full level,
                                                 // so a longer hold would ring it like a synth
-    constexpr double strokeReleaseLeadSec = 0.003; // let the key go this much before the next stroke (no gap to hear:
-                                                  // it keeps the key's off ahead of the next stroke's on)
+    // let the key go this long before the next stroke. The plugin sustains a held chord at full level and damps it
+    // quickly on release; the next stroke's attack is only heard against that dip (measured with strum_session:
+    // 3 ms: half the strokes lost in the sustain, 25 ms: still weak, 50 ms: every stroke clear, 100 ms: strong)
+    constexpr double strokeReleaseLeadSec = 0.05;
     constexpr double strokeChordGapSec = 0.07;  // the last stroke of a chord lets go this long before the chord ends:
                                                 // the hand needs a moment to reach the next chord
     constexpr double muteHoldSec = 0.12;        // a muted stroke's key: the chug is not left to ring
@@ -562,7 +564,7 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
                 if (strokeCursor < s->strokes.size())
                 {
                     const double gap = (s->strokes[strokeCursor].at - st.at) / rate;  // seconds to the next stroke
-                    hold = juce::jmin (hold, juce::jmax (0.0, gap - strokeReleaseLeadSec));
+                    hold = juce::jmin (hold, juce::jmax (0.0, gap - juce::jmin (strokeReleaseLeadSec, gap * 0.4)));
                 }
                 const double keyEnd = atSec + hold * rate;
                 const double muteEnd = atSec + muteTailSec * rate;

@@ -36,6 +36,8 @@ namespace GuitarTutor.SongTool
                     return Show(args);
                 if (args.Length >= 2 && args[0] == "band-guitar")
                     return BandGuitar(args);
+                if (args.Length >= 2 && args[0] == "band-midi")
+                    return BandMidiFile(args);
                 Console.WriteLine("usage:\n  songtool import-ug <chords.html> [--tabs <tabs.html>] [--chords-per-bar n|auto] -o <song.json>\n  songtool import-gpx <file.gpx> [--track n] [--strum <chords.html|strum.json>] [--strum-map \"Section=Pattern;…\"] -o <song.json>\n  songtool export-strum <chords.html> -o <strum.json>\n  songtool diag-strum <file.gpx> [--track n]\n  songtool show <song.json> [--bars a-b]");
                 return 1;
             }
@@ -168,6 +170,28 @@ namespace GuitarTutor.SongTool
                 var notes = a.Notes.Where(n => n.Single && n.AtQuarter >= from - 1e-6 && n.AtQuarter < to).Select(n => n.Pitch);
                 Console.WriteLine($"  bar {(bar?.Index ?? 0) + 1,3}  {from:0.##}-{to:0.##}  notes {string.Join(" ", notes)}");
             }
+            return 0;
+        }
+
+        /// <summary>The band guitarist's part as the engine sends it to Shreddage, as a MIDI file for a DAW: band-midi song.json -o out.mid [--bars 1-8].</summary>
+        static int BandMidiFile(string[] args)
+        {
+            var song = SongJson.Load(args[1]);
+            var chart = new SongChart(song);
+            var output = Option(args, "-o") ?? Path.ChangeExtension(args[1], ".guitar.mid");
+            double from = 0, to = chart.EndQuarter;
+            var range = Option(args, "--bars");
+            if (range != null)
+            {
+                var parts = range.Split('-');
+                var first = int.Parse(parts[0]);
+                var last = parts.Length > 1 ? int.Parse(parts[1]) : first;
+                from = chart.Bars[Math.Max(0, first - 1)].AtQuarter;
+                var end = chart.Bars[Math.Min(chart.Bars.Count, last) - 1];
+                to = end.AtQuarter + end.Quarters;
+            }
+            BandMidi.Write(song, output, from, to);
+            Console.WriteLine($"Saved {Path.GetFullPath(output)} (quarters {from:0.##}-{to:0.##}, {song.Tempo.BpmAt(from):0.#} BPM, channel 3)");
             return 0;
         }
 
