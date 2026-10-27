@@ -143,6 +143,22 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
+        public void Guitar_LetsGoABitBeforeTheChordChanges()
+        {
+            var song = DemoSong.Create();
+            song.Riffs.Clear();
+            var a = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"));
+            // every chord but the last: its strings end 70 ms (of the tempo) before the next chord starts
+            foreach (var chord in song.Chords.Take(song.Chords.Count - 1))
+            {
+                var end = chord.AtQuarter + chord.Quarters;
+                var latest = a.Part(BandPart.Guitar).Where(n => n.AtQuarter >= chord.AtQuarter && n.AtQuarter < end - 0.2)
+                    .Max(n => n.AtQuarter + n.Quarters);
+                Assert.LessOrEqual(latest, end - 0.07 * song.Tempo.BpmAt(end) / 60.0 + 1e-6, chord.Name + " at " + chord.AtQuarter);
+            }
+        }
+
+        [Test]
         public void Arrangement_FollowsChordChangesInsideABar()
         {
             var song = DemoSong.Create();

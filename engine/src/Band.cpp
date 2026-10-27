@@ -26,8 +26,11 @@ namespace
     constexpr double strokeHoldMinSec = 0.080;  // the shortest key hold: below ~40 ms the sweep is partial
     constexpr double strokeHoldMaxSec = 1.2;    // the longest: a held key sustains the chord at full level,
                                                 // so a longer hold would ring it like a synth
-    constexpr double strokeReleaseLeadSec = 0.1; // let the key go this much before the next stroke, so the
-                                                // chord has started to damp when the hand comes back
+    constexpr double strokeReleaseLeadSec = 0.003; // let the key go this much before the next stroke (no gap to hear:
+                                                  // it keeps the key's off ahead of the next stroke's on)
+    constexpr double strokeChordGapSec = 0.07;  // the last stroke of a chord lets go this long before the chord ends:
+                                                // the hand needs a moment to reach the next chord
+    constexpr double muteHoldSec = 0.12;        // a muted stroke's key: the chug is not left to ring
     constexpr double strokeLagSec = 0.015; // a stroke lands this much after its beat: a hand takes a moment
                                            // to turn and to reach a new chord
     constexpr double muteTailSec = 0.040;   // the Mute keyswitch is let go this much after the strum (it is
@@ -493,6 +496,19 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
             midi.addEvent (juce::MidiMessage::noteOff (channelOf (guitar), strumModeKey), 0);  // the plugin plays notes again
             strumModeOn = false;
         }
+        // where the chord held at a position ends (its voicing's strings all end together): infinity if none is held
+        const auto chordEndAt = [&] (double q)
+        {
+            auto it = std::upper_bound (s->voicings.begin(), s->voicings.end(), q + 1.0e-9,
+                                        [] (double at, const Score::Voicing& v) { return at < v.at; });
+            for (int k = 0; k < 8 && it != s->voicings.begin(); ++k)
+            {
+                --it;
+                if (it->at + it->length > q + 1.0e-9)
+                    return it->at + it->length;
+            }
+            return std::numeric_limits<double>::infinity();
+        };
         if (strums)
         {
             // the strumming mode, held on with F#5: the plugin stores the chord notes unheard until a strum
@@ -534,12 +550,19 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
                     continue;
                 const double atSec = st.at - early + strokeLagSec * rate;
                 const auto at = offsetOf (atSec);
+                // the chord rings from the stroke until the next one (the key is held that long), or until a
+                // little before its chord ends; a muted stroke is a chug that is let go quickly
                 double hold = strokeHoldMaxSec;
+                const double chordEnd = chordEndAt (st.at);
+                if (std::isfinite (chordEnd))
+                    hold = juce::jmin (hold, (chordEnd - st.at) / rate - strokeChordGapSec);
+                if (st.muted)
+                    hold = juce::jmin (hold, muteHoldSec);
+                hold = juce::jmax (strokeHoldMinSec, hold);
                 if (strokeCursor < s->strokes.size())
                 {
                     const double gap = (s->strokes[strokeCursor].at - st.at) / rate;  // seconds to the next stroke
-                    const double lead = juce::jmin (strokeReleaseLeadSec, gap * 0.5);
-                    hold = juce::jmin (gap, juce::jlimit (strokeHoldMinSec, strokeHoldMaxSec, gap - lead));
+                    hold = juce::jmin (hold, juce::jmax (0.0, gap - strokeReleaseLeadSec));
                 }
                 const double keyEnd = atSec + hold * rate;
                 const double muteEnd = atSec + muteTailSec * rate;

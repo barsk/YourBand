@@ -288,6 +288,9 @@ namespace GuitarTutor.Core.Band
         /// <summary>How long a stroke takes to cross one string, in seconds (down, and the lighter up).</summary>
         const double DownSpread = 0.012, UpSpread = 0.009;
 
+        /// <summary>How long before a chord's end the strummed strings let go, in seconds: time for the hand to change chord.</summary>
+        const double ChordGap = 0.07;
+
         /// <summary>The open strings' notes, lowest first, with the capo: the song's tuning, else standard.</summary>
         public static int[] OpenStrings(SongInfo info)
         {
@@ -385,7 +388,8 @@ namespace GuitarTutor.Core.Band
                     var velocity = muted ? 64 : accent ? (down ? 116 : 104) : !down ? 72 : onBeat ? 96 : 84;
                     arrangement.Strokes.Add(new BandStroke(at, !down, humanise(velocity), muted));
                     var perString = (down ? DownSpread : UpSpread) * song.Tempo.BpmAt(at) / 60.0;  // in quarter notes
-                    var chordEnd = span.AtQuarter + span.Quarters;
+                    // the chord lets go a little before its end: the hand needs a moment to reach the next chord
+                    var chordEnd = Math.Max(at + 0.06, span.AtQuarter + span.Quarters - ChordGap * song.Tempo.BpmAt(at) / 60.0);
                     for (int k = 0; k < order.Count; ++k)
                         strikes.Add((at + k * perString, order[k], open[order[k]] + frets[order[k]], humanise(velocity), muted, chordEnd));
                 }
