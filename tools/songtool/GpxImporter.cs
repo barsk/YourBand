@@ -86,11 +86,13 @@ namespace GuitarTutor.SongTool
                 ? new TimeSignature((int)score.MasterBars[0].TimeSignatureNumerator, (int)score.MasterBars[0].TimeSignatureDenominator)
                 : TimeSignature.FourFour;
             song.Tempo = new TempoMap(bpm, first);
+            var current = first;  // a change is any bar whose signature differs from the bar before it (a single 2/4 bar goes back to 4/4)
             foreach (var mb in score.MasterBars)
             {
                 var sig = new TimeSignature((int)mb.TimeSignatureNumerator, (int)mb.TimeSignatureDenominator);
-                if (mb.Index > 0 && !sig.Equals(first))
+                if (mb.Index > 0 && !sig.Equals(current))
                     song.Tempo.SetMeter((int)mb.Index, sig);
+                current = sig;
             }
 
             // ------------------------------------------------------------ sections
