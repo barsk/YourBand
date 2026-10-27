@@ -384,7 +384,9 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
 
         // the guitar, early by its plugin's lag: its notes go out that much before their time
         const auto early = onPlugin[(size_t) guitar].load() ? guitarAdvance.load() * rate : 0.0;
-        const auto strums = strummingMode.load() && onPlugin[(size_t) guitar].load();
+        // strumming mode only for a song that has strokes: one from a game that does not send them (or a song without a
+        // strumming pattern) keeps the per-string notes, which the strumming mode would silence
+        const auto strums = strummingMode.load() && onPlugin[(size_t) guitar].load() && ! s->strokes.empty();
         if (guitarResync.exchange (false))
         {
             // the guitar's sound changed (a plugin was swapped in or out, or strumming mode turned): drop
@@ -411,6 +413,11 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
             if (strums)
                 continue;
             emit (note, note.at, offsetOf (note.at - early), midi);
+        }
+        if (! strums && strumModeOn)
+        {
+            midi.addEvent (juce::MidiMessage::noteOff (channelOf (guitar), strumModeKey), 0);  // the plugin plays notes again
+            strumModeOn = false;
         }
         if (strums)
         {
