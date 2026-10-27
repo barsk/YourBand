@@ -102,7 +102,10 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   the notes as they sound (MONSTER Guitar: note 40 is E2).
   On Kontakt the band plays Shreddage in its strumming mode: the chord goes to it as a held voicing (silent
   there) and each stroke as a strum keyswitch (down G#5, up A5). The strumming-mode keyswitch F#5 is held
-  automatically (let go on pause, seek or a new score). Measured with plugin_probe: the plugin rings the
+  automatically (let go on pause, seek or a new score). Where the song's tab has single-string notes (an onset
+  of one note: the load message's `spans` say where, the notes carry a sixth element, 1) the strumming mode is
+  let go for the stretch (the chord's strings and the strum key first, then F#5), the notes play as ordinary
+  notes, and at the stretch's end F#5 goes down again and the chord held then is re-sent. Measured with plugin_probe: the plugin rings the
   strummed chord at full level for as long as the strum keyswitch is held and damps it (a fast release) when
   the key is let go, so the band holds each key until the next stroke (100 ms before it, so the chord has
   started to damp when the hand comes back) or 1.2 s at most (a held key sustains the chord at full level,

@@ -84,7 +84,9 @@ namespace GuitarTutor.Core.Tests
         [Test]
         public void Strums_ReadTheStrokesBackFromTheNotes()
         {
-            var chart = new SongChart(DemoSong.Create());
+            var song = DemoSong.Create();
+            song.Riffs.Clear();  // (its lick is single-string notes, which the guitar plays instead of strumming)
+            var chart = new SongChart(song);
             var a = Arranger.Arrange(chart, BandStyle.Named("Ballad"));
             var strums = GuitarPerformance.Strums(chart, a.Notes);
             // the intro's D-DU-UDU on G: down 0, down 1, up 1.5, up 2.5, down 3, up 3.5

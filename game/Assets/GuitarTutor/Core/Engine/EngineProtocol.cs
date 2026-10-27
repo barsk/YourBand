@@ -32,7 +32,15 @@ namespace GuitarTutor.Core.Engine
         {
             var notes = new JArray();
             foreach (var n in arrangement.Notes)
-                notes.Add(new JArray(Array.IndexOf(Parts, n.Part), n.Pitch, Math.Round(n.AtQuarter, 6), Math.Round(n.Quarters, 6), n.Velocity));
+            {
+                var note = new JArray(Array.IndexOf(Parts, n.Part), n.Pitch, Math.Round(n.AtQuarter, 6), Math.Round(n.Quarters, 6), n.Velocity);
+                if (n.Single)
+                    note.Add(1);  // a single-string note of the guitarist's
+                notes.Add(note);
+            }
+            var spans = new JArray();
+            foreach (var (from, to) in arrangement.SingleSpans)
+                spans.Add(new JArray(Math.Round(from, 6), Math.Round(to, 6)));
             var voicings = new JArray();
             foreach (var v in arrangement.Voicings)
                 voicings.Add(new JArray(v.Pitch, Math.Round(v.AtQuarter, 6), Math.Round(v.Quarters, 6)));
@@ -49,6 +57,7 @@ namespace GuitarTutor.Core.Engine
                 ["notes"] = notes,
                 ["voicings"] = voicings,
                 ["strokes"] = strokes,
+                ["spans"] = spans,
                 ["keys"] = keysSound ?? "",
                 ["origin"] = origin ?? "",
             });

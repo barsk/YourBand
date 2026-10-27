@@ -378,6 +378,7 @@ void MainComponent::handle (const juce::var& message)
         log ("Song: " + score->title + ", " + score->style + ", " + juce::String ((int) score->notes.size()) + " notes"
              + ", " + juce::String ((int) score->voicings.size()) + " voicing notes"
              + ", " + juce::String ((int) score->strokes.size()) + " strokes"
+             + ", " + juce::String ((int) score->spans.size()) + " single-note stretches"
              + (score->origin.isNotEmpty() ? ", from " + score->origin : juce::String()));
         const auto notes = (int) score->notes.size();
         const auto keys = score->keys.isNotEmpty() ? score->keys : engine.keysSound();

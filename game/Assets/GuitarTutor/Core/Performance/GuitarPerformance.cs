@@ -144,7 +144,7 @@ namespace GuitarTutor.Core.Performance
             }
 
             var strums = new List<Strum>();
-            var list = notes.Where(n => n.Part == BandPart.Guitar).OrderBy(n => n.AtQuarter).ToList();
+            var list = notes.Where(n => n.Part == BandPart.Guitar && !n.Single).OrderBy(n => n.AtQuarter).ToList();  // (a single-string note is picked, not strummed)
             for (int i = 0; i < list.Count;)
             {
                 var j = i + 1;

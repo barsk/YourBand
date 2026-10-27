@@ -110,6 +110,39 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
+        public void Arrangement_PlaysTheTabsSingleStringNotesAsNotes_AndDoesNotStrumOverThem()
+        {
+            var song = DemoSong.Create();
+            song.Riffs.Clear();
+            // a chord at 0 (three strings), single notes at 1 and 2, a chord again at 4 (the strumming is back by 3)
+            var riff = new Riff { Name = "tab" };
+            foreach (var str in new[] { 0, 1, 2 })
+                riff.Notes.Add(new TabNote { StringIndex = str, Fret = 2, AtQuarter = 0, Quarters = 1 });
+            riff.Notes.Add(new TabNote { StringIndex = 1, Fret = 0, AtQuarter = 1, Quarters = 1 });
+            riff.Notes.Add(new TabNote { StringIndex = 2, Fret = 2, AtQuarter = 2, Quarters = 1 });
+            foreach (var str in new[] { 0, 1, 2 })
+                riff.Notes.Add(new TabNote { StringIndex = str, Fret = 2, AtQuarter = 4, Quarters = 1 });
+            song.Riffs.Add(riff);
+            var a = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"));
+            Assert.AreEqual(1, a.SingleSpans.Count);
+            Assert.AreEqual(1.0, a.SingleSpans[0].From, 1e-6);
+            Assert.AreEqual(3.0, a.SingleSpans[0].To, 1e-6);  // a beat after the last single note, before the chord at 4
+            var singles = a.Notes.Where(n => n.Single).ToList();
+            Assert.AreEqual(2, singles.Count);
+            Assert.AreEqual(new[] { 45, 52 }, singles.Select(n => n.Pitch).ToArray());  // A2 open, D3 + 2
+            Assert.IsTrue(singles.All(n => n.Part == BandPart.Guitar));
+            // no stroke, and no string of a strum, inside the stretch; strokes before and after it stay
+            Assert.IsFalse(a.Strokes.Any(st => st.AtQuarter > 1.0 - 1e-6 && st.AtQuarter < 3.0 - 1e-6));
+            Assert.IsTrue(a.Strokes.Any(st => st.AtQuarter < 1.0 - 1e-6));
+            Assert.IsTrue(a.Strokes.Any(st => st.AtQuarter >= 3.0 - 1e-6));
+            Assert.IsFalse(a.Part(BandPart.Guitar).Any(n => !n.Single && n.AtQuarter > 1.0 - 1e-6 && n.AtQuarter < 3.0 - 1e-6));
+            // and the engine is told: the stretch, and the notes' flag
+            var (_, message) = EngineProtocol.Read(EngineProtocol.Load("x", song.Tempo, a, ""));
+            Assert.AreEqual(1, message["spans"].Count());
+            Assert.AreEqual(2, message["notes"].Count(n => n.Count() == 6));
+        }
+
+        [Test]
         public void Arrangement_FollowsChordChangesInsideABar()
         {
             var song = DemoSong.Create();
@@ -130,7 +163,9 @@ namespace GuitarTutor.Core.Tests
         [Test]
         public void Guitar_StrumsTheSongsPatternOnItsShapes()
         {
-            var guitar = Demo().Part(BandPart.Guitar).ToList();
+            var song = DemoSong.Create();
+            song.Riffs.Clear();  // (the demo's lick is single-string notes, which the guitar plays instead of strumming)
+            var guitar = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad")).Part(BandPart.Guitar).ToList();
             // the intro's pattern is D-DU-UDU on G (320003): strokes at 0, 1, 1.5, 2.5, 3, 3.5
             CollectionAssert.AreEqual(new[] { 0, 1, 1.5, 2.5, 3, 3.5 },
                 guitar.Where(n => n.AtQuarter < 4).Select(n => System.Math.Round(n.AtQuarter * 2) / 2).Distinct());

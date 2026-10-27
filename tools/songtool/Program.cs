@@ -10,6 +10,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using GuitarTutor.Core.Band;
+using GuitarTutor.Core.Chart;
 using GuitarTutor.Core.Import.UltimateGuitar;
 using GuitarTutor.Core.Songs;
 
@@ -32,6 +34,8 @@ namespace GuitarTutor.SongTool
                     return DiagStrum(args);
                 if (args.Length >= 2 && args[0] == "show")
                     return Show(args);
+                if (args.Length >= 2 && args[0] == "band-guitar")
+                    return BandGuitar(args);
                 Console.WriteLine("usage:\n  songtool import-ug <chords.html> [--tabs <tabs.html>] [--chords-per-bar n|auto] -o <song.json>\n  songtool import-gpx <file.gpx> [--track n] [--strum <chords.html|strum.json>] [--strum-map \"Section=Pattern;…\"] -o <song.json>\n  songtool export-strum <chords.html> -o <strum.json>\n  songtool diag-strum <file.gpx> [--track n]\n  songtool show <song.json> [--bars a-b]");
                 return 1;
             }
@@ -147,6 +151,23 @@ namespace GuitarTutor.SongTool
             foreach (var note in report.Notes)
                 Console.WriteLine("  " + note);
             Console.WriteLine("Saved " + Path.GetFullPath(output));
+            return 0;
+        }
+
+        /// <summary>The band guitarist's part for a song: its strokes, and the stretches of single-string notes the tab gives it.</summary>
+        static int BandGuitar(string[] args)
+        {
+            var song = SongJson.Load(args[1]);
+            var chart = new SongChart(song);
+            var a = Arranger.Arrange(chart);
+            Console.WriteLine($"{song.Info.Artist} - {song.Info.Title}: {a.Strokes.Count} strokes, {a.Voicings.Count} voicing notes, "
+                              + $"{a.SingleSpans.Count} single-note stretches, {a.Notes.Count(n => n.Single)} single notes");
+            foreach (var (from, to) in a.SingleSpans)
+            {
+                var bar = chart.BarOf(from);
+                var notes = a.Notes.Where(n => n.Single && n.AtQuarter >= from - 1e-6 && n.AtQuarter < to).Select(n => n.Pitch);
+                Console.WriteLine($"  bar {(bar?.Index ?? 0) + 1,3}  {from:0.##}-{to:0.##}  notes {string.Join(" ", notes)}");
+            }
             return 0;
         }
 

@@ -24,14 +24,17 @@ namespace GuitarTutor.Core.Band
         public double AtQuarter { get; }
         public double Quarters { get; }
         public int Velocity { get; }
+        /// <summary>A single-string note of the guitarist's (not one string of a strum): played as a note even where the guitar strums.</summary>
+        public bool Single { get; }
 
-        public BandNote(BandPart part, int pitch, double atQuarter, double quarters, int velocity)
+        public BandNote(BandPart part, int pitch, double atQuarter, double quarters, int velocity, bool single = false)
         {
             Part = part;
             Pitch = pitch;
             AtQuarter = atQuarter;
             Quarters = quarters;
             Velocity = velocity;
+            Single = single;
         }
 
         public override string ToString() => $"{Part} {Pitch} at {AtQuarter} for {Quarters} ({Velocity})";
@@ -89,6 +92,8 @@ namespace GuitarTutor.Core.Band
         public List<BandStroke> Strokes { get; } = new List<BandStroke>();
         /// <summary>The guitarist's chords as held voicings, one note per string, in time order.</summary>
         public List<VoicingNote> Voicings { get; } = new List<VoicingNote>();
+        /// <summary>The stretches where the guitarist plays single-string notes instead of strumming (from, to), in time order.</summary>
+        public List<(double From, double To)> SingleSpans { get; } = new List<(double, double)>();
         public IEnumerable<BandNote> Part(BandPart part) => Notes.Where(n => n.Part == part);
     }
 
@@ -347,6 +352,9 @@ namespace GuitarTutor.Core.Band
             var song = chart.Song;
             var open = OpenStrings(song.Info);
             var notes = arrangement.Notes;
+            // single-string notes of the song's tab: played as notes, and no strumming over them
+            var singles = SingleNotes(song, open, humanise, arrangement.SingleSpans);
+            notes.AddRange(singles);
             var strikes = new List<(double at, int str, int pitch, int velocity, bool muted, double chordEnd)>();
             foreach (var bar in chart.Bars)
             {
@@ -359,6 +367,8 @@ namespace GuitarTutor.Core.Band
                     if (stroke == Stroke.Rest)
                         continue;
                     var at = bar.AtQuarter + i * slot;
+                    if (arrangement.SingleSpans.Any(s => at >= s.From - 1e-6 && at < s.To - 1e-6))
+                        continue;  // a single-string stretch of the tab: its notes play instead of the strum
                     var chord = ChordAt(chords, at, out var span);
                     if (chord == null)
                         continue;
@@ -405,6 +415,61 @@ namespace GuitarTutor.Core.Band
                         notes.Add(new BandNote(BandPart.Guitar, s.pitch, s.at, length, s.velocity));
                 }
             }
+        }
+
+        /// <summary>
+        /// The single-string notes of the song's tab (the notes of a riff's onsets that have just one note) and the
+        /// stretches they take: from the first single of a run to the next onset of two or more strings (a chord, which
+        /// the guitar strums again), or to the run's end. Where the tab plays single strings the guitar plays them, as
+        /// notes, and does not strum.
+        /// </summary>
+        static List<BandNote> SingleNotes(Song song, int[] open, Func<int, int> humanise, List<(double From, double To)> spans)
+        {
+            const double together = 0.02;  // notes this close are one onset
+            const double MaxGap = 1.0;     // single notes further apart than this (a beat) are not one run
+            var result = new List<BandNote>();
+            var tab = song.Riffs.SelectMany(r => r.Notes).Where(n => n.StringIndex >= 0 && n.StringIndex < open.Length).OrderBy(n => n.AtQuarter).ToList();
+            var onsets = new List<List<TabNote>>();
+            foreach (var n in tab)
+            {
+                if (onsets.Count > 0 && n.AtQuarter - onsets[onsets.Count - 1][0].AtQuarter < together)
+                    onsets[onsets.Count - 1].Add(n);
+                else
+                    onsets.Add(new List<TabNote> { n });
+            }
+            double? start = null;
+            var lastAt = 0.0;
+            var lastQuarters = 0.0;
+            var runNotes = new List<TabNote>();
+            double Tail() => lastAt + Math.Min(lastQuarters, 1.0);  // a run's last note sounds a beat at most
+            void Close(double to)
+            {
+                if (start == null)
+                    return;
+                spans.Add((start.Value, Math.Max(start.Value + 0.05, to)));
+                foreach (var n in runNotes)
+                    result.Add(new BandNote(BandPart.Guitar, open[n.StringIndex] + n.Fret, n.AtQuarter,
+                                            Math.Max(0.05, Math.Min(n.Quarters, to - n.AtQuarter)), humanise(88), single: true));
+                start = null;
+                runNotes.Clear();
+            }
+            foreach (var onset in onsets)
+            {
+                var at = onset[0].AtQuarter;
+                if (onset.Count >= 2)
+                {
+                    Close(Math.Min(at, Tail()));  // a chord: the guitar strums again
+                    continue;
+                }
+                if (start != null && at - lastAt > MaxGap)
+                    Close(Math.Min(at, Tail()));  // too long a rest: the strumming goes on in it
+                start = start ?? at;
+                runNotes.Add(onset[0]);
+                lastAt = at;
+                lastQuarters = Math.Max(0.05, onset[0].Quarters);
+            }
+            Close(Tail());
+            return result;
         }
 
         static bool IsQuiet(Section section)

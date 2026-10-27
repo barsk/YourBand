@@ -111,6 +111,7 @@ std::unique_ptr<Score> Score::fromMessage (const juce::var& message, juce::Strin
         note.at = (double) n[2];
         note.length = (double) n[3];
         note.velocity = juce::jlimit (0.0f, 1.0f, (float) (int) n[4] / 127.0f);
+        note.single = n.size() >= 6 && (int) n[5] != 0;
         if (note.part >= 0 && note.part <= 3 && note.pitch >= 0 && note.pitch < 128)
             score->notes.push_back (note);
     }
@@ -129,6 +130,12 @@ std::unique_ptr<Score> Score::fromMessage (const juce::var& message, juce::Strin
                                             juce::jlimit (0, 127, (int) s[2]), (int) s[3] != 0 });
     std::stable_sort (score->strokes.begin(), score->strokes.end(),
                       [] (const Stroke& a, const Stroke& b) { return a.at < b.at; });
+    if (auto* spans = message["spans"].getArray())
+        for (const auto& sp : *spans)
+            if (sp.size() >= 2 && (double) sp[1] > (double) sp[0])
+                score->spans.push_back ({ (double) sp[0], (double) sp[1] });
+    std::stable_sort (score->spans.begin(), score->spans.end(),
+                      [] (const Span& a, const Span& b) { return a.from < b.from; });
     return score;
 }
 
@@ -226,6 +233,17 @@ size_t BandProcessor::firstStrokeFrom (double q) const
                      - s.begin());
 }
 
+size_t BandProcessor::firstSpanFrom (double q) const
+{
+    if (playingScore == nullptr)
+        return 0;
+    const auto& s = playingScore->spans;
+    // the first stretch not over at q (one that q is in counts)
+    return (size_t) (std::lower_bound (s.begin(), s.end(), q + 1.0e-9,
+                                       [] (const Score::Span& x, double at) { return x.to <= at; })
+                     - s.begin());
+}
+
 void BandProcessor::addOff (Off off)
 {
     if (numOffs < (int) offs.size())
@@ -240,6 +258,7 @@ void BandProcessor::releaseAll (juce::MidiBuffer& midi)
         midi.addEvent (juce::MidiMessage::allNotesOff (channelOf (part)), 0);
     numOffs = 0;
     strumModeOn = false;  // allNotesOff let go of the strumming-mode keyswitch
+    singleActive = false;
     bassVoice.noteOff (0);
     guitarVoice.releaseAll();
 }
@@ -257,6 +276,7 @@ void BandProcessor::apply (const Command& c, juce::MidiBuffer& midi)
             guitarCursor = firstGuitarNoteFrom (c.a);
             voicingCursor = firstVoicingFrom (c.a);
             strokeCursor = firstStrokeFrom (c.a);
+            spanCursor = firstSpanFrom (c.a);
             playing = true;
             break;
         case Command::pause:
@@ -273,6 +293,7 @@ void BandProcessor::apply (const Command& c, juce::MidiBuffer& midi)
             guitarCursor = firstGuitarNoteFrom (c.a);
             voicingCursor = firstVoicingFrom (c.a);
             strokeCursor = firstStrokeFrom (c.a);
+            spanCursor = firstSpanFrom (c.a);
             break;
         case Command::speed:
             speed = c.a;
@@ -327,6 +348,7 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         guitarCursor = firstGuitarNoteFrom (quarter);
         voicingCursor = firstVoicingFrom (quarter);
         strokeCursor = firstStrokeFrom (quarter);
+        spanCursor = firstSpanFrom (quarter);
     }
     {
         const auto scope = fifo.read (fifo.getNumReady());
@@ -401,9 +423,59 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
                     ++i;
             guitarVoice.releaseAll();
             strumModeOn = false;
+            singleActive = false;
             guitarCursor = firstGuitarNoteFrom (quarter);
             voicingCursor = firstVoicingFrom (quarter);
             strokeCursor = firstStrokeFrom (quarter);
+            spanCursor = firstSpanFrom (quarter);
+        }
+        if (strums)
+        {
+            // single-string notes: the strumming mode is let go for their stretch, so the plugin plays them as notes
+            // (the stretch's strokes are not in the score), and taken again at its end with the chord held then
+            while (spanCursor < s->spans.size())
+            {
+                const auto& sp = s->spans[spanCursor];
+                if (! singleActive)
+                {
+                    if (sp.from - early >= q1)
+                        break;
+                    if (sp.to - early <= q0 + 1.0e-9)  // over before this block
+                    {
+                        ++spanCursor;
+                        continue;
+                    }
+                    const auto at = juce::jmax (0, offsetOf (sp.from - early) - 6);
+                    // let go of what the strumming holds (the chord's strings, the strum key), then the mode itself
+                    for (int i = 0; i < numOffs;)
+                        if (offs[(size_t) i].part == guitar && offs[(size_t) i].serial < 0)
+                        {
+                            midi.addEvent (juce::MidiMessage::noteOff (channelOf (guitar), offs[(size_t) i].pitch), at);
+                            offs[(size_t) i] = offs[(size_t) --numOffs];
+                        }
+                        else
+                            ++i;
+                    if (strumModeOn)
+                        midi.addEvent (juce::MidiMessage::noteOff (channelOf (guitar), strumModeKey), at);
+                    strumModeOn = false;
+                    singleActive = true;
+                }
+                if (sp.to - early >= q1)
+                    break;
+                // the stretch ends in this block: the strumming mode again, and the chord that is held at its end
+                const auto at = offsetOf (sp.to - early - 0.001);
+                midi.addEvent (juce::MidiMessage::noteOn (channelOf (guitar), strumModeKey, (juce::uint8) 100), at);
+                strumModeOn = true;
+                singleActive = false;
+                ++spanCursor;
+                if (guitarPlays.load())
+                    for (const auto& v : s->voicings)
+                        if (v.at < sp.to - 1.0e-9 && v.at + v.length > sp.to + 1.0e-9)
+                        {
+                            midi.addEvent (juce::MidiMessage::noteOn (channelOf (guitar), v.pitch, (juce::uint8) 96), juce::jmin (n - 1, at + 2));
+                            addOff ({ guitar, v.pitch, -1, v.at + v.length - early - 0.001 });
+                        }
+            }
         }
         // the per-string notes, for the built-in guitar and the non-strum plugins; in strumming mode the
         // plugin hears the held voicing and the keyswitches instead (the per-string notes are silent in it)
@@ -412,8 +484,8 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
             const auto& note = s->notes[s->guitar[guitarCursor++]];
             if (note.at < q0 - 1.0e-9 || (countingIn && note.at < countInUntil - 1.0e-9) || ! guitarPlays.load())
                 continue;
-            if (strums)
-                continue;
+            if (strums && ! note.single)
+                continue;  // (single-string notes are played as notes in the strumming mode too: it is let go for them)
             emit (note, note.at, offsetOf (note.at - early), midi);
         }
         if (! strums && strumModeOn)
@@ -425,7 +497,7 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         {
             // the strumming mode, held on with F#5: the plugin stores the chord notes unheard until a strum
             // keyswitch fires them (releaseAll's allNotesOff lets go of it when the guitar stops or changes)
-            if (! strumModeOn)
+            if (! strumModeOn && ! singleActive)
             {
                 midi.addEvent (juce::MidiMessage::noteOn (channelOf (guitar), strumModeKey, (juce::uint8) 100), 0);
                 strumModeOn = true;
@@ -435,6 +507,8 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
             while (voicingCursor < s->voicings.size() && s->voicings[voicingCursor].at - early < q1)
             {
                 const auto& v = s->voicings[voicingCursor++];
+                if (singleActive)
+                    continue;  // (the chord held when the single-string stretch ends is struck up again then)
                 // a chord over before this block is skipped; one begun before it (a restart in the middle of a chord)
                 // is held from the block's start
                 if (v.at + v.length <= q0 + 1.0e-9 || (countingIn && v.at < countInUntil - 1.0e-9) || ! guitarPlays.load())
@@ -454,6 +528,8 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
             while (strokeCursor < s->strokes.size() && s->strokes[strokeCursor].at - early < q1)
             {
                 const auto& st = s->strokes[strokeCursor++];
+                if (singleActive)
+                    continue;
                 if (st.at < q0 - 1.0e-9 || (countingIn && st.at < countInUntil - 1.0e-9) || ! guitarPlays.load())
                     continue;
                 const double atSec = st.at - early + strokeLagSec * rate;
