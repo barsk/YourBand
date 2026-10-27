@@ -97,9 +97,9 @@ namespace GuitarTutor.Core.Tests
             var song = UgImporter.Import(page, null, out var report);
             Assert.AreEqual(4, song.Tempo.SignatureAtBar(0).Numerator);
             Assert.AreEqual(4, song.Tempo.SignatureAtBar(0).Denominator);
-            // codes 3 and 203 are muted down and muted up strokes, not unknown
+            // code 3 is a muted down stroke, 203 (two vertical bars) a rest; neither is unknown
             Assert.AreEqual(Stroke.MutedDown, song.Strumming[0].Strokes[1]);
-            Assert.AreEqual(Stroke.MutedUp, song.Strumming[0].Strokes[3]);
+            Assert.AreEqual(Stroke.Rest, song.Strumming[0].Strokes[3]);
             Assert.IsFalse(report.Notes.Any(n => n.Contains("Unknown strumming")));
         }
 
