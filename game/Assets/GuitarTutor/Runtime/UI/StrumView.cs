@@ -99,9 +99,10 @@ namespace GuitarTutor.Runtime.UI
                 }
                 if (stroke == Stroke.MutedDown || stroke == Stroke.MutedUp)
                 {
-                    var c = new Vector2(x, (ArrowTop + ArrowBottom) / 2);
-                    ChartLook.Line(p, c + new Vector2(-12, -12), c + new Vector2(12, 12), ChartLook.Faint, 4);
-                    ChartLook.Line(p, c + new Vector2(-12, 12), c + new Vector2(12, -12), ChartLook.Faint, 4);
+                    // an x over the arrow, where an accent has its >
+                    var top = new Vector2(x, ArrowTop - 12);
+                    ChartLook.Line(p, top + new Vector2(-7, -7), top + new Vector2(7, 7), colour, 4);
+                    ChartLook.Line(p, top + new Vector2(-7, 7), top + new Vector2(7, -7), colour, 4);
                 }
             }
         }

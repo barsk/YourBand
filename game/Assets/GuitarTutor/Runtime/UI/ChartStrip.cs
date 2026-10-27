@@ -35,6 +35,11 @@ namespace GuitarTutor.Runtime.UI
         readonly List<VisualElement> sectionBoxes = new List<VisualElement>();
         SongChart chart;
         int sectionNow = -2;
+        double[] shares;  // each section's width in the map (its bars, or what its name needs), and their sum
+        double sharesTotal;
+
+        // a section's name needs about this much of the map's width (px): chars at the label's size, and its padding
+        const double CharWidth = 10, LabelPadding = 22, MapWidth = 1800;
 
         /// <summary>Called with the bar to go to when a section of the map is clicked.</summary>
         public event Action<int> SeekToBar;
@@ -53,10 +58,23 @@ namespace GuitarTutor.Runtime.UI
             chart = songChart;
             sectionRow.Clear();
             sectionBoxes.Clear();
+            // widths in proportion to the bars, but no section narrower than its name: the others give way
+            var bars = 0.0;
+            foreach (var span in chart.Sections)
+                bars += span.Bars;
+            shares = new double[chart.Sections.Count];
+            sharesTotal = 0;
+            for (int i = 0; i < shares.Length; ++i)
+            {
+                var need = (chart.Sections[i].Section.Name.Length * CharWidth + LabelPadding) / MapWidth * bars;
+                shares[i] = Math.Max(chart.Sections[i].Bars, need);
+                sharesTotal += shares[i];
+            }
+            var index = 0;
             foreach (var span in chart.Sections)
             {
                 var box = ChartLook.Box("gt-section", sectionRow);
-                box.style.flexGrow = span.Bars;
+                box.style.flexGrow = (float)shares[index++];
                 box.style.flexBasis = 0;
                 ChartLook.Label(span.Section.Name, "gt-section__name", box);
                 var first = span.FirstBar;
@@ -66,6 +84,23 @@ namespace GuitarTutor.Runtime.UI
             sectionRow.Add(sectionCursor);
             sectionNow = -2;
             rows.SetSong(chart);
+        }
+
+        /// <summary>How far along the map the music is (0..1): through the section it is in, by that section's width.</summary>
+        double CursorAlong(double quarter)
+        {
+            if (chart.Sections.Count == 0 || sharesTotal <= 0)
+                return chart.EndQuarter > 0 ? Math.Max(0, Math.Min(1, quarter / chart.EndQuarter)) : 0;
+            double before = 0;
+            for (int i = 0; i < chart.Sections.Count; ++i)
+            {
+                var section = chart.Sections[i].Section;
+                var within = section.Quarters > 0 ? (quarter - section.AtQuarter) / section.Quarters : 0;
+                if (i == chart.Sections.Count - 1 || quarter < section.AtQuarter + section.Quarters)
+                    return Math.Max(0, Math.Min(1, (before + shares[i] * Math.Max(0, Math.Min(1, within))) / sharesTotal));
+                before += shares[i];
+            }
+            return 1;
         }
 
         /// <param name="quarter">Where the music is.</param>
@@ -85,8 +120,7 @@ namespace GuitarTutor.Runtime.UI
                     sectionBoxes[i].EnableInClassList("gt-section--now", i == sectionIndex);
                 sectionNow = sectionIndex;
             }
-            var along = chart.EndQuarter > 0 ? Math.Max(0, Math.Min(1, quarter / chart.EndQuarter)) : 0;
-            sectionCursor.style.left = Length.Percent((float)(along * 100));
+            sectionCursor.style.left = Length.Percent((float)(CursorAlong(quarter) * 100));
         }
     }
 }
