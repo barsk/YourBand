@@ -167,6 +167,19 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
     selector = std::make_unique<juce::AudioDeviceSelectorComponent> (engine.devices(), 1, 2, 2, 2, false, false, false, false);
     addAndMakeVisible (*selector);
 
+    // the game's songs (it sends the list when it connects and whenever it opens one)
+    addAndMakeVisible (songLabel);
+    addAndMakeVisible (songBox);
+    songBox.setTextWhenNothingSelected ("Waiting for the game");
+    songBox.setEnabled (false);
+    songBox.onChange = [this]
+    {
+        auto* message = new juce::DynamicObject();
+        message->setProperty ("type", "openSong");
+        message->setProperty ("index", songBox.getSelectedId() - 1);
+        game.send (juce::var (message));
+    };
+
     // guitar input channel
     addAndMakeVisible (inputLabel);
     addAndMakeVisible (inputBox);
@@ -324,7 +337,10 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
         gameLabel.setText (connected ? "Game: connected" : "Game: waiting on port " + juce::String (GameLink::port), juce::dontSendNotification);
         log (connected ? "Game connected" : "Game gone");
         if (! connected)
+        {
             engine.band().pause();
+            songBox.setEnabled (false);  // (its list is the game's)
+        }
     };
     game.onMessage = [this] (const juce::var& message) { handle (message); };
     game.start();
@@ -346,7 +362,7 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
             juce::MessageManager::callAsync ([] { juce::JUCEApplication::getInstance()->systemRequestedQuit(); });
     }
 
-    setSize (760, 930);
+    setSize (760, 964);
     startTimerHz (4);
 
     if (options.snapshot != juce::File())
@@ -453,6 +469,15 @@ void MainComponent::handle (const juce::var& message)
     }
     else if (type == "bandGuitar")
         setBandGuitarPlays ((bool) message["plays"]);
+    else if (type == "songs")
+    {
+        songBox.clear (juce::dontSendNotification);
+        if (auto* names = message["names"].getArray())
+            for (int i = 0; i < names->size(); ++i)
+                songBox.addItem ((*names)[i].toString(), i + 1);
+        songBox.setSelectedId ((int) message["current"] + 1, juce::dontSendNotification);
+        songBox.setEnabled (songBox.getNumItems() > 0);
+    }
     else if (type == "window")
     {
         const auto which = message["show"].toString();
@@ -871,8 +896,13 @@ void MainComponent::resized()
     selector->setBounds (r.removeFromTop (300));
     r.removeFromTop (6);
 
-    // your guitar: its input and tone, the tone's presets
+    // the song, then your guitar: its input and tone, the tone's presets
     auto row = r.removeFromTop (28);
+    songLabel.setBounds (row.removeFromLeft (100));
+    songBox.setBounds (row.removeFromLeft (260));
+    r.removeFromTop (6);
+
+    row = r.removeFromTop (28);
     inputLabel.setBounds (row.removeFromLeft (100));
     inputBox.setBounds (row.removeFromLeft (260));
     guitarButton.setBounds (row.removeFromLeft (140).reduced (6, 0));

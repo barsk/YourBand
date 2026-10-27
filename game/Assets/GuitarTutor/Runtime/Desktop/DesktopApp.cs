@@ -188,7 +188,16 @@ namespace GuitarTutor.Runtime.Desktop
             Arrange(styleName != null ? BandStyle.Named(styleName) : Arranger.DefaultStyle(song));
             Debug.Log($"GuitarTutor: {song.Info.Artist} - {song.Info.Title}, {chart.Bars.Count} bars ({path ?? "demo"})");
             Debug.Log("GuitarTutor: song from " + SongOrigin.Describe(song, path));
+            if (engineConnected)
+                SendSongList();
         }
+
+        /// <summary>A song file's name without its suffix: what the engine's song list shows ("heart-of-gold-gpx-ug").</summary>
+        static string SongName(string path) =>
+            path == null ? "Demo song" : Path.GetFileName(path).Replace(".song.json", "").Replace(".json", "");
+
+        /// <summary>The engine's song list: the songs the game can open, and the one it has open.</summary>
+        void SendSongList() => link.Send(EngineProtocol.Songs(songs.Select(SongName), songIndex));
 
         /// <summary>Writes the band's parts in a style and gives them to the engine (which stops playing).</summary>
         void Arrange(BandStyle style)
@@ -219,6 +228,7 @@ namespace GuitarTutor.Runtime.Desktop
             if (connected)
             {
                 local.Pause();
+                SendSongList();
                 SendSong();
             }
             else
@@ -255,6 +265,13 @@ namespace GuitarTutor.Runtime.Desktop
                 // from the control panel's checkbox, or the answer to G
                 bandGuitarPlays = (bool?)message["plays"] ?? false;
                 Debug.Log("GuitarTutor: the band guitarist " + (bandGuitarPlays ? "plays the rhythm" : "rests"));
+            }
+            else if (type == "openSong")
+            {
+                // chosen in the engine's song list
+                var index = (int?)message["index"] ?? -1;
+                if (index >= 0 && index < songs.Count && index != songIndex)
+                    Load(index);
             }
             else if (type == "command" && Enum.TryParse((string)message["command"] switch
                      {

@@ -68,6 +68,11 @@ game (the game allows the engine to take the front just before it asks). Closing
 them. You can also start the engine yourself first, as before; the game then uses it and
 leaves it running.
 
+The control panel's "Song" list (above "Guitar input") shows the songs the game can open, by file name without
+the suffix (`heart-of-gold-gpx-ug`, `wicked-game`, ...; the file name tells the version, the log's `Song:` line the
+origin), and the one that is open. Choosing one asks the game to open it (`songs` and `openSong` in
+`schema/engine-protocol.md`). The list is the game's, so it is empty until the game is connected.
+
 Play from the game (Space) or the footswitch. Playing from the start, or from wherever you moved to, begins
 with a bar of count-in on sticks; after a pause the band plays on from where it stopped.
 

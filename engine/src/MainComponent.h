@@ -80,8 +80,8 @@ private:
     std::unique_ptr<ParentWatch> parentWatch;
 
     std::unique_ptr<juce::AudioDeviceSelectorComponent> selector;
-    juce::Label inputLabel { {}, "Guitar input" }, presetLabel { {}, "Tone preset" };
-    juce::ComboBox inputBox, presetBox;
+    juce::Label songLabel { {}, "Song" }, inputLabel { {}, "Guitar input" }, presetLabel { {}, "Tone preset" };
+    juce::ComboBox songBox, inputBox, presetBox;  // songBox: the game's songs, the one open; choosing one asks the game to open it
     juce::TextButton guitarButton { "Guitar tone..." };
     juce::ToggleButton guitarThroughAmp { "through band guitar tone" }, guitarPlays { "Band guitarist plays rhythm" };
     juce::Label bandToneLabel { {}, "Band guitar tone" };

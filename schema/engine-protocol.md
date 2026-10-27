@@ -31,6 +31,8 @@ the message set settles.
 | `bandBass` | `plugin` | The band's bass on an instrument plugin, named by its file name (`MONSTER Bass v2`, `ABPL`), or `synthesized`; as chosen in the control panel, and kept for next time |
 | `bandGuitar` | `plays` | Whether the band guitarist plays the rhythm (G in the game); the engine keeps it for next time, as the control panel's checkbox, and answers with `bandGuitar` |
 
+| `songs` | `names`, `current` | The songs the game can open (their file names without the suffix) and the index of the open one: after the engine connects and whenever the game opens a song. The control panel shows them in its song list |
+
 ## Engine → game
 
 | `type` | Fields | Meaning |
@@ -39,6 +41,7 @@ the message set settles.
 | `loaded` | `notes`, `keys` | A `load` has been taken over by the audio thread; `keys`: the sound in use, or empty if there is no keyboard plugin |
 | `command` | `command` | A control the engine read (the footswitch): `playPause`, `restart`, `sectionPrevious`, `sectionNext`. Tone presets are switched in the engine and not sent |
 | `bandGuitar` | `plays` | Whether the band guitarist plays the rhythm: after `hello`, and whenever it changes (the control panel's checkbox, or the game's `bandGuitar`) |
+| `openSong` | `index` | The song chosen in the control panel's song list: an index into the game's last `songs` |
 
 ## Clock (shared memory, 64 bytes, little-endian)
 

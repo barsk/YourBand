@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using GuitarTutor.Core.Band;
@@ -81,6 +82,10 @@ namespace GuitarTutor.Core.Engine
         public static string BandGuitar(bool plays) => Line(new JObject { ["type"] = "bandGuitar", ["plays"] = plays });
 
         public static string Quit() => Line(new JObject { ["type"] = "quit" });
+
+        /// <summary>The songs the game can open (their names) and which one is open, for the engine's song list.</summary>
+        public static string Songs(IEnumerable<string> names, int current) =>
+            Line(new JObject { ["type"] = "songs", ["names"] = new JArray(names), ["current"] = current });
 
         /// <summary>A band part's volume (1: as played).</summary>
         public static string Mix(BandPart part, double gain) =>
