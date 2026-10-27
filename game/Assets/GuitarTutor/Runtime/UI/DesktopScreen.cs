@@ -43,6 +43,8 @@ namespace GuitarTutor.Runtime.UI
         bool vr;
         readonly Dictionary<Panel, VisualElement> panels = new Dictionary<Panel, VisualElement>();
         readonly Dictionary<Panel, Label> panelTitles = new Dictionary<Panel, Label>();
+        const float PanelGap = 16, InfoWidth = 330;  // the panels' right margin; the standing song panel's width
+
         readonly VisualElement chordRow, info;
         readonly StrumView strum;
         readonly Label strumName, strumEmpty, strumOrigin;
@@ -59,7 +61,8 @@ namespace GuitarTutor.Runtime.UI
             status = ChartLook.Label("", "gt-status", header);
 
             var middle = ChartLook.Box("gt-middle", this);
-            chordRow = ChartLook.Box("gt-panel__row", AddPanel(Panel.Chords, "CHORDS", middle));
+            var chordsPanel = AddPanel(Panel.Chords, "CHORDS", middle);
+            chordRow = ChartLook.Box("gt-panel__row", chordsPanel);
             var strumPanel = AddPanel(Panel.Strumming, "STRUMMING", middle);
             strum = new StrumView();
             strumPanel.Add(strum);
@@ -67,6 +70,20 @@ namespace GuitarTutor.Runtime.UI
             strumEmpty = ChartLook.Label("No strumming pattern in this song", "gt-panel__empty", strumPanel);
             strumOrigin = ChartLook.Label("", "gt-strum__origin", strumPanel);
             info = AddPanel(Panel.Song, "SONG", middle);
+
+            // the song panel wraps under the others when they leave no room for it (six chords and a long pattern):
+            // there it lies down, one row, rather than a tall panel that would push the tab strip over it
+            void FitInfo(GeometryChangedEvent _)
+            {
+                float Taken(VisualElement p) => IsShown(p == chordsPanel ? Panel.Chords : Panel.Strumming) && !float.IsNaN(p.layout.width) ? p.layout.width + PanelGap : 0;
+                var room = middle.contentRect.width;
+                if (float.IsNaN(room) || room <= 0)
+                    return;
+                info.EnableInClassList("gt-panel--lying", Taken(chordsPanel) + Taken(strumPanel) + InfoWidth + PanelGap > room);
+            }
+            middle.RegisterCallback<GeometryChangedEvent>(FitInfo);
+            chordsPanel.RegisterCallback<GeometryChangedEvent>(FitInfo);
+            strumPanel.RegisterCallback<GeometryChangedEvent>(FitInfo);
 
             // the tab, across the screen above the chart
             var tabStrip = ChartLook.Box("gt-tabstrip", this);

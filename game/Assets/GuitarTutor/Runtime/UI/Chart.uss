@@ -44,6 +44,7 @@
 /* ------------------------------------------------------------ panels */
 .gt-middle {
     flex-grow: 1;
+    flex-shrink: 0;  /* as tall as its panels, so a second row of them never runs under the tab strip */
     flex-direction: row;
     flex-wrap: wrap;
     align-items: flex-start;
@@ -161,6 +162,25 @@
     margin-top: 6px;
 }
 
+.gt-panel--lying {
+    width: 100%;
+    margin-right: 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.gt-panel--lying .gt-panel__title {
+    margin-bottom: 0;
+    margin-right: 28px;
+}
+.gt-panel--lying .gt-info__row {
+    margin-bottom: 0;
+    margin-right: 28px;
+}
+.gt-panel--lying .gt-info__key {
+    width: auto;
+    margin-right: 8px;
+}
 .gt-info__row {
     flex-direction: row;
     margin-bottom: 2px;
@@ -222,6 +242,8 @@
 /* the chart's rows: two in view, the one being played on top */
 .gt-rows {
     height: 384px;
+    flex-shrink: 1;
+    min-height: 260px;
     overflow: hidden;
 }
 .gt-row {
@@ -342,6 +364,7 @@
     border-radius: 12px;
     padding: 8px 18px 6px 18px;
     margin-bottom: 12px;
+    flex-shrink: 0;  /* the chart's rows give way when the panels above need the room */
 }
 .gt-tape {
     overflow: hidden;
