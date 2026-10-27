@@ -80,6 +80,10 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   load message carries their notes as parts 4 and 5 and `leads`, their names, which the log shows. Faders
   "lead1" and "lead2". `tools/lead_session.py` records a silent test of them (`--lead1`, `--lead2` on the
   engine's command line choose the plugins).
+  The tab's single-string notes (a riff the guitarist plays as notes, not strums) go to Lead 1 when it has a plugin
+  and the song gives that channel no part of its own (a UG song with a tab, not the GPX Heart of Gold, whose Lead 1
+  is the harmonica): the guitar plugin then only strums and keeps quiet while the tab plays, so the two do not
+  compete for its voices. Without a Lead 1 plugin the guitar plays them as before. `lead_session.py --tab` tests it.
 - The band's drums and bass each play their built-in sound or an instrument plugin, chosen in the control
   panel's "Band drums" and "Band bass" dropdowns, also while the band plays:
   - Built-in sound: a synthesized kit, and a finger-played bass string built from its harmonics

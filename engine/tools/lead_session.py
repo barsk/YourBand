@@ -1,6 +1,9 @@
 """A silent test of the band's two lead channels, without a game build.
 
-  python lead_session.py <out-folder> [--seconds 16] [--lead1 "Numa Player"] [--lead2 "Kontakt 8"]
+  python lead_session.py <out-folder> [--seconds 16] [--lead1 "Numa Player"] [--lead2 "Kontakt 8"] [--tab]
+
+With --tab the song instead has the tab's single-string notes (the guitarist's, flagged single) and no lead parts:
+they are played by the lead 1 plugin, while the band's guitarist plays (the engine's "Band guitarist plays" setting).
 
 Starts the engine silently with a recording and the given plugins on the lead channels, loads a short song
 whose only notes are a C major scale on lead 1 (part 4, bars 1-2) and an A minor scale on lead 2 (part 5,
@@ -28,6 +31,9 @@ def main():
     out = os.path.abspath(sys.argv[1])
     seconds, lead1, lead2 = 16, "Numa Player", "synthesized"
     rest = sys.argv[2:]
+    tab = "--tab" in rest
+    if tab:
+        rest.remove("--tab")
     for option in ("--seconds", "--lead1", "--lead2"):
         if option in rest:
             value = rest[rest.index(option) + 1]
@@ -70,8 +76,12 @@ def main():
         notes.append([4, p, i * 0.5, 0.45, 96])
     for i, p in enumerate([57, 59, 60, 62, 64, 65, 67, 69]):  # lead 2: A minor, bars 3-4
         notes.append([5, p, 4 + i * 0.5, 0.45, 96])
+    leads = ["Lead one", "Lead two"]
+    if tab:  # the tab's single-string notes (guitar, part 3, flag 1) and no lead parts: they go to lead 1
+        notes = [[3, p, i * 0.5, 0.45, 96, 1] for i, p in enumerate([60, 62, 64, 65, 67, 69, 71, 72])]
+        leads = []
     send({"type": "load", "title": "Lead Test", "style": "Rock", "tempos": [[0, BPM]], "meters": [[0, 4, 4]],
-          "notes": notes, "voicings": [], "strokes": [], "spans": [], "leads": ["Lead one", "Lead two"], "keys": ""})
+          "notes": notes, "voicings": [], "strokes": [], "spans": [], "leads": leads, "keys": ""})
     print("loaded:", receive())
     send({"type": "play", "from": 0, "countIn": 4})
     code = engine.wait(timeout=seconds + 120)
