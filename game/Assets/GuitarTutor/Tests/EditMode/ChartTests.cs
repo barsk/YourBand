@@ -148,6 +148,18 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
+        public void Counts_OfSixteenthsAreLabelledOnTheEighthsOnly_AndTheBeatsCountOnThroughTheBars()
+        {
+            var pattern = new StrumPattern { Subdivision = 16 };
+            for (int i = 0; i < 32; ++i)
+                pattern.Strokes.Add(Stroke.Down);
+            var counts = SongChart.Counts(pattern);
+            CollectionAssert.AreEqual(new[] { "1", "", "&", "", "2", "", "&", "" }, new System.Collections.Generic.List<string>(counts).GetRange(0, 8));
+            Assert.AreEqual("5", counts[16]);  // the second bar goes on from the first
+            Assert.AreEqual("&", counts[30]);
+        }
+
+        [Test]
         public void Rows_HoldFourBarsAndStartAtSections()
         {
             var chart = Demo();

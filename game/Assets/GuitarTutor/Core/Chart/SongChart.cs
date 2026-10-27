@@ -365,11 +365,15 @@ namespace GuitarTutor.Core.Chart
             return stepInBar % count;
         }
 
-        /// <summary>The counts to show under a pattern's strokes: "1 & 2 &" for eighths, "1 e & a" for sixteenths.</summary>
+        /// <summary>
+        /// The counts to show under a pattern's strokes, as Ultimate Guitar shows them: "1 & 2 &" for eighths; for
+        /// sixteenths the same, on every second slot (the slots between have none). The beats count on through the
+        /// bars of a long pattern (1-4, then 5-8).
+        /// </summary>
         public static IReadOnlyList<string> Counts(StrumPattern pattern)
         {
             var perBeat = Math.Max(1, pattern.Subdivision / 4);
-            string[] names = perBeat == 2 ? new[] { "", "&" } : perBeat == 4 ? new[] { "", "e", "&", "a" } : perBeat == 3 ? new[] { "", "&", "a" } : new[] { "" };
+            string[] names = perBeat == 2 ? new[] { "", "&" } : perBeat == 4 ? new[] { "", "", "&", "" } : perBeat == 3 ? new[] { "", "&", "a" } : new[] { "" };
             var counts = new List<string>();
             for (int i = 0; i < pattern.Strokes.Count; ++i)
             {
