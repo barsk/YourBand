@@ -173,6 +173,7 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
             foreach (var section in sheet.Sections)
             {
                 var start = at;
+                var name = section.Name;  // the page's name for the stretch; "Unnamed" for a block of chords and tab after others in it
                 for (int li = 0; li < section.Lines.Count; ++li)
                 {
                     var c = section.Lines[li].Chords;
@@ -181,7 +182,16 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
                     // a tab under chords without words, marked x2, is those chords played twice
                     var times = c.Repeat;
                     if (string.IsNullOrWhiteSpace(c.Lyric) && li + 1 < section.Lines.Count && section.Lines[li + 1].Tab != null)
+                    {
                         times = Math.Max(times, section.Lines[li + 1].Tab.Repeat);
+                        // chords with their tab, after other chords of the section: a block of its own, not the section's
+                        if (at > start && name == section.Name)
+                        {
+                            p.Sections.Add(new Section { Name = name, AtQuarter = start, Quarters = at - start });
+                            start = at;
+                            name = "Unnamed";
+                        }
+                    }
                     for (int r = 0; r < times; ++r)
                     {
                         var placedLine = new PlacedLine { Section = section.Name, Source = c, At = at };
@@ -226,7 +236,7 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
                 if (at == start && section.Lines.Any(l => l.Tab != null))
                     at += slot * Math.Max(1, chordsPerBar);
                 if (at > start)
-                    p.Sections.Add(new Section { Name = section.Name, AtQuarter = start, Quarters = at - start });
+                    p.Sections.Add(new Section { Name = name, AtQuarter = start, Quarters = at - start });
             }
             p.End = at;
             return p;
@@ -370,8 +380,9 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
                         {
                             // chords alone over a tab (an intro): the line of those chords in our section
                             var names = line.Chords.Chords.Select(c => c.Name).ToList();
+                            // (the first such line from the section's start: its page section may go on into an unnamed block)
                             current = placed.Lines.FirstOrDefault(p => p.Section == section.Name && p.Chords.Select(c => c.Name).SequenceEqual(names)
-                                                                       && (ours == null || (p.At >= ours.AtQuarter - 1e-9 && p.At < ours.AtQuarter + ours.Quarters - 1e-9)));
+                                                                       && (ours == null || p.At >= ours.AtQuarter - 1e-9));
                             overLine = current != null;
                             if (overLine)
                                 overEnd = placed.Lines.Where(p => p.Source == current.Source).Max(p => p.End);

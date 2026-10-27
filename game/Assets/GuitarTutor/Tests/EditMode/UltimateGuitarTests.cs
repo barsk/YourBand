@@ -218,6 +218,30 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
+        public void Import_ChordsWithTheirTabAfterOtherChordsInASectionAreTheUnnamedSection()
+        {
+            const string page =
+                "[Harmonica]\n" +
+                "| [ch]Em[/ch] [ch]C[/ch] | [ch]D[/ch] [ch]G[/ch] |\n" +
+                "\n" +
+                "[ch]Em7[/ch]   [ch]D[/ch]\n" +
+                "e|--0--0--|\n" +
+                "B|--3--3--|\n" +
+                "G|--0--0--|\n" +
+                "D|--2--2--|\n" +
+                "A|--2--2--|\n" +
+                "E|--0--0--|\n";
+            var parsed = UgPage.Parse(Page("Chords", page, false));
+            var song = UgImporter.Import(parsed, parsed, out _);
+            CollectionAssert.AreEqual(new[] { "Harmonica", "Unnamed" }, song.Sections.Select(x => x.Name).ToArray());
+            Assert.AreEqual(8, song.Sections[0].Quarters, 1e-9);
+            Assert.AreEqual(8, song.Sections[1].AtQuarter, 1e-9);
+            // the tab plays in the unnamed section, not the harmonica's
+            Assert.IsTrue(song.Riffs.All(r => r.Notes.All(n => n.AtQuarter >= 8)));
+            Assert.IsTrue(song.Riffs.Count > 0);
+        }
+
+        [Test]
         public void Origin_SaysWhereTheSongAndItsStrummingCameFrom()
         {
             var song = UgImporter.Import(ChordsPage, TabsPage(), out _);
