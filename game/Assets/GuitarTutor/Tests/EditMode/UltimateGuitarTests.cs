@@ -180,6 +180,44 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
+        public void Import_ATabMarkedX2UnderChordsPlaysThemTwice_AndARiffOnItsOwnTakesABar()
+        {
+            const string page =
+                "[Intro]\n" +
+                "[ch]Em7[/ch]   [ch]D[/ch]\n" +
+                "e|--0--0--|\n" +
+                "B|--3--3--|\n" +
+                "G|--0--0--|\n" +
+                "D|--2--2--|\n" +
+                "A|--2--2--| x2\n" +
+                "E|--0--0--|\n" +
+                "\n" +
+                "[Riff]\n" +
+                "e|--3-----|\n" +
+                "B|--0-----|\n" +
+                "G|--0-----|\n" +
+                "D|--0-----|\n" +
+                "A|--2--0--|\n" +
+                "E|--3-----|\n" +
+                "\n" +
+                "[Verse]\n" +
+                "[ch]Em[/ch]\n" +
+                "words here\n";
+            var parsed = UgPage.Parse(Page("Chords", page, false));
+            var song = UgImporter.Import(parsed, parsed, out _);
+            var names = song.Sections.Select(x => x.Name).ToArray();
+            CollectionAssert.AreEqual(new[] { "Intro", "Riff", "Verse" }, names);
+            // Em7 D twice (four bars, the chord line with its tab's x2), the riff one bar, then the verse
+            Assert.AreEqual(4 * 4, song.Sections[0].Quarters, 1e-9);
+            Assert.AreEqual(4, song.Sections[1].Quarters, 1e-9);
+            Assert.AreEqual(4 * 4 + 4, song.Sections[2].AtQuarter, 1e-9);
+            Assert.AreEqual(4, song.Chords.Count(c => c.AtQuarter < 16));
+            // the intro's tab plays over all four bars, the riff over its bar
+            Assert.IsTrue(song.Riffs.Any(r => r.Notes.Any(n => n.AtQuarter >= 8)));
+            Assert.IsTrue(song.Riffs.Any(r => r.Notes.All(n => n.AtQuarter >= 16 && n.AtQuarter < 20)));
+        }
+
+        [Test]
         public void Origin_SaysWhereTheSongAndItsStrummingCameFrom()
         {
             var song = UgImporter.Import(ChordsPage, TabsPage(), out _);

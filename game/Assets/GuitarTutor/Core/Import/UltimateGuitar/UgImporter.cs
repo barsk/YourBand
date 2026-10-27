@@ -173,10 +173,16 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
             foreach (var section in sheet.Sections)
             {
                 var start = at;
-                foreach (var line in section.Lines.Where(l => l.Chords != null))
+                for (int li = 0; li < section.Lines.Count; ++li)
                 {
-                    var c = line.Chords;
-                    for (int r = 0; r < c.Repeat; ++r)
+                    var c = section.Lines[li].Chords;
+                    if (c == null)
+                        continue;
+                    // a tab under chords without words, marked x2, is those chords played twice
+                    var times = c.Repeat;
+                    if (string.IsNullOrWhiteSpace(c.Lyric) && li + 1 < section.Lines.Count && section.Lines[li + 1].Tab != null)
+                        times = Math.Max(times, section.Lines[li + 1].Tab.Repeat);
+                    for (int r = 0; r < times; ++r)
                     {
                         var placedLine = new PlacedLine { Section = section.Name, Source = c, At = at };
                         if (c.Barred || chordsPerBar == 0)
@@ -216,6 +222,9 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
                         p.Lines.Add(placedLine);
                     }
                 }
+                // a block of tab with no chords at all (a riff of its own) takes a bar of the song, in its place in the page
+                if (at == start && section.Lines.Any(l => l.Tab != null))
+                    at += slot * Math.Max(1, chordsPerBar);
                 if (at > start)
                     p.Sections.Add(new Section { Name = section.Name, AtQuarter = start, Quarters = at - start });
             }
@@ -335,6 +344,7 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
                 PlacedLine current = null;
                 var fillsInLine = new List<TabBlock>();
                 var overLine = false;  // the tab sits under a line of chords without words: it plays over the whole line
+                var overEnd = 0.0;     // ...and over its repeats, if it is played more than once
                 var loose = new List<TabBlock>();
                 void Flush()
                 {
@@ -342,7 +352,7 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
                         return;
                     var last = current.Chords.Last();  // fills sit in the line's last chord, one after the other
                     var from = overLine ? current.At : last.AtQuarter;
-                    var span = (overLine ? current.End - current.At : last.Quarters) / fillsInLine.Count;
+                    var span = (overLine ? overEnd - current.At : last.Quarters) / fillsInLine.Count;
                     for (int i = 0; i < fillsInLine.Count; ++i)
                         song.Riffs.Add(Riff($"{(overLine ? "Riff" : "Fill")} {++riffCount} ({section.Name})", fillsInLine[i], from + i * span, span));
                     fills += fillsInLine.Count;
@@ -363,6 +373,8 @@ namespace GuitarTutor.Core.Import.UltimateGuitar
                             current = placed.Lines.FirstOrDefault(p => p.Section == section.Name && p.Chords.Select(c => c.Name).SequenceEqual(names)
                                                                        && (ours == null || (p.At >= ours.AtQuarter - 1e-9 && p.At < ours.AtQuarter + ours.Quarters - 1e-9)));
                             overLine = current != null;
+                            if (overLine)
+                                overEnd = placed.Lines.Where(p => p.Source == current.Source).Max(p => p.End);
                             continue;
                         }
                         var at = Find(placed, Normalise(line.Chords.Lyric), cursor);
