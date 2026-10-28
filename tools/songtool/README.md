@@ -65,6 +65,10 @@ stroke's **direction** is, in order:
    no strokes at all, so this usually does not fire;
 2. the standard rule: **down on the beat, up on the off-beat**.
 
+A beat whose notes carry an **accent** in the file becomes an accented stroke (louder: the band plays it at velocity
+116 down, 104 up, against 72–96 for the others), in the direction of its pick stroke or by the standard rule; when the
+section's matching bars do not all accent it, it is a plain stroke. A palm-muted beat stays muted.
+
 **Matching a pattern to a section.** The page and the file may come from different authors, who name the same kind
 of section differently, so names are compared in a canonical form: lowercase, punctuation and trailing numbers
 removed, common synonyms equated (“stanza” = “verse”, “refrain”/“hook” = “chorus”, “introduction” = “intro”,

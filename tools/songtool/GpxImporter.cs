@@ -758,7 +758,7 @@ namespace GuitarTutor.SongTool
                         if (slot < 0 || slot >= slots)
                             continue;
                         grid[slot] = 'X';
-                        rec[slot] = Recorded(beat);
+                        rec[slot] = Recorded(beat, slot);
                     }
                 byBar[bar.Index] = (grid, rec);
             }
@@ -911,7 +911,7 @@ namespace GuitarTutor.SongTool
                         if (slot < 0 || slot >= slots)
                             continue;
                         grid[slot] = 'X';
-                        rec[slot] = Recorded(beat);
+                        rec[slot] = Recorded(beat, slot);
                     }
                     var key = new string(grid.Select(c => c == 'X' ? '1' : '0').ToArray());
                     distinct.TryGetValue(key, out var c); distinct[key] = c + 1;
@@ -924,20 +924,30 @@ namespace GuitarTutor.SongTool
                 Console.WriteLine($"  x{kv.Value,-3} {kv.Key}");
         }
 
-        /// <summary>The direction a GPX beat records, or <see cref="Stroke.Rest"/> when it records none.</summary>
-        static Stroke Recorded(Beat beat)
+        /// <summary>
+        /// The stroke a GPX beat records, or <see cref="Stroke.Rest"/> when it records neither a direction nor an accent:
+        /// the pick stroke (muted where it is a palm mute or ghost), and an accent on the beat's notes (louder; its
+        /// direction, when the file has no pick stroke, by the standard rule: down on the beat, up on the off-beat).
+        /// </summary>
+        static Stroke Recorded(Beat beat, int slot)
         {
+            var accent = beat.Notes.Any(n => n.Accentuated != AccentuationType.None);
             var stroke = beat.PickStroke;
-            if (stroke == PickStroke.None)
+            if (stroke == PickStroke.None && !accent)
                 return Stroke.Rest;
-            var down = stroke == PickStroke.Down;
+            var down = stroke == PickStroke.None ? slot % 4 == 0 : stroke == PickStroke.Down;
             var muted = beat.IsPalmMute || beat.Notes.Any(n => n.IsGhost || n.IsDead);
-            return down ? (muted ? Stroke.MutedDown : Stroke.Down) : (muted ? Stroke.MutedUp : Stroke.Up);
+            if (muted)
+                return down ? Stroke.MutedDown : Stroke.MutedUp;
+            if (accent)
+                return down ? Stroke.AccentDown : Stroke.AccentUp;
+            return down ? Stroke.Down : Stroke.Up;
         }
 
         /// <summary>
         /// The direction of one active slot: the recorded pick stroke when the matching bars agree on it, else the
-        /// standard rule (down on the beat, up on the off-beat).
+        /// standard rule (down on the beat, up on the off-beat). An accent (the recorded stroke is an accented one) must
+        /// be on every one of them, as the direction must.
         /// </summary>
         static Stroke Direction(List<Stroke[]> recorded, int slot)
         {
