@@ -805,15 +805,39 @@ namespace GuitarTutor.SongTool
             var map = ug != null ? CheckMap(ugMap, ug, song, bySection, report) : null;
             var picks = new List<(string Section, StrumPattern Pattern, string How)>();
             var made = 0;
+            var leftOut = new List<string>();
             foreach (var kv in bySection)
             {
                 var ugFor = ug != null ? UgForSection(ug, kv.Key, sectionNames, map) : (null, "");
                 StrumPattern pattern;
                 if (ugFor.Pattern != null)
                 {
-                    // the page's pattern, kept whole: the chart lays it out from the section's start (StrokeIndex)
+                    // the page's pattern, laid out bar by bar as the chart would from the section's start (StrokeIndex), each
+                    // stroke kept where the tab strums and left out where it does not (a held chord, a rest: a space in the tab)
                     pattern = new StrumPattern { Name = kv.Key, Subdivision = ugFor.Pattern.Subdivision, Sections = { kv.Key }, Origin = SongOrigin.UltimateGuitar };
-                    pattern.Strokes.AddRange(ugFor.Pattern.Strokes);
+                    var grids = kv.Value;
+                    var ratio = ugFor.Pattern.Subdivision > 0 && 16 % ugFor.Pattern.Subdivision == 0 ? 16 / ugFor.Pattern.Subdivision : 0;   // the tab's slots per pattern slot
+                    var perBar = ratio > 0 && grids.All(g => g.Grid.Length == grids[0].Grid.Length) && grids[0].Grid.Length % ratio == 0 ? grids[0].Grid.Length / ratio : 0;
+                    if (perBar > 0 && ugFor.Pattern.Strokes.Count % perBar == 0)
+                    {
+                        var ugBars = ugFor.Pattern.Strokes.Count / perBar;
+                        var left = 0;
+                        for (int bar = 0; bar < grids.Count; ++bar)
+                            for (int j = 0; j < perBar; ++j)
+                            {
+                                var stroke = ugFor.Pattern.Strokes[bar % ugBars * perBar + j];
+                                if (stroke != Stroke.Rest && grids[bar].Grid[j * ratio] != 'X')
+                                {
+                                    stroke = Stroke.Rest;
+                                    ++left;
+                                }
+                                pattern.Strokes.Add(stroke);
+                            }
+                        if (left > 0)
+                            leftOut.Add($"{kv.Key} {left}");
+                    }
+                    else
+                        pattern.Strokes.AddRange(ugFor.Pattern.Strokes);   // (bars of different lengths: the page's pattern whole)
                 }
                 else
                 {
@@ -854,10 +878,12 @@ namespace GuitarTutor.SongTool
                 ++made;
             }
             report.Add(ug != null
-                ? $"Strumming: {made} section pattern(s) from Ultimate Guitar, kept whole (the chart lays each out from its section's first bar, repeating)."
+                ? $"Strumming: {made} section pattern(s) from Ultimate Guitar (the chart lays each out from its section's first bar, repeating; a stroke is left out where the tab does not strum)."
                 : $"Strumming: {made} section pattern(s) on a sixteenth grid (direction: recorded pick stroke → down on the beat, up on the off-beat).");
             if (ug != null)
                 report.Add("UG strumming: " + string.Join(", ", picks.Select(p => $"{p.Section} → '{p.Pattern.Name}' ({p.How})")));
+            if (leftOut.Count > 0)
+                report.Add("UG strokes left out where the tab does not strum: " + string.Join(", ", leftOut) + ".");
         }
 
         /// <summary>

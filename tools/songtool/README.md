@@ -56,6 +56,12 @@ pattern out from the section's first bar and repeats it (`SongChart.StrokeIndex`
 section's bars 1–2 the whole pattern, bars 3–4 it again, and so on. A section always starts at the beginning of its
 pattern, even when the previous one ended mid-pattern.
 
+The page's strokes are laid out bar by bar over the file's bars (as the chart would), and a stroke is **left out where
+the tab has no strum**: a held chord, a tied beat, a rest. The page's strumming is used where it fits the tab, and
+the import report lists how many strokes each section lost (`UG strokes left out where the tab does not strum`).
+The tab's strums that the page has no stroke for are not added. Bars of different lengths (a change of meter) take
+the page's pattern whole.
+
 Without `--strum`, the track's strums become a per-bar grid on **sixteenth-note slots** (the `StrumPattern`
 subdivision is 16) and each section's bars become its pattern: one bar when they all strum alike, else the shortest
 run of bars that repeats through the section (the whole section when each bar differs, so a one-off strum such as a
