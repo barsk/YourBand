@@ -72,7 +72,8 @@ different lengths (a change of meter) fall back to the section's most common bar
 
 1. the file's recorded pick stroke (`PickStroke`), muted where it is a palm mute or ghost; a GPX file often records
    no strokes at all, so this usually does not fire;
-2. the standard rule: **down on the beat, up on the off-beat**.
+2. the standard rule: **down on the beat, up on the off-beat**; strums on neighbouring sixteenths are the hand going
+   down and up as fast as it can, so they **alternate** (the beat and the "&" down, the "e" and the "a" up).
 
 A beat whose notes carry an **accent** in the file becomes an accented stroke (louder: the band plays it at velocity
 116 down, 104 up, against 72–96 for the others), in the direction of its pick stroke or by the standard rule; when the

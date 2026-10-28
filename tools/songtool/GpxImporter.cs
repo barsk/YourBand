@@ -768,6 +768,9 @@ namespace GuitarTutor.SongTool
                 var rec = new Stroke[slots];
                 Array.Fill(grid, '.');
                 Array.Fill(rec, Stroke.Rest);
+                // (the strums first, then each one's stroke: its direction by the rule depends on its neighbours)
+                var active = new bool[slots];
+                var strums = new List<(int Slot, Beat Beat)>();
                 foreach (var voice in bar.Voices)
                     foreach (var beat in voice.Beats)
                     {
@@ -779,8 +782,11 @@ namespace GuitarTutor.SongTool
                         if (slot < 0 || slot >= slots)
                             continue;
                         grid[slot] = 'X';
-                        rec[slot] = Recorded(beat, slot);
+                        active[slot] = true;
+                        strums.Add((slot, beat));
                     }
+                foreach (var (slot, beat) in strums)
+                    rec[slot] = Recorded(beat, RuleDown(active, slot));
                 byBar[bar.Index] = (grid, rec);
             }
             if (byBar.Count == 0)
@@ -863,7 +869,7 @@ namespace GuitarTutor.SongTool
                     {
                         var matching = grids.Where((g, i) => i % period == bar).Select(g => g.Rec).ToList();
                         for (int i = 0; i < keys[bar].Length; ++i)
-                            exact.Add(keys[bar][i] == '1' ? Direction(matching, i) : Stroke.Rest);
+                            exact.Add(keys[bar][i] == '1' ? Direction(matching, i, Active(keys[bar])) : Stroke.Rest);
                     }
                     if (period > 0 && period <= MaxShownBars)
                         pattern.Strokes.AddRange(exact);
@@ -877,7 +883,7 @@ namespace GuitarTutor.SongTool
                             .First().First();
                         var matching = grids.Where(g => Key(g.Grid) == dominant).Select(g => g.Rec).ToList();
                         for (int i = 0; i < dominant.Length; ++i)
-                            pattern.Strokes.Add(dominant[i] == '1' ? Direction(matching, i) : Stroke.Rest);
+                            pattern.Strokes.Add(dominant[i] == '1' ? Direction(matching, i, Active(dominant)) : Stroke.Rest);
                         if (period > 0)
                             pattern.Played = exact;
                     }
@@ -956,6 +962,8 @@ namespace GuitarTutor.SongTool
                 var rec = new Stroke[slots];
                 Array.Fill(grid, '.');
                 Array.Fill(rec, Stroke.Rest);
+                var active = new bool[slots];
+                var strums = new List<(int Slot, Beat Beat)>();
                 foreach (var voice in bar.Voices)
                     foreach (var beat in voice.Beats)
                     {
@@ -965,8 +973,11 @@ namespace GuitarTutor.SongTool
                         if (slot < 0 || slot >= slots)
                             continue;
                         grid[slot] = 'X';
-                        rec[slot] = Recorded(beat, slot);
+                        active[slot] = true;
+                        strums.Add((slot, beat));
                     }
+                foreach (var (slot, beat) in strums)
+                    rec[slot] = Recorded(beat, RuleDown(active, slot));
                     var key = new string(grid.Select(c => c == 'X' ? '1' : '0').ToArray());
                     distinct.TryGetValue(key, out var c); distinct[key] = c + 1;
                     var strokes = string.Join("", grid.Zip(rec, (g, s) => g == 'X' ? s.ToString()[0] : '.'));
@@ -981,15 +992,15 @@ namespace GuitarTutor.SongTool
         /// <summary>
         /// The stroke a GPX beat records, or <see cref="Stroke.Rest"/> when it records neither a direction nor an accent:
         /// the pick stroke (muted where it is a palm mute or ghost), and an accent on the beat's notes (louder; its
-        /// direction, when the file has no pick stroke, by the standard rule: down on the beat, up on the off-beat).
+        /// direction, when the file has no pick stroke, by the standard rule, <see cref="RuleDown"/>).
         /// </summary>
-        static Stroke Recorded(Beat beat, int slot)
+        static Stroke Recorded(Beat beat, bool ruleDown)
         {
             var accent = beat.Notes.Any(n => n.Accentuated != AccentuationType.None);
             var stroke = beat.PickStroke;
             if (stroke == PickStroke.None && !accent)
                 return Stroke.Rest;
-            var down = stroke == PickStroke.None ? slot % 4 == 0 : stroke == PickStroke.Down;
+            var down = stroke == PickStroke.None ? ruleDown : stroke == PickStroke.Down;
             var muted = beat.IsPalmMute || beat.Notes.Any(n => n.IsGhost || n.IsDead);
             if (muted)
                 return down ? Stroke.MutedDown : Stroke.MutedUp;
@@ -998,17 +1009,31 @@ namespace GuitarTutor.SongTool
             return down ? Stroke.Down : Stroke.Up;
         }
 
+        static bool[] Active(string key) => key.Select(c => c == '1').ToArray();
+
         /// <summary>
         /// The direction of one active slot: the recorded pick stroke when the matching bars agree on it, else the
-        /// standard rule (down on the beat, up on the off-beat). An accent (the recorded stroke is an accented one) must
-        /// be on every one of them, as the direction must.
+        /// standard rule (<see cref="RuleDown"/>). An accent (the recorded stroke is an accented one) must be on every one
+        /// of them, as the direction must.
         /// </summary>
-        static Stroke Direction(List<Stroke[]> recorded, int slot)
+        static Stroke Direction(List<Stroke[]> recorded, int slot, bool[] active)
         {
             var rec = recorded.Select(r => r[slot]).Where(s => s != Stroke.Rest).ToList();
             if (rec.Count > 0 && rec.All(s => s == rec[0]))
                 return rec[0];
-            return slot % 4 == 0 ? Stroke.Down : Stroke.Up;   // 16th grid: a beat is every fourth slot
+            return RuleDown(active, slot) ? Stroke.Down : Stroke.Up;
+        }
+
+        /// <summary>
+        /// The standard rule for the direction of a strum on the sixteenth grid (<paramref name="active"/>: the slots that
+        /// strum): down on the beat, up on the off-beat; but strums on neighbouring sixteenths are the hand going down and
+        /// up as fast as it can, so they alternate, by the slot's parity (down on the even ones: the beat and the "&amp;"
+        /// down, the "e" and the "a" up).
+        /// </summary>
+        static bool RuleDown(bool[] active, int slot)
+        {
+            var fast = (slot > 0 && active[slot - 1]) || (slot + 1 < active.Length && active[slot + 1]);
+            return slot % (fast ? 2 : 4) == 0;
         }
 
         /// <summary>
