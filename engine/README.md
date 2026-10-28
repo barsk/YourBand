@@ -88,7 +88,10 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   The tab's single-string notes (a riff the guitarist plays as notes, not strums) go to Lead 1 when it has a plugin
   and the song gives that channel no part of its own (a UG song with a tab, not the GPX Heart of Gold, whose Lead 1
   is the harmonica): the guitar plugin then only strums and keeps quiet while the tab plays, so the two do not
-  compete for its voices. Without a Lead 1 plugin the guitar plays them as before. `lead_session.py --tab` tests it.
+  compete for its voices. Without a Lead 1 plugin, or with Lead 1's fader all the way down (off), the guitar plays them as
+  before. `lead_session.py --tab` tests it. A lead's note (and a single note of the tab) that the same key follows at once
+  is let go 60 ms early: a plugin takes the repeat for the same note held on, with no new attack (Numa Player, a D2 in
+  eighths: back to back the repeats rose 2-5 dB, 60 ms apart 13-16 dB).
 - The band's drums and bass each play their built-in sound or an instrument plugin, chosen in the control
   panel's "Band drums" and "Band bass" dropdowns, also while the band plays:
   - Built-in sound: a synthesized kit, and a finger-played bass string built from its harmonics

@@ -42,6 +42,7 @@ namespace
             pitch += 12;
         return pitch;
     }
+    constexpr double retriggerGapSec = 0.06;   // a lead's note lets go this long before the same key is struck again
     constexpr double muteTailSec = 0.040;   // the Mute keyswitch is let go this much after the strum (it is
                                              // pressed a few samples before, so a chug of ~44 ms)
 }
@@ -131,6 +132,26 @@ std::unique_ptr<Score> Score::fromMessage (const juce::var& message, juce::Strin
             score->notes.push_back (note);
     }
     std::stable_sort (score->notes.begin(), score->notes.end(), [] (const BandNote& a, const BandNote& b) { return a.at < b.at; });
+
+    // a lead's note (or the tab's single note) that the same key follows at once is let go early: a plugin takes the repeat for
+    // the same note held on, with no new attack (measured with Numa Player on a D2 played in eighths: back to back, the attack
+    // of each repeat rose 2-5 dB; 25 ms apart 3-7 dB; 60 ms apart 13-16 dB)
+    for (size_t i = 0; i < score->notes.size(); ++i)
+    {
+        auto& a = score->notes[i];
+        if (! (a.part == BandProcessor::lead1 || a.part == BandProcessor::lead2 || (a.part == BandProcessor::guitar && a.single)))
+            continue;
+        for (size_t j = i + 1; j < score->notes.size() && score->notes[j].at <= a.at + a.length + 1.0; ++j)
+        {
+            const auto& b = score->notes[j];
+            if (b.part != a.part || b.pitch != a.pitch)
+                continue;
+            const auto gap = retriggerGapSec * score->bpmAt (a.at) / 60.0;  // in quarter notes
+            if (b.at - (a.at + a.length) < gap)
+                a.length = juce::jmax (0.02, b.at - a.at - gap);
+            break;
+        }
+    }
 
     if (auto* voicings = message["voicings"].getArray())
         for (const auto& v : *voicings)
@@ -411,10 +432,10 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         }
 
         const auto countingIn = ! std::isnan (countInUntil);
-        // the tab's single-string notes go to the lead 1 plugin, where it has one and the song gives that channel no
-        // part of its own: the guitar plugin then only strums (and keeps quiet while the tab plays), so the two do not
+        // the tab's single-string notes go to the lead 1 plugin, where it has one (and its fader is up) and the song
+        // gives that channel no part of its own: the guitar plugin then only strums (and keeps quiet while the tab plays), so the two do not
         // compete for its voices and its strumming mode
-        const auto tabOnLead = s->leads[0].isEmpty() && onPlugin[(size_t) lead1].load();
+        const auto tabOnLead = s->leads[0].isEmpty() && onPlugin[(size_t) lead1].load() && ! partMuted[(size_t) lead1].load();
         // a held voicing's note that folds onto another of its chord (a drop D chord's D2 and the D3 above it) is left out:
         // one key, once
         const auto repeats = [&] (size_t index)

@@ -101,6 +101,8 @@ public:
             guitarResync.store (true);
     }
     bool usesPluginFor (Part part) const { return onPlugin[(size_t) part].load(); }
+    /** A part whose fader is all the way down: a lead that is off does not take the tab's single notes (the guitar plays them). */
+    void setPartMuted (Part part, bool muted) { partMuted[(size_t) part].store (muted); }
     /** Whether the band's guitarist plays (the rhythm: the song's strumming on its chords). */
     void setGuitarPlays (bool on) { guitarPlays.store (on); }
     /** How early (seconds) the guitar's notes go to its plugin, when it plays on one: a plugin whose sound builds
@@ -153,6 +155,7 @@ private:
     const Score* latest = nullptr;
     std::atomic<double> outputLatency { 0.0 };
     std::array<std::atomic<bool>, numParts> onPlugin {};  // per part; the keys are always on their plugin
+    std::array<std::atomic<bool>, numParts> partMuted {};  // per part: its fader is down
     std::atomic<bool> guitarPlays { false };
     std::atomic<double> guitarAdvance { 0.0 };
     std::atomic<bool> strummingMode { false };

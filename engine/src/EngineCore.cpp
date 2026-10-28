@@ -203,6 +203,7 @@ bool EngineCore::setFader (const juce::String& part, float level)
     if (i < 0)
         return false;
     faderLevels[(size_t) i] = juce::jlimit (0.0f, 2.0f, level);
+    bandProcessor->setPartMuted ((BandProcessor::Part) i, faderLevels[(size_t) i] <= 0.0f);
     applyMix (i);
     return true;
 }
