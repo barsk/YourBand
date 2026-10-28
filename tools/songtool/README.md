@@ -50,9 +50,14 @@ It imports what the current song model holds:
   `gpx-info <file> --beats <track> <bars>` lists a track's notes with their flags;
 - the chords and their voicings. The strums are grouped into regions — a run of strums with the same bass note and
   no long pause, with a brief passing strum (e.g. a leading-tone shape into the next chord) merged into the
-  neighbor it most resembles. Where the file writes a chord name it is used as-is; otherwise the name is
-  **detected** from the pitch classes that dominate the region, anchored to its bass note (the root): that is what
-  keeps an Em7 from reading as a G6 and a G from reading as a Gmaj7 on a stray note;
+  neighbor it most resembles. Where the file writes chord names (chord markers on beats; each holds until the next,
+  and a marker that opens a short run at the end of a longer one starts the new chord there) they are used as-is;
+  `gpx-info <file> --beats <track> <bars>` shows them as `chord:'..'`. A file with **no** chord names (a Guitar Pro 4
+  file often has none) gets its chords **read from all its notes** (`ChordRecognizer.cs`), not only the strummed ones,
+  so a fingerpicked part works too: the song is cut into the chord sequence that best explains the notes on an
+  eighth-note grid, a chord scored by the notes it holds, the notes it does not, and whether the bass notes struck are
+  its root; a change costs something, less at a bar line or a beat, and a bass note under the chord reads as a slash
+  chord (G/D). The result is a good first draft, not a transcription: check it against the song;
 - the sections, tempo, time signatures, lyrics and song info (title, artist, key, capo, tuning);
 - the strumming, as described below.
 

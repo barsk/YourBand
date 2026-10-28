@@ -426,6 +426,7 @@ namespace GuitarTutor.SongTool
             var strums = new List<Strum>();
             var masterByIndex = score.MasterBars.ToDictionary(mb => mb.Index);
             string writtenChord = null;   // the file's chord name in force: a chord marker holds until the next one
+            var anyMarker = false;
 
             foreach (var bar in staff.Bars)
             {
@@ -436,6 +437,7 @@ namespace GuitarTutor.SongTool
                     foreach (var beat in voice.Beats)
                     {
                         writtenChord = ChordName(beat) ?? writtenChord;
+                        anyMarker |= ChordName(beat) != null;
                         var at = (master.Start + beat.DisplayStart) / tpq;
                         var length = Math.Max(0, beat.DisplayDuration) / tpq;
                         // (a dead note, the "x" of a muted strum, has fret 0 in the file but no pitch: not an open string)
@@ -491,7 +493,11 @@ namespace GuitarTutor.SongTool
             if (riff.Notes.Count > 0)
                 song.Riffs.Add(riff);
 
-            foreach (var region in ChordRegions(strums))
+            // a file that names no chords: the notes decide, all of them (a fingerpicked part has no strums to go by)
+            var regions = anyMarker ? ChordRegions(strums) : RecognizedRegions(riff, staff, score, tpq);
+            if (!anyMarker && regions.Count > 0)
+                report.Add("The file writes no chord names: the chords are read from its notes (bass notes first).");
+            foreach (var region in regions)
             {
                 // the file's own chord name wins when its strums agree on one; otherwise the notes decide
                 var name = region.ChordName ?? DetectChord(region.CorePcs, region.Bass);
@@ -514,6 +520,29 @@ namespace GuitarTutor.SongTool
             song.Voicings.AddRange(voicings.Values);
             if (song.Chords.Count == 0)
                 report.Add("No chords detected (the track has no simultaneous notes); the tab is there but the chart has no chord names.");
+        }
+
+        /// <summary>The chords <see cref="ChordRecognizer"/> reads from all the tab's notes, as regions.</summary>
+        static List<ChordRegion> RecognizedRegions(Riff riff, Staff staff, Score score, double tpq)
+        {
+            var tunings = staff.StringTuning.Tunings;
+            var strings = tunings.Count;
+            var notes = riff.Notes.Select(n => new ChordRecognizer.Note
+            {
+                At = n.AtQuarter,
+                Quarters = n.Quarters,
+                StringIndex = n.StringIndex,
+                Fret = n.Fret,
+                Pitch = n.StringIndex >= 0 && n.StringIndex < strings ? (int)tunings[strings - 1 - n.StringIndex] + n.Fret : -1,
+            }).ToList();
+            var barStarts = score.MasterBars.Select(mb => mb.Start / tpq).OrderBy(x => x).ToList();
+            return ChordRecognizer.Recognize(notes, barStarts, strings).Select(r => new ChordRegion
+            {
+                Start = r.Start,
+                Duration = r.Quarters,
+                Frets = r.Frets,
+                ChordName = r.Name,
+            }).ToList();
         }
 
         /// <summary>
