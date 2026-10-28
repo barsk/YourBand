@@ -438,8 +438,17 @@ namespace GuitarTutor.SongTool
                         // (a dead note, the "x" of a muted strum, has fret 0 in the file but no pitch: not an open string)
                         var notes = beat.Notes.Where(n => n.String >= 1 && !n.IsDead).ToList();
 
-                        // the tab: every note, at its position
+                        // the tab: every note, at its position (a note tied from the one before is that note held on, not struck again)
                         foreach (var n in notes)
+                        {
+                            var held = n.IsTieDestination
+                                ? riff.Notes.LastOrDefault(t => t.StringIndex == (int)n.String - 1 && t.Fret == (int)n.Fret && Math.Abs(t.AtQuarter + t.Quarters - at) < 1e-6)
+                                : null;
+                            if (held != null)
+                            {
+                                held.Quarters += length;
+                                continue;
+                            }
                             riff.Notes.Add(new TabNote
                             {
                                 StringIndex = (int)n.String - 1,
@@ -448,9 +457,16 @@ namespace GuitarTutor.SongTool
                                 Quarters = length,
                                 Technique = Technique(n),
                             });
+                        }
 
-                        // the chords: only beats that sound two or more notes (strummed chords)
-                        if (notes.Count >= 2)
+                        // the chords: only beats that sound two or more notes (strummed chords); a beat whose notes are all tied
+                        // from the strum before is that strum held on (not another strum)
+                        if (notes.Count >= 2 && notes.All(n => n.IsTieDestination))
+                        {
+                            if (strums.Count > 0 && Math.Abs(strums[strums.Count - 1].At + strums[strums.Count - 1].Duration - at) < 1e-6)
+                                strums[strums.Count - 1].Duration += length;
+                        }
+                        else if (notes.Count >= 2)
                         {
                             var pitches = notes.Select(n => Pitch(staff, n)).Where(p => p >= 0).ToList();
                             if (pitches.Count >= 2)
@@ -754,6 +770,8 @@ namespace GuitarTutor.SongTool
                     {
                         if (beat.Notes.Count(n => n.String >= 1) < 2)
                             continue;   // not a strummed chord
+                        if (beat.Notes.Where(n => n.String >= 1).All(n => n.IsTieDestination))
+                            continue;   // the strum before, held on
                         var slot = (int)Math.Round(((master.Start + beat.DisplayStart) / tpq - barStart) * 4);
                         if (slot < 0 || slot >= slots)
                             continue;
@@ -905,7 +923,7 @@ namespace GuitarTutor.SongTool
                 foreach (var voice in bar.Voices)
                     foreach (var beat in voice.Beats)
                     {
-                        if (beat.Notes.Count(x => x.String >= 1) < 2)
+                        if (beat.Notes.Count(x => x.String >= 1) < 2 || beat.Notes.Where(x => x.String >= 1).All(x => x.IsTieDestination))
                             continue;
                         var slot = (int)Math.Round(((master.Start + beat.DisplayStart) / tpq - barStart) * 4);
                         if (slot < 0 || slot >= slots)
