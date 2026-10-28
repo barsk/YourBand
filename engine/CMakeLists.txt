@@ -18,6 +18,7 @@ target_sources(gt_engine
     PRIVATE
         src/Main.cpp
         src/MainComponent.cpp
+        src/ImportWindow.cpp
         src/EngineCore.cpp
         src/Footswitch.cpp
         src/Band.cpp

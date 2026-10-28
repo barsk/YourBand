@@ -73,6 +73,14 @@ the suffix (`heart-of-gold-gpx-ug`, `wicked-game`, ...; the file name tells the 
 origin), and the one that is open. Choosing one asks the game to open it (`songs` and `openSong` in
 `schema/engine-protocol.md`). The list is the game's, so it is empty until the game is connected.
 
+The **Import new...** button next to the list opens the import window (`src/ImportWindow.cpp`). With "Guitar Pro" checked
+it takes a Guitar Pro file (`.gpx`, `.gp3`, `.gp4`, `.gp5`, `.gp`) and, optionally, the URL of an Ultimate Guitar chords
+page whose strumming the song uses; unchecked, it takes an Ultimate Guitar chords page URL and/or a tabs page URL (at least
+one). **Import** runs `songtool import` (`tools/songtool`: `songtool\songtool.exe` next to the engine, or the repository's
+build of it, `dotnet build tools/songtool -c Release`) and shows what it prints in the window's log; the pages are read
+from their URLs in memory and the URLs go into the song's sources. When the song is written to `songs-local` the engine
+sends the game `importedSong`, which reads its song list again and opens the new song, and the list here follows.
+
 Play from the game (Space) or the footswitch. Playing from the start, or from wherever you moved to, begins
 with a bar of count-in on sticks; after a pause the band plays on from where it stopped.
 

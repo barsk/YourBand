@@ -9,6 +9,7 @@
 #include "EngineCore.h"
 #include "Footswitch.h"
 #include "GameLink.h"
+#include "ImportWindow.h"
 #include "ParentWatch.h"
 
 #include <array>
@@ -27,7 +28,8 @@ struct EngineOptions
     juce::String bandBass;     // --band-bass <plugin file name, e.g. ABPL | synthesized>: instead of your choice
     juce::String bandGuitar;   // --band-guitar <plugin file name, e.g. "Kontakt 8" | synthesized>: the same
     juce::String bandLead1, bandLead2;  // --lead1 / --lead2 <plugin file name, e.g. "Numa Player" | synthesized (off)>: the same
-    juce::File snapshot;       // --snapshot <file.png>: a picture of the control panel 3 s after the start (tests)
+    juce::File snapshot;       // --snapshot <file.png>: a picture of the control panel 3 s after the start (tests); with --import-test, of the import window too
+    juce::String importTest;   // --import-test <UG chords page URL>: opens the import window and imports that page (tests)
 
     static EngineOptions fromCommandLine (const juce::StringArray& args);
 };
@@ -68,6 +70,9 @@ private:
         told to the game. */
     void setBandGuitarPlays (bool on);
     void sendBandGuitar();
+    /** The import window (made the first time), and a song it has written: the game is asked to open it. */
+    void showImport();
+    void songImported (const juce::File& song);
     void handle (const juce::var& message);
     void sendCommand (const juce::String& command);
     void saveSettings();
@@ -82,6 +87,8 @@ private:
     std::unique_ptr<juce::AudioDeviceSelectorComponent> selector;
     juce::Label songLabel { {}, "Song" }, inputLabel { {}, "Guitar input" }, presetLabel { {}, "Tone preset" };
     juce::ComboBox songBox, inputBox, presetBox;  // songBox: the game's songs, the one open; choosing one asks the game to open it
+    juce::TextButton importButton { "Import new..." };  // next to the song list: opens the import window
+    std::unique_ptr<ImportWindow> importWindow;
     juce::TextButton guitarButton { "Guitar tone..." };
     juce::ToggleButton guitarThroughAmp { "through band guitar tone" }, guitarPlays { "Band guitarist plays rhythm" };
     juce::Label bandToneLabel { {}, "Band guitar tone" };

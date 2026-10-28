@@ -42,6 +42,7 @@ the message set settles.
 | `command` | `command` | A control the engine read (the footswitch): `playPause`, `restart`, `sectionPrevious`, `sectionNext`. Tone presets are switched in the engine and not sent |
 | `bandGuitar` | `plays` | Whether the band guitarist plays the rhythm: after `hello`, and whenever it changes (the control panel's checkbox, or the game's `bandGuitar`) |
 | `openSong` | `index` | The song chosen in the control panel's song list: an index into the game's last `songs` |
+| `importedSong` | `path` | The control panel's import window has written this song file (in the game's songs-local folder): the game reads its song list again, sends `songs`, and opens it |
 
 ## Clock (shared memory, 64 bytes, little-endian)
 

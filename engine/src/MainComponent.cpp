@@ -135,6 +135,8 @@ EngineOptions EngineOptions::fromCommandLine (const juce::StringArray& args)
             o.bandLead1 = args[++i].unquoted();
         else if (args[i] == "--lead2" && i + 1 < args.size())
             o.bandLead2 = args[++i].unquoted();
+        else if (args[i] == "--import-test" && i + 1 < args.size())
+            o.importTest = args[++i].unquoted();
         else if (args[i] == "--snapshot" && i + 1 < args.size())
             o.snapshot = juce::File::getCurrentWorkingDirectory().getChildFile (args[++i].unquoted());
     }
@@ -179,6 +181,8 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
         message->setProperty ("index", songBox.getSelectedId() - 1);
         game.send (juce::var (message));
     };
+    addAndMakeVisible (importButton);
+    importButton.onClick = [this] { showImport(); };
 
     // guitar input channel
     addAndMakeVisible (inputLabel);
@@ -365,6 +369,15 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
     setSize (760, 964);
     startTimerHz (4);
 
+    if (options.importTest.isNotEmpty())
+        juce::Timer::callAfterDelay (5000, [self = juce::Component::SafePointer<MainComponent> (this)]  // (the game has connected by then)
+        {
+            if (self == nullptr)
+                return;
+            self->showImport();
+            self->importWindow->startTest (self->options.importTest);
+        });
+
     if (options.snapshot != juce::File())
         juce::Timer::callAfterDelay (3000, [self = juce::Component::SafePointer<MainComponent> (this)]
         {
@@ -374,6 +387,14 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
             self->options.snapshot.deleteFile();
             if (juce::FileOutputStream out (self->options.snapshot); out.openedOk())
                 juce::PNGImageFormat().writeImageToStream (image, out);
+            if (self->importWindow != nullptr)
+            {
+                const auto importImage = self->importWindow->getContentComponent()->createComponentSnapshot (self->importWindow->getContentComponent()->getLocalBounds());
+                const auto importFile = self->options.snapshot.withFileExtension ("import.png");
+                importFile.deleteFile();
+                if (juce::FileOutputStream out (importFile); out.openedOk())
+                    juce::PNGImageFormat().writeImageToStream (importImage, out);
+            }
         });
 }
 
@@ -381,6 +402,7 @@ MainComponent::~MainComponent()
 {
     stopTimer();
     saveSettings();
+    importWindow.reset();  // (stops a running import)
     windows.clear();  // editors go before their plugins
     footswitch.stop();
     engine.shutdown();
@@ -856,6 +878,31 @@ void MainComponent::showPlugin (EngineCore::Slot slot, const juce::String& title
         });
 }
 
+void MainComponent::showImport()
+{
+    if (importWindow == nullptr)
+        importWindow = std::make_unique<ImportWindow> (*settings, [this] (const juce::File& song) { songImported (song); });
+    else
+    {
+        importWindow->setVisible (true);
+        bringToFront (*importWindow);
+    }
+}
+
+void MainComponent::songImported (const juce::File& song)
+{
+    log ("Imported " + song.getFileName());
+    if (! game.isConnected())
+    {
+        log ("The game is not connected: start it and choose the song in the list");
+        return;
+    }
+    auto* message = new juce::DynamicObject();
+    message->setProperty ("type", "importedSong");
+    message->setProperty ("path", song.getFullPathName());
+    game.send (juce::var (message));  // the game reads its list again, sends it, and opens the song
+}
+
 void MainComponent::timerCallback()
 {
     const auto l = engine.latency();
@@ -900,6 +947,7 @@ void MainComponent::resized()
     auto row = r.removeFromTop (28);
     songLabel.setBounds (row.removeFromLeft (100));
     songBox.setBounds (row.removeFromLeft (260));
+    importButton.setBounds (row.removeFromLeft (140).reduced (6, 0));
     r.removeFromTop (6);
 
     row = r.removeFromTop (28);

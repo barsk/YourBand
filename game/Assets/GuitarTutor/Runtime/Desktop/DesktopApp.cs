@@ -103,7 +103,8 @@ namespace GuitarTutor.Runtime.Desktop
             var requested = Arg("-song");
             if (requested != null)
             {
-                songs.Insert(0, Path.GetFullPath(requested));
+                requestedSong = Path.GetFullPath(requested);
+                songs.Insert(0, requestedSong);
                 songIndex = 0;
             }
             else if (args.Contains("-demo"))
@@ -160,6 +161,38 @@ namespace GuitarTutor.Runtime.Desktop
         }
 
         string songPath;  // the song file being played (null: the demo)
+        string requestedSong;  // the song file on the command line (-song), first in the list
+
+        /// <summary>
+        /// A song the control panel's import window has just written: the list is read again from songs-local and the song
+        /// opened (even if it is the one open: it may be a new import of it). Only a song file in songs-local is taken.
+        /// </summary>
+        void OpenImported(string path)
+        {
+            var folder = SongLibrary.LocalFolder();
+            string full = null;
+            try
+            {
+                full = string.IsNullOrEmpty(path) ? null : Path.GetFullPath(path);
+            }
+            catch (Exception)
+            {
+            }
+            if (folder == null || full == null || !full.EndsWith(".song.json", StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(Path.GetDirectoryName(full), Path.GetFullPath(folder), StringComparison.OrdinalIgnoreCase) || !File.Exists(full))
+            {
+                Debug.LogWarning("GuitarTutor: the control panel imported a song that is not in songs-local, not opening it: " + path);
+                return;
+            }
+            songs.Clear();
+            if (requestedSong != null)
+                songs.Add(requestedSong);
+            songs.AddRange(SongLibrary.Files());
+            songs.Add(null);
+            var index = songs.FindIndex(s => s != null && string.Equals(Path.GetFullPath(s), full, StringComparison.OrdinalIgnoreCase));
+            if (index >= 0)
+                Load(index);
+        }
 
         void Load(int index)
         {
@@ -273,6 +306,8 @@ namespace GuitarTutor.Runtime.Desktop
                 if (index >= 0 && index < songs.Count && index != songIndex)
                     Load(index);
             }
+            else if (type == "importedSong")
+                OpenImported((string)message["path"]);
             else if (type == "command" && Enum.TryParse((string)message["command"] switch
                      {
                          "playPause" => "PlayPause",
