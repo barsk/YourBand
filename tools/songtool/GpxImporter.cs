@@ -404,6 +404,7 @@ namespace GuitarTutor.SongTool
             public HashSet<int> Pcs;
             public int[] Frets;
             public string ChordName;   // the file's chord name in force at the strum (the latest chord marker), if it writes any
+            public bool Marked;        // the strum's own beat carries a chord marker
             public int Bass => Pitches.Count > 0 ? Pitches.Min() % 12 : -1;
         }
 
@@ -480,6 +481,7 @@ namespace GuitarTutor.SongTool
                                     Pcs = new HashSet<int>(pitches.Select(p => p % 12)),
                                     Frets = FretsFor(notes, staff),
                                     ChordName = writtenChord,
+                                    Marked = ChordName(beat) != null,
                                 });
                         }
                     }
@@ -537,6 +539,25 @@ namespace GuitarTutor.SongTool
                     raw[raw.Count - 1].Add(s);
                 else
                     raw.Add(new List<Strum> { s });
+            }
+
+            // 1b) a chord marker that opens a short run at the end of a longer one starts the new chord there: its lowest
+            //     notes struck first and the rest of the chord following (a fingerpicking habit), with the bass of the
+            //     chord before. (A run before a marker that is short is a pickup into the chord: it stays with it.)
+            for (int i = 0; i < raw.Count; ++i)
+            {
+                var g = raw[i];
+                for (int k = 1; k < g.Count; ++k)
+                {
+                    if (!g[k].Marked || g[k].ChordName == g[k - 1].ChordName)
+                        continue;
+                    if (g.Take(k).Sum(s => s.Duration) >= MinRegion && g.Skip(k).Sum(s => s.Duration) < MinRegion)
+                    {
+                        raw.Insert(i + 1, g.GetRange(k, g.Count - k));
+                        g.RemoveRange(k, g.Count - k);
+                    }
+                    break;
+                }
             }
 
             // 2) merge each short region (a passing strum) into the neighbor it most resembles — the one it shares
