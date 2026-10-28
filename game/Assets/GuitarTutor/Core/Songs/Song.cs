@@ -115,6 +115,17 @@ namespace GuitarTutor.Core.Songs
         public List<string> Sections { get; set; } = new List<string>();
         /// <summary>Where the pattern comes from: "guitar-pro", "ultimate-guitar" or "default" (see SongOrigin); empty in older songs.</summary>
         public string Origin { get; set; } = "";
+        /// <summary>
+        /// What the band plays, when that is more than the pattern shown: the strokes bar after bar over the section, laid out
+        /// from its first bar like a long pattern (see SongChart.StrokeIndex). The pattern itself stays the general one, short
+        /// enough to remember and show; this is the song's own variations of it. Null: the band plays the pattern.
+        /// </summary>
+        public List<Stroke> Played { get; set; }
+
+        /// <summary>The pattern the band plays: this one, or a pattern made of its <see cref="Played"/> strokes.</summary>
+        public StrumPattern AsPlayed() => Played == null || Played.Count == 0
+            ? this
+            : new StrumPattern { Name = Name, Subdivision = Subdivision, Strokes = Played, Sections = Sections, Origin = Origin };
     }
 
     /// <summary>A chord shape: per string from the lowest, the fret (-1 not played, 0 open) and finger (0 none, 1 index ... 4 little).</summary>

@@ -110,6 +110,28 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
+        public void Arrangement_PlaysAPatternsPlayedStrokesWhenItHasThem_AndNotTheShortPatternItShows()
+        {
+            var song = DemoSong.Create();
+            song.Riffs.Clear();
+            song.Strumming.Clear();
+            // shown: a downstroke on every eighth; played: a bar of one stroke, then a bar of eight, over and over
+            var pattern = new StrumPattern { Subdivision = 8 };
+            for (int i = 0; i < 8; ++i)
+                pattern.Strokes.Add(Stroke.Down);
+            pattern.Played = new System.Collections.Generic.List<Stroke> { Stroke.Down, Stroke.Rest, Stroke.Rest, Stroke.Rest, Stroke.Rest, Stroke.Rest, Stroke.Rest, Stroke.Rest };
+            for (int i = 0; i < 8; ++i)
+                pattern.Played.Add(Stroke.Down);
+            song.Strumming.Add(pattern);
+            var a = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"));
+            int InBar(int bar) => a.Strokes.Count(st => st.AtQuarter > 4 * bar - 1e-6 && st.AtQuarter < 4 * bar + 4 - 1e-6);
+            Assert.AreEqual(1, InBar(0));
+            Assert.AreEqual(8, InBar(1));
+            Assert.AreEqual(1, InBar(2));
+            Assert.AreEqual(8, pattern.Strokes.Count);  // (what is shown is untouched)
+        }
+
+        [Test]
         public void Arrangement_PlaysTheTabsSingleStringNotesAsNotes_AndDoesNotStrumOverThem()
         {
             var song = DemoSong.Create();

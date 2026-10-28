@@ -745,6 +745,9 @@ namespace GuitarTutor.SongTool
         /// stroke where present, else the standard rule — down on the beat, up on the off-beat. (A GPX file often
         /// records no strokes at all.)
         /// </summary>
+        /// <summary>The most bars of strumming a section's pattern shows: a longer one cannot be remembered.</summary>
+        const int MaxShownBars = 3;
+
         static void Strumming(Score score, Staff staff, Song song, ImportReport report, double tpq, List<StrumPattern> ug, Dictionary<string, string> ugMap)
         {
             if (ug != null && ug.Count == 0)
@@ -812,15 +815,18 @@ namespace GuitarTutor.SongTool
                 StrumPattern pattern;
                 if (ugFor.Pattern != null)
                 {
-                    // the page's pattern, laid out bar by bar as the chart would from the section's start (StrokeIndex), each
-                    // stroke kept where the tab strums and left out where it does not (a held chord, a rest: a space in the tab)
+                    // the page's pattern, as the page has it (what the strumming panel shows); what the band plays is the same laid
+                    // out bar by bar as the chart would from the section's start (StrokeIndex), each stroke kept where the tab strums
+                    // and left out where it does not (a held chord, a rest: a space in the tab)
                     pattern = new StrumPattern { Name = kv.Key, Subdivision = ugFor.Pattern.Subdivision, Sections = { kv.Key }, Origin = SongOrigin.UltimateGuitar };
+                    pattern.Strokes.AddRange(ugFor.Pattern.Strokes);
                     var grids = kv.Value;
                     var ratio = ugFor.Pattern.Subdivision > 0 && 16 % ugFor.Pattern.Subdivision == 0 ? 16 / ugFor.Pattern.Subdivision : 0;   // the tab's slots per pattern slot
                     var perBar = ratio > 0 && grids.All(g => g.Grid.Length == grids[0].Grid.Length) && grids[0].Grid.Length % ratio == 0 ? grids[0].Grid.Length / ratio : 0;
                     if (perBar > 0 && ugFor.Pattern.Strokes.Count % perBar == 0)
                     {
                         var ugBars = ugFor.Pattern.Strokes.Count / perBar;
+                        var played = new List<Stroke>();
                         var left = 0;
                         for (int bar = 0; bar < grids.Count; ++bar)
                             for (int j = 0; j < perBar; ++j)
@@ -831,13 +837,14 @@ namespace GuitarTutor.SongTool
                                     stroke = Stroke.Rest;
                                     ++left;
                                 }
-                                pattern.Strokes.Add(stroke);
+                                played.Add(stroke);
                             }
                         if (left > 0)
+                        {
+                            pattern.Played = played;
                             leftOut.Add($"{kv.Key} {left}");
+                        }
                     }
-                    else
-                        pattern.Strokes.AddRange(ugFor.Pattern.Strokes);   // (bars of different lengths: the page's pattern whole)
                 }
                 else
                 {
@@ -847,22 +854,23 @@ namespace GuitarTutor.SongTool
                     pattern = new StrumPattern { Name = kv.Key, Subdivision = 16, Sections = { kv.Key }, Origin = SongOrigin.GuitarPro };
                     // the section's bars in a repeating run of the fewest bars that has every bar of the section in it
                     // (one bar when they all strum alike; the whole section when each differs, a one-off first-beat strum
-                    // included); bars of different lengths (a change of meter) are too much for that: the most common grid
+                    // included); bars of different lengths (a change of meter) are too much for that
                     var period = keys.All(k => k.Length == keys[0].Length)
                         ? Enumerable.Range(1, keys.Count).First(p => Enumerable.Range(p, keys.Count - p).All(i => keys[i] == keys[i - p]))
                         : 0;
-                    if (period > 0)
+                    var exact = new List<Stroke>();
+                    for (int bar = 0; bar < period; ++bar)
                     {
-                        for (int bar = 0; bar < period; ++bar)
-                        {
-                            var matching = grids.Where((g, i) => i % period == bar).Select(g => g.Rec).ToList();
-                            for (int i = 0; i < keys[bar].Length; ++i)
-                                pattern.Strokes.Add(keys[bar][i] == '1' ? Direction(matching, i) : Stroke.Rest);
-                        }
+                        var matching = grids.Where((g, i) => i % period == bar).Select(g => g.Rec).ToList();
+                        for (int i = 0; i < keys[bar].Length; ++i)
+                            exact.Add(keys[bar][i] == '1' ? Direction(matching, i) : Stroke.Rest);
                     }
+                    if (period > 0 && period <= MaxShownBars)
+                        pattern.Strokes.AddRange(exact);
                     else
                     {
-                        // the most common grid; ties broken by the one that establishes first in the section (bars are in order)
+                        // a run too long to remember is not what the panel shows: that is the section's most common bar (ties
+                        // broken by the one that establishes first in the section, bars being in order), and the band plays the run
                         var dominant = keys.GroupBy(k => k)
                             .OrderByDescending(x => x.Count())
                             .ThenBy(x => keys.IndexOf(x.First()))
@@ -870,6 +878,8 @@ namespace GuitarTutor.SongTool
                         var matching = grids.Where(g => Key(g.Grid) == dominant).Select(g => g.Rec).ToList();
                         for (int i = 0; i < dominant.Length; ++i)
                             pattern.Strokes.Add(dominant[i] == '1' ? Direction(matching, i) : Stroke.Rest);
+                        if (period > 0)
+                            pattern.Played = exact;
                     }
                 }
                 song.Strumming.Add(pattern);

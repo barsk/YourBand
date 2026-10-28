@@ -375,7 +375,7 @@ namespace GuitarTutor.Core.Band
             foreach (var bar in chart.Bars)
             {
                 var last = bar.Index == chart.Bars.Count - 1;
-                var pattern = last ? null : chart.PatternsFor(bar.Section).FirstOrDefault(p => p.Strokes.Count > 0 && p.Subdivision > 0) ?? Downstrokes;
+                var pattern = last ? null : (chart.PatternsFor(bar.Section).FirstOrDefault(p => p.Strokes.Count > 0 && p.Subdivision > 0) ?? Downstrokes).AsPlayed();
                 var slot = last ? bar.Quarters : 4.0 / pattern.Subdivision;
                 for (int i = 0; i * slot < bar.Quarters - 1e-6; ++i)
                 {
