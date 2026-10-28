@@ -403,7 +403,7 @@ namespace GuitarTutor.SongTool
             public List<int> Pitches;
             public HashSet<int> Pcs;
             public int[] Frets;
-            public string ChordName;   // the file's own chord name, if it writes one
+            public string ChordName;   // the file's chord name in force at the strum (the latest chord marker), if it writes any
             public int Bass => Pitches.Count > 0 ? Pitches.Min() % 12 : -1;
         }
 
@@ -424,6 +424,7 @@ namespace GuitarTutor.SongTool
             var voicings = new Dictionary<string, Voicing>();
             var strums = new List<Strum>();
             var masterByIndex = score.MasterBars.ToDictionary(mb => mb.Index);
+            string writtenChord = null;   // the file's chord name in force: a chord marker holds until the next one
 
             foreach (var bar in staff.Bars)
             {
@@ -433,6 +434,7 @@ namespace GuitarTutor.SongTool
                 {
                     foreach (var beat in voice.Beats)
                     {
+                        writtenChord = ChordName(beat) ?? writtenChord;
                         var at = (master.Start + beat.DisplayStart) / tpq;
                         var length = Math.Max(0, beat.DisplayDuration) / tpq;
                         // (a dead note, the "x" of a muted strum, has fret 0 in the file but no pitch: not an open string)
@@ -477,7 +479,7 @@ namespace GuitarTutor.SongTool
                                     Pitches = pitches,
                                     Pcs = new HashSet<int>(pitches.Select(p => p % 12)),
                                     Frets = FretsFor(notes, staff),
-                                    ChordName = ChordName(beat),
+                                    ChordName = writtenChord,
                                 });
                         }
                     }
@@ -582,11 +584,11 @@ namespace GuitarTutor.SongTool
 
                 var frets = RegionFrets(g, total);
 
-                // the file's own name for the region: its strums' most common written name, when they have one
-                var written = g.Where(s => s.ChordName != null).Select(s => s.ChordName).ToList();
-                var writtenName = written.Count > 0
-                    ? written.GroupBy(n => n).OrderByDescending(x => x.Count()).ThenBy(x => x.First()).First().First()
-                    : null;
+                // the file's own name for the region: the written name in force for most of its strum time, when it has one
+                // (by time: a bass note struck just before a marker, or a first strum of the next chord, is not the chord)
+                var writtenName = g.Where(s => s.ChordName != null).GroupBy(s => s.ChordName)
+                    .OrderByDescending(x => x.Sum(s => s.Duration)).ThenBy(x => x.Key, StringComparer.Ordinal)
+                    .Select(x => x.Key).FirstOrDefault();
 
                 regions.Add(new ChordRegion
                 {

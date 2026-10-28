@@ -30,6 +30,7 @@ namespace GuitarTutor.SongTool
                         if (beat.Fade != FadeType.None) flags.Append(" fade-" + beat.Fade);
                         if (beat.Vibrato != VibratoType.None) flags.Append(" vibrato");
                         if (!string.IsNullOrEmpty(beat.Text)) flags.Append(" text:'" + beat.Text + "'");
+                        if (beat.HasChord && beat.Chord != null) flags.Append(" chord:'" + beat.Chord.Name + "'");
                         if (beat.BrushType != BrushType.None) flags.Append(" brush-" + beat.BrushType);
                         if (beat.Notes.Any(n => n.HarmonicType != HarmonicType.None)) flags.Append(" harmonic");
                         if (beat.Notes.Any(n => n.Accentuated != AccentuationType.None)) flags.Append(" accent");
