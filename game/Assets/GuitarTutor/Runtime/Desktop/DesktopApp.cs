@@ -67,6 +67,10 @@ namespace GuitarTutor.Runtime.Desktop
         bool engineConnected;  // as last reported on the main thread
         System.Diagnostics.Process startedEngine;  // the engine this game started, if it did
         bool startingEngine;   // started, not connected yet
+        bool loading;          // the window is covered, and the keys ignored, until the engine has taken the first song
+        bool noEngine;         // there is none to wait for: none found to start, or it did not start
+        float loadingSince;
+        const float LoadingTimeout = 90f;  // seconds: a plugin that takes longer than this does not keep the window shut
         bool engineReady;      // connected, and has this song
         ITransport transport;
         double? hold;      // screenshots: keep the music here
@@ -129,6 +133,8 @@ namespace GuitarTutor.Runtime.Desktop
                 link.Message += OnEngineMessage;
                 link.Start();
                 StartCoroutine(StartEngineIfNeeded(Arg("-engine"), Arg("-engineargs") ?? ""));
+                loading = true;  // until the band has its first song
+                loadingSince = Time.realtimeSinceStartup;
             }
             vr = gameObject.AddComponent<VrMode>();
             vr.Commanded += Execute;
@@ -167,6 +173,7 @@ namespace GuitarTutor.Runtime.Desktop
                 yield break;
             startedEngine = EngineProcess.Start(EngineProcess.Find(program), extraArguments);
             startingEngine = startedEngine != null;
+            noEngine = startedEngine == null;
         }
 
         string songPath;  // the song file being played (null: the demo)
@@ -271,6 +278,34 @@ namespace GuitarTutor.Runtime.Desktop
             link.Send(EngineProtocol.Mix(BandPart.Keys, bandStyle.KeysGain));
         }
 
+        /// <summary>
+        /// While the audio engine starts: the window is covered with a circling ring and the keys are ignored (Esc still
+        /// leaves), until the band has its first song. It also ends when there is no engine to wait for, when the engine
+        /// the game started has exited, and after <see cref="LoadingTimeout"/>.
+        /// </summary>
+        void UpdateLoading()
+        {
+            if (!loading)
+                return;
+            string done = null;
+            if (engineReady)
+                done = "the band has the song";
+            else if (noEngine)
+                done = "no audio engine to wait for";
+            else if (startedEngine != null && startedEngine.HasExited)
+                done = "the audio engine exited";
+            else if (Time.realtimeSinceStartup - loadingSince > LoadingTimeout)
+                done = "the audio engine did not answer in time";
+            if (done != null)
+            {
+                loading = false;
+                screen.SetLoading(null);
+                Debug.Log($"GuitarTutor: window open after {Time.realtimeSinceStartup - loadingSince:0.0} s ({done})");
+                return;
+            }
+            screen.SetLoading(engineConnected ? "Loading the song into the band..." : startingEngine ? "Starting the audio engine..." : "Waiting for the audio engine...");
+        }
+
         void OnEngineConnection(bool connected)
         {
             Debug.Log("GuitarTutor: audio engine " + (connected ? "connected" : "gone"));
@@ -344,6 +379,7 @@ namespace GuitarTutor.Runtime.Desktop
             link?.Poll();
             if (engineReady)
                 engine.Refresh();
+            UpdateLoading();
             HandleKeys();
             if (hold != null && !transport.Playing)
                 transport.Play(hold.Value, 0);
@@ -515,6 +551,8 @@ namespace GuitarTutor.Runtime.Desktop
 
         void Execute(Command command)
         {
+            if (loading && command != Command.Quit)
+                return;  // (the window is shut until the engine is up; Esc still leaves)
             switch (command)
             {
                 case Command.PlayPause:
@@ -593,6 +631,8 @@ namespace GuitarTutor.Runtime.Desktop
             foreach (var (key, command) in keys)
                 if (k[key].wasPressedThisFrame)
                     Execute(command);
+            if (loading)
+                return;
             Key[] panelKeys = { Key.Digit1, Key.Digit2, Key.Digit3, Key.Digit4 };
             for (int i = 0; i < panelKeys.Length; ++i)
                 if (k[panelKeys[i]].wasPressedThisFrame || k[Key.Numpad1 + i].wasPressedThisFrame)

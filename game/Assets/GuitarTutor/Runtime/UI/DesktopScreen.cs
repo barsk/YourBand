@@ -38,6 +38,7 @@ namespace GuitarTutor.Runtime.UI
         public const int MaxChords = 6;
 
         public ChartStrip Strip { get; }
+        readonly LoadingOverlay loading = new LoadingOverlay();
 
         readonly Label title, artist, status, hint, vrHint;
         readonly VisualElement help, vrHelp;
@@ -137,6 +138,7 @@ namespace GuitarTutor.Runtime.UI
                          ("Y", "with the left controller resting on the floor: the floor's height"),
                          ("Keyboard X", "back to the desktop"),
                      });
+            Add(loading);  // last: over everything
         }
 
         VisualElement Help((string keys, string what)[] rows)
@@ -163,6 +165,9 @@ namespace GuitarTutor.Runtime.UI
         public bool IsShown(Panel which) => !panels[which].ClassListContains("gt-hidden");
 
         public void SetShown(Panel which, bool shown) => panels[which].EnableInClassList("gt-hidden", !shown);
+
+        /// <summary>Covers the window with a circling ring and this line (the mouse is blocked meanwhile), or uncovers it (null).</summary>
+        public void SetLoading(string message) => loading.Show(message);
 
         public void ToggleHelp() => (vr ? vrHelp : help).ToggleInClassList("gt-hidden");
 
