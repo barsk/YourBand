@@ -109,6 +109,15 @@ namespace GuitarTutor.Runtime.Desktop
             }
             else if (args.Contains("-demo"))
                 songIndex = songs.Count - 1;
+            // the song open last time, unless this run is told which song to show (-song, -demo) or is a test (-shot)
+            rememberSong = requested == null && !args.Contains("-demo") && Arg("-shot") == null;
+            if (rememberSong)
+            {
+                var last = PlayerPrefs.GetString(LastSongKey, "");
+                var lastIndex = songs.FindIndex(s => s != null && string.Equals(Path.GetFileName(s), last, StringComparison.OrdinalIgnoreCase));
+                if (lastIndex >= 0)
+                    songIndex = lastIndex;
+            }
 
             // screenshots are of the chart alone: the band stays out of it
             if (!args.Contains("-noengine") && Arg("-shot") == null)
@@ -161,6 +170,8 @@ namespace GuitarTutor.Runtime.Desktop
         }
 
         string songPath;  // the song file being played (null: the demo)
+        const string LastSongKey = "song.last";  // PlayerPrefs: the file name of the song open last, opened again at the next start
+        bool rememberSong;  // whether opening a song is remembered (not in a run told its song, or a test)
         string requestedSong;  // the song file on the command line (-song), first in the list
 
         /// <summary>
@@ -200,9 +211,11 @@ namespace GuitarTutor.Runtime.Desktop
             var path = songs[songIndex];
             songPath = path;  // before the band is arranged: the engine is told where the song is from
             Song song;
+            var loadedFile = false;
             try
             {
                 song = path == null ? DemoSong.Create() : SongJson.Load(path);
+                loadedFile = path != null;
             }
             catch (Exception e)
             {
@@ -220,6 +233,11 @@ namespace GuitarTutor.Runtime.Desktop
             var styleName = Environment.GetCommandLineArgs().SkipWhile(a => a != "-style").Skip(1).FirstOrDefault();
             Arrange(styleName != null ? BandStyle.Named(styleName) : Arranger.DefaultStyle(song));
             Debug.Log($"GuitarTutor: {song.Info.Artist} - {song.Info.Title}, {chart.Bars.Count} bars ({path ?? "demo"})");
+            if (rememberSong && loadedFile)
+            {
+                PlayerPrefs.SetString(LastSongKey, Path.GetFileName(path));
+                PlayerPrefs.Save();
+            }
             Debug.Log("GuitarTutor: song from " + SongOrigin.Describe(song, path));
             if (engineConnected)
                 SendSongList();
