@@ -115,7 +115,8 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   instruments; a "[Chord]" one plays a whole chord for each string's note) or Kontakt with Shreddage 3
   Stratus FREE. A guitar plugin goes through a trim into the amp (MONSTER Guitar plays about 30 dB louder
   than a guitar: -30 dB), or straight to the mixer with "through band guitar tone" off. Guitar plugins get
-  the notes as they sound (MONSTER Guitar: note 40 is E2).
+  the notes as they sound (MONSTER Guitar: note 40 is E2), but a note below D#2 (Shreddage's lowest: a drop D song's
+  low D2) goes an octave up, and a chord note that lands on another of its chord that way is played once.
   On Kontakt the band plays Shreddage in its strumming mode: the chord goes to it as a held voicing (silent
   there) and each stroke as a strum keyswitch (down G#5, up A5). The strumming-mode keyswitch F#5 is held
   automatically (let go on pause, seek or a new score). Where the song's tab has single-string notes (an onset

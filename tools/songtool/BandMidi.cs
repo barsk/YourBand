@@ -19,6 +19,13 @@ namespace GuitarTutor.SongTool
     {
         const int Ppq = 960, Channel = 2;  // MIDI channel 3, where the engine plays the band guitar
         const int StrumMode = 78, DownKey = 80, UpKey = 81, MuteKey = 84;
+        const int LowestNote = 39;  // the plugin's lowest note (Shreddage 3 Stratus FREE: D#2): a lower one, a drop D's D2, goes an octave up
+        static int Fold(int pitch)
+        {
+            while (pitch < LowestNote)
+                pitch += 12;
+            return pitch;
+        }
         const double HoldMin = 0.080, HoldMax = 1.2, ChordGap = 0.07, MuteHold = 0.12, MuteTail = 0.040;
 
         sealed class Ev
@@ -40,7 +47,7 @@ namespace GuitarTutor.SongTool
 
             // the chords: the strings of each, as the arranger wrote them
             var chords = a.Voicings.GroupBy(v => (v.AtQuarter, v.Quarters))
-                .Select(g => (At: g.Key.AtQuarter, End: g.Key.AtQuarter + g.Key.Quarters, Pitches: g.Select(v => v.Pitch).ToList()))
+                .Select(g => (At: g.Key.AtQuarter, End: g.Key.AtQuarter + g.Key.Quarters, Pitches: g.Select(v => Fold(v.Pitch)).Distinct().ToList()))
                 .OrderBy(c => c.At).ToList();
             var spans = a.SingleSpans;
 
@@ -115,8 +122,8 @@ namespace GuitarTutor.SongTool
             // the single-string notes: as notes, the strumming mode being let go
             foreach (var n in a.Notes.Where(n => n.Single && InRange(n.AtQuarter)))
             {
-                On(n.AtQuarter, n.Pitch, n.Velocity);
-                Off(n.AtQuarter + n.Quarters, n.Pitch, -4);  // (as the chords' offs: before an on of the same key just after it)
+                On(n.AtQuarter, Fold(n.Pitch), n.Velocity);
+                Off(n.AtQuarter + n.Quarters, Fold(n.Pitch), -4);  // (as the chords' offs: before an on of the same key just after it)
             }
 
             WriteFile(song, path, events, fromQuarter, toQuarter, Tick);
