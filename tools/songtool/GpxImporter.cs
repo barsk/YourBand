@@ -748,12 +748,14 @@ namespace GuitarTutor.SongTool
         /// <summary>The most bars of strumming a section's pattern shows: a longer one cannot be remembered.</summary>
         const int MaxShownBars = 3;
 
+        /// <summary>The name of the strumming of a song with no sections: it has no section list, so the pattern is the whole song's.</summary>
+        const string WholeSongName = "Song";
+
         static void Strumming(Score score, Staff staff, Song song, ImportReport report, double tpq, List<StrumPattern> ug, Dictionary<string, string> ugMap)
         {
             if (ug != null && ug.Count == 0)
                 ug = null;
-            if (song.Sections.Count == 0)
-                return;
+            var wholeSong = song.Sections.Count == 0;   // (a file with no section marks: one run of strumming for the whole song)
             var masterByIndex = score.MasterBars.ToDictionary(mb => mb.Index);
 
             // 1) per bar: which sixteenth slots strum, and the recorded direction of each strummed slot
@@ -798,10 +800,11 @@ namespace GuitarTutor.SongTool
             {
                 var barStart = masterByIndex[kv.Key].Start / tpq;
                 var section = song.Sections.FirstOrDefault(s => barStart >= s.AtQuarter - 1e-6 && barStart < s.AtQuarter + s.Quarters - 1e-6);
-                if (section == null)
+                if (section == null && !wholeSong)
                     continue;
-                if (!bySection.TryGetValue(section.Name, out var list))
-                    bySection[section.Name] = list = new List<(char[], Stroke[])>();
+                var name = section?.Name ?? WholeSongName;
+                if (!bySection.TryGetValue(name, out var list))
+                    bySection[name] = list = new List<(char[], Stroke[])>();
                 list.Add(kv.Value);
             }
             if (bySection.Count == 0)
@@ -888,6 +891,8 @@ namespace GuitarTutor.SongTool
                             pattern.Played = exact;
                     }
                 }
+                if (wholeSong)
+                    pattern.Sections.Clear();
                 song.Strumming.Add(pattern);
                 if (ug != null)
                     picks.Add((kv.Key, ugFor.Pattern, ugFor.How));
