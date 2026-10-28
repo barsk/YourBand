@@ -26,15 +26,13 @@ namespace
     constexpr double strokeHoldMinSec = 0.080;  // the shortest key hold: below ~40 ms the sweep is partial
     constexpr double strokeHoldMaxSec = 1.2;    // the longest: a held key sustains the chord at full level,
                                                 // so a longer hold would ring it like a synth
-    // let the key go this long before the next stroke. The plugin sustains a held chord at full level and damps it
-    // quickly on release; the next stroke's attack is only heard against that dip (measured with strum_session:
-    // 3 ms: half the strokes lost in the sustain, 25 ms: still weak, 50 ms: every stroke clear, 100 ms: strong)
-    constexpr double strokeReleaseLeadSec = 0.05;
-    constexpr double strokeChordGapSec = 0.07;  // the last stroke of a chord lets go this long before the chord ends:
-                                                // the hand needs a moment to reach the next chord
+    // a stroke starts on its beat and its key is held until the next stroke starts (the chord rings back to back, as a
+    // hand strumming), except the last stroke of a chord, which lets go this long before the chord ends: the hand
+    // needs a moment to reach the next chord. (Measured once with strum_session, with the key let go before the next
+    // stroke: 3 ms: half the strokes lost in the sustain, 25 ms: still weak, 50 ms: every stroke clear. Back to back
+    // is by choice; if strokes go missing in the sustain, a release lead before the next stroke brings them back.)
+    constexpr double strokeChordGapSec = 0.07;
     constexpr double muteHoldSec = 0.12;        // a muted stroke's key: the chug is not left to ring
-    constexpr double strokeLagSec = 0.015; // a stroke lands this much after its beat: a hand takes a moment
-                                           // to turn and to reach a new chord
     constexpr double muteTailSec = 0.040;   // the Mute keyswitch is let go this much after the strum (it is
                                              // pressed a few samples before, so a chug of ~44 ms)
 }
@@ -556,8 +554,7 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
                 // chords and a note both chords hold is not cut by the old chord's release after the new one's start
                 addOff ({ guitar, v.pitch, -1, v.at + v.length - early - 0.001 });
             }
-            // the strokes: a strum keyswitch (down G#5, up A5) a hair after each beat, as a hand takes a
-            // moment to turn and to reach a new chord. The key is held until the next stroke (or the cap):
+            // the strokes: a strum keyswitch (down G#5, up A5) on each beat. The key is held until the next stroke (or the cap):
             // the plugin rings the chord while the key is down and damps it on release, so the hold is the
             // chord's ring. A muted stroke adds the Mute keyswitch C6 around the strum (a fast chug). A
             // keyswitch's noteOff must land in the buffer after its noteOn; the offs list fires before this
@@ -569,7 +566,7 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
                     continue;
                 if (st.at < q0 - 1.0e-9 || (countingIn && st.at < countInUntil - 1.0e-9) || ! guitarPlays.load())
                     continue;
-                const double atSec = st.at - early + strokeLagSec * rate;
+                const double atSec = st.at - early;
                 const auto at = offsetOf (atSec);
                 // the chord rings from the stroke until the next one (the key is held that long), or until a
                 // little before its chord ends; a muted stroke is a chug that is let go quickly
@@ -580,12 +577,9 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
                 if (st.muted)
                     hold = juce::jmin (hold, muteHoldSec);
                 hold = juce::jmax (strokeHoldMinSec, hold);
+                double keyEnd = atSec + hold * rate;
                 if (strokeCursor < s->strokes.size())
-                {
-                    const double gap = (s->strokes[strokeCursor].at - st.at) / rate;  // seconds to the next stroke
-                    hold = juce::jmin (hold, juce::jmax (0.0, gap - juce::jmin (strokeReleaseLeadSec, gap * 0.4)));
-                }
-                const double keyEnd = atSec + hold * rate;
+                    keyEnd = juce::jmin (keyEnd, s->strokes[strokeCursor].at - early);  // the next stroke starts as this key goes
                 const double muteEnd = atSec + muteTailSec * rate;
                 if (st.muted)
                     midi.addEvent (juce::MidiMessage::noteOn (channelOf (guitar), muteKey, (juce::uint8) 100),

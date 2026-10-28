@@ -123,14 +123,14 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   let go for the stretch (the chord's strings and the strum key first, then F#5), the notes play as ordinary
   notes, and at the stretch's end F#5 goes down again and the chord held then is re-sent. Measured with plugin_probe: the plugin rings the
   strummed chord at full level for as long as the strum keyswitch is held and damps it (a fast release) when
-  the key is let go, so the band holds each key until the next stroke (100 ms before it, so the chord has
-  started to damp when the hand comes back) or 1.2 s at most (a held key sustains the chord at full level,
+  the key is let go, so the band starts each stroke exactly on its beat and holds its key until the next stroke starts
+  (back to back, no gap), or 1.2 s at most; the last stroke of a chord lets go 70 ms before the chord ends, for the
+  hand's change to the next chord (a held key sustains the chord at full level,
   so a longer hold rings it like a synth); the key must be held at least 80 ms (below ~40 ms the sweep is
   partial or silent, and a zero-length key plucks only one string on an up-strum). A chord change damps the
   active strum early, as a hand moving to the new chord would (a clean stroke rings about 1.1 s to -25 dB).
   A muted stroke adds the Mute keyswitch C6 around the strum (a few samples before it, let go 40 ms after):
-  a fast chug (about 0.5 s to -25 dB) (C#6 would choke it; the song model has no choke yet). A stroke lands
-  15 ms after its beat, as a hand takes a moment to turn. It needs the strumming-mode setup in the Shreddage
+  a fast chug (about 0.5 s to -25 dB) (C#6 would choke it; the song model has no choke yet). It needs the strumming-mode setup in the Shreddage
   window (Strumming Mode off + Keyswitchable on, so F#5 switches the mode; Strum Speed/Volume from velocity)
   and the TACT Mute articulation left off (an enabled Mute damps every strum). The strum's pick lands about 13-20 ms after its
   keyswitch (its chord body builds for another 100 ms or so, as a strummed guitar's does), so the band sends

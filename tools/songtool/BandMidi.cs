@@ -19,7 +19,7 @@ namespace GuitarTutor.SongTool
     {
         const int Ppq = 960, Channel = 2;  // MIDI channel 3, where the engine plays the band guitar
         const int StrumMode = 78, DownKey = 80, UpKey = 81, MuteKey = 84;
-        const double HoldMin = 0.080, HoldMax = 1.2, ReleaseLead = 0.05, ChordGap = 0.07, MuteHold = 0.12, MuteTail = 0.040, Lag = 0.015;
+        const double HoldMin = 0.080, HoldMax = 1.2, ChordGap = 0.07, MuteHold = 0.12, MuteTail = 0.040;
 
         sealed class Ev
         {
@@ -34,7 +34,6 @@ namespace GuitarTutor.SongTool
             var a = Arranger.Arrange(chart);
             var events = new List<Ev>();
             long Tick(double q) => Math.Max(0, (long)Math.Round((q - fromQuarter) * Ppq));
-            double Quarters(double seconds, double at) => seconds * song.Tempo.BpmAt(at) / 60.0;
             void On(double q, int key, int vel, int tickShift = 0) => events.Add(new Ev { Tick = Math.Max(0, Tick(q) + tickShift), Order = 1, Bytes = new byte[] { (byte)(0x90 | Channel), (byte)key, (byte)vel } });
             void Off(double q, int key, int tickShift = 0) => events.Add(new Ev { Tick = Math.Max(0, Tick(q) + tickShift), Order = 0, Bytes = new byte[] { (byte)(0x80 | Channel), (byte)key, 0 } });
             bool InRange(double q) => q >= fromQuarter - 1e-9 && q < toQuarter;
@@ -79,15 +78,15 @@ namespace GuitarTutor.SongTool
                     }
             }
 
-            // the strokes: a strum keyswitch held until the next stroke (50 ms short of it, so each attack is heard), a little before its chord ends,
-            // 1.2 s at most; a muted stroke's key 120 ms, with the Mute keyswitch around it
+            // the strokes: a strum keyswitch on its beat, held until the next stroke starts (back to back), the last of a chord a little before
+            // the chord ends, 1.2 s at most; a muted stroke's key 120 ms, with the Mute keyswitch around it
             var strokes = a.Strokes.OrderBy(s => s.AtQuarter).ToList();
             for (int i = 0; i < strokes.Count; ++i)
             {
                 var st = strokes[i];
                 if (!InRange(st.AtQuarter))
                     continue;
-                var at = st.AtQuarter + Quarters(Lag, st.AtQuarter);
+                var at = st.AtQuarter;
                 var bpm = song.Tempo.BpmAt(st.AtQuarter);
                 var rate = bpm / 60.0;
                 var hold = HoldMax;
@@ -97,13 +96,10 @@ namespace GuitarTutor.SongTool
                 if (st.Muted)
                     hold = Math.Min(hold, MuteHold);
                 hold = Math.Max(HoldMin, hold);
-                if (i + 1 < strokes.Count)
-                {
-                    var gap = (strokes[i + 1].AtQuarter - st.AtQuarter) / rate;  // seconds to the next stroke
-                    hold = Math.Min(hold, Math.Max(0, gap - Math.Min(ReleaseLead, gap * 0.4)));
-                }
                 var key = st.Up ? UpKey : DownKey;
                 var end = at + hold * rate;
+                if (i + 1 < strokes.Count)
+                    end = Math.Min(end, strokes[i + 1].AtQuarter);  // the next stroke starts as this key goes
                 var cut = spans.Where(s => s.From > st.AtQuarter && s.From < end).Select(s => s.From).DefaultIfEmpty(double.NaN).First();
                 if (!double.IsNaN(cut))
                     end = cut;  // the stretch lets the key go
