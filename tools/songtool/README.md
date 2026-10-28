@@ -12,6 +12,20 @@ tools/songtool/bin/Release/net8.0/songtool.exe export-strum <chords-page.html> -
 tools/songtool/bin/Release/net8.0/songtool.exe show <song.json> [--bars 1-16]
 ```
 
+```
+tools/songtool/bin/Release/net8.0/songtool.exe import --gp <file> [--strum-url <chords-page-url>] [--track n] [--out-dir <folder>]
+tools/songtool/bin/Release/net8.0/songtool.exe import --chords-url <url> [--tabs-url <url>] [--out-dir <folder>]
+tools/songtool/bin/Release/net8.0/songtool.exe import --tabs-url <url> [--out-dir <folder>]
+```
+
+`import` is what the control panel's "Import new..." window runs. It reads the Ultimate Guitar pages straight from
+their URLs, in memory (nothing but the song is saved), and records the URLs (and the page's revision) in the song's
+`sources`. The song goes to `songs-local/<title>[-<gp extension>][-ug].song.json` (a new import of the same song
+replaces the earlier one), every step prints a line, and a successful import ends with `Saved <path>`. A Guitar Pro
+import takes only the strumming from a page; a UG import takes the chords page and/or the tabs page (a tabs page
+alone gives fewer chords). Only `ultimate-guitar.com` addresses are fetched. If the site refuses the request (HTTP
+403 or 429) the message says to save the page from the browser and use `import-ug` / `import-gpx --strum` instead.
+
 Save the Ultimate Guitar pages from the browser ("Save page as", HTML) into `songs-local/pages/`, and Guitar Pro
 files (`.gpx`, or `.gp`/`.gp3`/`.gp4`/`.gp5`) into `songs-local/gpx/`; write the songs to `songs-local/`. That
 folder is not in git: song pages and lyrics are licensed content and stay on your machine.
