@@ -19,6 +19,9 @@ namespace GuitarTutor.SongTool
             var to = range.Length > 1 ? int.Parse(range[1]) : from;
             var staff = score.Tracks[track].Staves[0];
             for (int i = from - 1; i < to && i < staff.Bars.Count; ++i)
+            {
+                if (staff.Bars[i].SimileMark != SimileMark.None)
+                    Console.WriteLine($"bar {i + 1} simile mark {staff.Bars[i].SimileMark}");
                 foreach (var voice in staff.Bars[i].Voices)
                     foreach (var beat in voice.Beats)
                     {
@@ -40,6 +43,7 @@ namespace GuitarTutor.SongTool
                                               + (n.IsGhost ? "g" : "") + (n.IsHammerPullOrigin ? "h" : "") + (n.IsTieDestination ? "t" : "")
                                               + (n.IsLetRing ? "L" : "") + (n.IsPalmMute ? "m" : "") + (n.IsStaccato ? "s" : ""))));
                     }
+            }
             return 0;
         }
 

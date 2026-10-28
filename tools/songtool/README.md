@@ -47,7 +47,9 @@ It imports what the current song model holds:
   fret 0) are left out of the tab and the chords — they would read as open strings — and make a muted stroke when
   the strums are taken from the file. A note tied from the one before (the tie arc) is that note held on, not struck
   again: it lengthens the tab note, and a beat of tied notes only is the strum before, held (not another strum);
-  `gpx-info <file> --beats <track> <bars>` lists a track's notes with their flags;
+  `gpx-info <file> --beats <track> <bars>` lists a track's notes with their flags. A bar with a repeat (simile) mark,
+  Guitar Pro 7's "%", holds no notes of its own and plays the bar before it (a double mark: the two bars before); the
+  importer reads the bar it repeats, in the tab, chords, strumming and the other parts;
 - the chords and their voicings. The strums are grouped into regions — a run of strums with the same bass note and
   no long pause, with a brief passing strum (e.g. a leading-tone shape into the next chord) merged into the
   neighbor it most resembles. Where the file writes chord names (chord markers on beats; each holds until the next,

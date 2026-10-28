@@ -25,6 +25,31 @@ namespace GuitarTutor.SongTool
     /// </summary>
     public static class GpxImporter
     {
+        /// <summary>
+        /// The bar whose notes a bar plays. A bar marked as a repeat (a simile mark, Guitar Pro 7's "%") holds no notes
+        /// of its own: it plays the bar before it, or for a double mark the bar two before. (alphaTab keeps only the
+        /// mark; chains of marks lead back to a real bar.)
+        /// </summary>
+        static Bar Played(Staff staff, Bar bar)
+        {
+            for (int guard = 0; guard < 256; ++guard)
+            {
+                int back;
+                switch (bar.SimileMark)
+                {
+                    case SimileMark.Simple: back = 1; break;
+                    case SimileMark.FirstOfDouble:
+                    case SimileMark.SecondOfDouble: back = 2; break;
+                    default: return bar;
+                }
+                var from = (int)bar.Index - back;
+                if (from < 0 || from >= staff.Bars.Count)
+                    return bar;
+                bar = staff.Bars[from];
+            }
+            return bar;
+        }
+
         static readonly string[] NoteNames = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
 
         /// <summary>alphaTab's internal resolution: ticks per quarter note (verified against a real file).</summary>
@@ -146,7 +171,7 @@ namespace GuitarTutor.SongTool
                     || (t.PlaybackInfo != null && t.PlaybackInfo.Program >= 24 && t.PlaybackInfo.Program <= 51));
 
             int Notes(Track t) =>
-                t.Staves.SelectMany(st => st.Bars).SelectMany(b => b.Voices).SelectMany(v => v.Beats).Sum(b => b.Notes.Count);
+                t.Staves.SelectMany(st => st.Bars.Select(b => Played(st, b))).SelectMany(b => b.Voices).SelectMany(v => v.Beats).Sum(b => b.Notes.Count);
 
             var guitars = score.Tracks.Where(Guitar).ToList();
             var pick = guitars.Count > 0
@@ -275,7 +300,7 @@ namespace GuitarTutor.SongTool
             var staff = track.Staves[0];
             foreach (var bar in staff.Bars)
                 if (bar.Index >= 0 && bar.Index < active.Length)
-                    active[(int)bar.Index] = bar.Voices.SelectMany(v => v.Beats).Any(b => b.Notes.Count > 0);
+                    active[(int)bar.Index] = Played(staff, bar).Voices.SelectMany(v => v.Beats).Any(b => b.Notes.Count > 0);
             return active;
         }
 
@@ -364,7 +389,7 @@ namespace GuitarTutor.SongTool
                 {
                     if (!masterByIndex.TryGetValue(bar.Index, out var master))
                         continue;
-                    foreach (var voice in bar.Voices)
+                    foreach (var voice in Played(staff, bar).Voices)
                         foreach (var beat in voice.Beats)
                             foreach (var n in beat.Notes)
                             {
@@ -432,7 +457,7 @@ namespace GuitarTutor.SongTool
             {
                 if (!masterByIndex.TryGetValue(bar.Index, out var master))
                     continue;
-                foreach (var voice in bar.Voices)
+                foreach (var voice in Played(staff, bar).Voices)
                 {
                     foreach (var beat in voice.Beats)
                     {
@@ -825,7 +850,7 @@ namespace GuitarTutor.SongTool
                 // (the strums first, then each one's stroke: its direction by the rule depends on its neighbours)
                 var active = new bool[slots];
                 var strums = new List<(int Slot, Beat Beat)>();
-                foreach (var voice in bar.Voices)
+                foreach (var voice in Played(staff, bar).Voices)
                     foreach (var beat in voice.Beats)
                     {
                         if (beat.Notes.Count(n => n.String >= 1) < 2)
@@ -1021,7 +1046,7 @@ namespace GuitarTutor.SongTool
                 Array.Fill(rec, Stroke.Rest);
                 var active = new bool[slots];
                 var strums = new List<(int Slot, Beat Beat)>();
-                foreach (var voice in bar.Voices)
+                foreach (var voice in Played(staff, bar).Voices)
                     foreach (var beat in voice.Beats)
                     {
                         if (beat.Notes.Count(x => x.String >= 1) < 2 || beat.Notes.Where(x => x.String >= 1).All(x => x.IsTieDestination))
@@ -1169,7 +1194,7 @@ namespace GuitarTutor.SongTool
                     {
                         if (!masterByIndex.TryGetValue(bar.Index, out var master))
                             continue;
-                        foreach (var voice in bar.Voices)
+                        foreach (var voice in Played(staff, bar).Voices)
                         {
                             foreach (var beat in voice.Beats)
                             {
