@@ -73,7 +73,7 @@ namespace GuitarTutor.Runtime.Band
                 // the mockup's P-Bass: a little lower than the guitar, its neck steeper, the player straightened
                 bodyCentre = new Vector3(0.05f, 0.12f, bodyCentre.z);
                 neck = new Vector3(-0.9f, 0.4f, 0.15f);
-                FrontToBody = 0.01f;
+                FrontToBody = -0.035f;  // the swing turns the neck side of the body away from her: its middle sinks into the belly's profile
                 upright = 0.6f;
                 swing = 15f;  // swung round her hip, clockwise seen from above
             }
@@ -218,7 +218,11 @@ namespace GuitarTutor.Runtime.Band
             if (Logging)
                 Debug.Log($"GuitarTutor {role}: chest {chestDepth * 100:0} cm ahead of its bone, shoulder {shoulderTop * 100:0} cm up");
             if (Logging)
+            {
                 Debug.Log($"GuitarTutor {role}: mean lean {lean:0.0} degrees, taking out {upright * lean:0.0}; belly {front * 100:0} cm ahead of the hips");
+                var profile = string.Join(", ", new[] { -0.02f, 0.04f, 0.1f, 0.16f, 0.22f, 0.28f }.Select(h => $"{h * 100:0} cm up: {FrontOf(hips.position, h - 0.03f, h + 0.03f) * 100:0}"));
+                Debug.Log($"GuitarTutor {role}: front of the body above the hips (cm ahead): {profile}");
+            }
         }
 
         /// <summary>Takes most of the clip's head nod and bob out: the head turned back towards its mean orientation, and
