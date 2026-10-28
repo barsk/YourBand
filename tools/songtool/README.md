@@ -55,7 +55,11 @@ section's bars 1–2 the whole pattern, bars 3–4 it again, and so on. A sectio
 pattern, even when the previous one ended mid-pattern.
 
 Without `--strum`, the track's strums become a per-bar grid on **sixteenth-note slots** (the `StrumPattern`
-subdivision is 16) and each section's most common grid becomes its pattern. A stroke's **direction** is, in order:
+subdivision is 16) and each section's bars become its pattern: one bar when they all strum alike, else the shortest
+run of bars that repeats through the section (the whole section when each bar differs, so a one-off strum such as a
+chord struck on beat 1 of one bar is kept; the chart lays it out from the section's first bar like the Ultimate
+Guitar patterns). Bars of different lengths (a change of meter) fall back to the section's most common bar. A
+stroke's **direction** is, in order:
 
 1. the file's recorded pick stroke (`PickStroke`), muted where it is a palm mute or ghost; a GPX file often records
    no strokes at all, so this usually does not fire;

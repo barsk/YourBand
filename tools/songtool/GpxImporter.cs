@@ -801,16 +801,34 @@ namespace GuitarTutor.SongTool
                 {
                     string Key(char[] g) => new string(g.Select(c => c == 'X' ? '1' : '0').ToArray());
                     var grids = kv.Value;
-                    // the most common grid; ties broken by the one that establishes first in the section (bars are in order)
                     var keys = grids.Select(g => Key(g.Grid)).ToList();
-                    var dominant = keys.GroupBy(k => k)
-                        .OrderByDescending(x => x.Count())
-                        .ThenBy(x => keys.IndexOf(x.First()))
-                        .First().First();
-                    var matching = grids.Where(g => Key(g.Grid) == dominant).Select(g => g.Rec).ToList();
                     pattern = new StrumPattern { Name = kv.Key, Subdivision = 16, Sections = { kv.Key }, Origin = SongOrigin.GuitarPro };
-                    for (int i = 0; i < dominant.Length; ++i)
-                        pattern.Strokes.Add(dominant[i] == '1' ? Direction(matching, i) : Stroke.Rest);
+                    // the section's bars in a repeating run of the fewest bars that has every bar of the section in it
+                    // (one bar when they all strum alike; the whole section when each differs, a one-off first-beat strum
+                    // included); bars of different lengths (a change of meter) are too much for that: the most common grid
+                    var period = keys.All(k => k.Length == keys[0].Length)
+                        ? Enumerable.Range(1, keys.Count).First(p => Enumerable.Range(p, keys.Count - p).All(i => keys[i] == keys[i - p]))
+                        : 0;
+                    if (period > 0)
+                    {
+                        for (int bar = 0; bar < period; ++bar)
+                        {
+                            var matching = grids.Where((g, i) => i % period == bar).Select(g => g.Rec).ToList();
+                            for (int i = 0; i < keys[bar].Length; ++i)
+                                pattern.Strokes.Add(keys[bar][i] == '1' ? Direction(matching, i) : Stroke.Rest);
+                        }
+                    }
+                    else
+                    {
+                        // the most common grid; ties broken by the one that establishes first in the section (bars are in order)
+                        var dominant = keys.GroupBy(k => k)
+                            .OrderByDescending(x => x.Count())
+                            .ThenBy(x => keys.IndexOf(x.First()))
+                            .First().First();
+                        var matching = grids.Where(g => Key(g.Grid) == dominant).Select(g => g.Rec).ToList();
+                        for (int i = 0; i < dominant.Length; ++i)
+                            pattern.Strokes.Add(dominant[i] == '1' ? Direction(matching, i) : Stroke.Rest);
+                    }
                 }
                 song.Strumming.Add(pattern);
                 if (ug != null)

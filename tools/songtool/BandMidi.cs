@@ -75,7 +75,7 @@ namespace GuitarTutor.SongTool
                     foreach (var pitch in chord.Pitches)
                     {
                         On(from, pitch, 96, from == chord.At ? -2 : 2);
-                        Off(to, pitch);
+                        Off(to, pitch, -4);  // (before the next chord's on, which can be the same key: an off after it would cut the new note)
                     }
             }
 
@@ -120,7 +120,7 @@ namespace GuitarTutor.SongTool
             foreach (var n in a.Notes.Where(n => n.Single && InRange(n.AtQuarter)))
             {
                 On(n.AtQuarter, n.Pitch, n.Velocity);
-                Off(n.AtQuarter + n.Quarters, n.Pitch);
+                Off(n.AtQuarter + n.Quarters, n.Pitch, -4);  // (as the chords' offs: before an on of the same key just after it)
             }
 
             WriteFile(song, path, events, fromQuarter, toQuarter, Tick);
