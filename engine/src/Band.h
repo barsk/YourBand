@@ -6,7 +6,7 @@
 //
 //   outputs 0-1   drums (stereo): the synthesized kit, and the count-in sticks
 //   output  2     bass, synthesized (a DI sound)
-//   output  3     rhythm guitar DI, synthesized, into the band guitar's amp (a TONE3000 instance)
+//   output  3     rhythm guitar DI, synthesized
 //   MIDI out      keys on channel 1 (Numa Player); with instrument plugins for them, the bass on channel 2, the
 //                 guitar on channel 3 and the drums on channel 10 (General MIDI drum notes) instead of the
 //                 synthesized ones
@@ -112,6 +112,10 @@ public:
         keyswitches on its held voicing, instead of its per-string notes. */
     void setStrummingMode (bool on) { if (strummingMode.exchange (on) != on) guitarResync.store (true); }
     bool guitarIsPlaying() const { return guitarPlays.load(); }
+    /** The drum notes the drum plugin plays, for one that does not play every General MIDI drum (MONSTER Drums,
+        measured with plugin_probe --map); empty: all of them. A drum the kit in use (the plugin's, or the built-in one)
+        does not have is played on the nearest one it has, or left out (kitNote). */
+    void setDrumPluginNotes (const std::vector<int>& notes);
 
     // any thread: for the window
     double position() const { return shownPosition.load(); }
@@ -138,6 +142,9 @@ private:
     size_t firstStrokeFrom (double quarter) const;
     size_t firstSpanFrom (double quarter) const;
     void emit (const BandNote&, double dueAt, int sample, juce::MidiBuffer&);
+    /** The note a General MIDI drum note plays on the kit in use: itself if the kit has the drum, else the nearest drum
+        it has (a floor tom for a missing low tom, the crash for a china), or -1 (hand percussion with no stand-in). */
+    int kitNote (int note) const;
     void addOff (Off);
     void collectGarbage();
 
@@ -160,6 +167,8 @@ private:
     std::atomic<double> guitarAdvance { 0.0 };
     std::atomic<bool> strummingMode { false };
     std::atomic<bool> guitarResync { false };  // the guitar's sound changed: drop what it holds, start from now
+    std::array<std::atomic<bool>, 128> drumPluginHas {};  // per note: the drum plugin plays it
+    std::atomic<bool> drumPluginHasAll { true };
 
     // audio thread
     const Score* playingScore = nullptr;

@@ -65,6 +65,16 @@ namespace
                                        { EngineCore::Slot::bandLead2, "Numa Player*.vst3", "Numa Player", true, 0.8f },
                                        { EngineCore::Slot::bandLead2, "Kontakt*.vst3", "Kontakt", true, 0.8f } };
 
+    /** The General MIDI drum notes a drum plugin plays, if it does not play them all (empty: all): MONSTER Drums v3,
+        measured with plugin_probe --map on a standard kit, plays 35 to 57 but the high tom (50), the tambourine (54),
+        the cowbell (56) and ride 2 (59). The band plays a drum a kit lacks on the nearest one it has. */
+    std::vector<int> drumPluginNotes (const juce::File& plugin)
+    {
+        if (plugin.getFileName().startsWithIgnoreCase ("MONSTER Drums"))
+            return { 30, 32, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 51, 52, 53, 55, 57 };
+        return {};
+    }
+
     /** How early (seconds) the band guitar's notes go to a plugin: Kontakt's strummed guitars sound a little late (the
         first strum is on the beat, its loud part builds about 25-40 ms later, measured with a recorded session), so
         they go 20 ms ahead. The setting bandGuitarAdvanceMs overrides it (0 for none). */
@@ -716,6 +726,8 @@ bool MainComponent::chooseBandInstrument (EngineCore::Slot slot, int choice, boo
     blankStates.erase (slot);
     // a strum-capable guitar (Shreddage in strumming mode) hears the strokes as strum keyswitches on its
     // held voicing, instead of the per-string notes
+    if (slot == EngineCore::Slot::bandDrums)
+        engine.band().setDrumPluginNotes (choice >= 0 ? drumPluginNotes (part.choices[(size_t) choice].file) : std::vector<int> {});
     if (slot == EngineCore::Slot::bandGuitar)
         engine.setBandGuitarStrummingMode (choice >= 0
                                            && part.choices[(size_t) choice].file.getFileName().startsWithIgnoreCase ("Kontakt"));

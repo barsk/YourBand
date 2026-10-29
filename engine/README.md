@@ -85,8 +85,9 @@ game (`tracks`): "Default (generated)", the part the band makes up, then a Guita
 choice, named with its twin). The game connects them automatically for a new song; choosing one here tells the game
 (`connect`), which keeps the choice in a file next to the song (`<song>.band.json`) and arranges the band again. A song
 from Ultimate Guitar pages has no tracks: the lists only offer the default. Then the row's plugin and its window (the
-keyboards play on Numa Player). So far the lead guitar and instrument 1 play their tracks; the other instruments play
-their default parts whatever is chosen, until the band learns to play tracks on them.
+keyboards play on Numa Player). The drums, bass, keyboards, lead guitar and instrument 1 play their tracks (as the
+file has them: its velocities, no made-up fills); the rhythm guitar still plays its default part whatever is chosen,
+until the band learns to play a guitar track.
 
 Play from the game (Space) or the footswitch. Playing from the start, or from wherever you moved to, begins
 with a bar of count-in on sticks; after a pause the band plays on from where it stopped.
@@ -108,7 +109,7 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   is let go 60 ms early: a plugin takes the repeat for the same note held on, with no new attack (Numa Player, a D2 in
   eighths: back to back the repeats rose 2-5 dB, 60 ms apart 13-16 dB).
 - The band's drums and bass each play their built-in sound or an instrument plugin, chosen in the control
-  panel's "Band drums" and "Band bass" dropdowns, also while the band plays:
+  panel's "Drums" and "Bass" rows, also while the band plays:
   - Built-in sound: a synthesized kit, and a finger-played bass string built from its harmonics
     (`src/Instruments.*`). The count-in sticks are always the built-in ones.
   - The plugins the engine knows, if you have them: `MONSTER Drums*.vst3`, `MONSTER Bass*.vst3` and
@@ -124,6 +125,15 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   (`bandBass.<plugin file>` in the settings). MONSTER Bass takes about 7 s to load and 5 s to let go of its
   samples; the control panel waits meanwhile, while the band plays on. The band sends each part on its own
   MIDI channel (keys 1, bass 2, drums 10) and each plugin hears only its own.
+
+  Drum notes are General MIDI. A drum the kit in use does not have is played on the nearest one it has (`Band.cpp`,
+  `drumStandIns`: an acoustic bass drum 35 on the kick 36, a floor tom on another tom, a china or splash on a crash,
+  ride 2 or the ride bell on the ride, a shaker on the closed hat, claves on the side stick), and hand percussion
+  with no stand-in (congas, bongos, cowbell) is left out. The built-in kit has 12 drums (kick, side stick, snare,
+  closed, pedal and open hat, three toms, crash, ride, sticks); MONSTER Drums plays every General MIDI drum from 35
+  to 57 but the high tom 50, the tambourine 54, the cowbell 56 and ride 2 59 (`plugin_probe --map`, 2026-10-29); any
+  other drum plugin is taken to play them all. This matters most for a song's own drum track (docs/instrument-tracks.md),
+  which uses whatever drums the file has.
 - The band guitarist (switched on and off with G in the game; remembered) strums the song's strumming pattern for each section on the chord shapes the chart shows (the
   game writes it: `Arranger.Strum`): a stroke crosses the strings 12 ms apart down, 9 ms up (the top four
   strings), and each string rings until it is struck again or the chord changes. It plays on the built-in

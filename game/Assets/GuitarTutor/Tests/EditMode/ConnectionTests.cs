@@ -105,6 +105,39 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
+        public void DrumsAndBass_PlayTheirTracksInsteadOfMadeUpParts()
+        {
+            var song = GuitarProSong();
+            song.Tracks[5].Notes[1].Technique = "x";  // a dead bass note: not played
+            var chart = new SongChart(song);
+            var madeUp = Arranger.Arrange(chart, BandStyle.Named("Ballad"));
+            var connections = new BandConnections();
+            var a = Arranger.Arrange(chart, BandStyle.Named("Ballad"), connections);
+            CollectionAssert.AreEqual(song.Tracks[6].Notes.Select(n => (n.Pitch, n.AtQuarter, n.Velocity)),
+                                      a.Part(BandPart.Drums).Select(n => (n.Pitch, n.AtQuarter, n.Velocity)));
+            Assert.AreEqual(39, a.Part(BandPart.Bass).Count());
+            // no keyboard track: the keys make up their part as before (the same notes; their velocities vary a little differently)
+            // (a chord's notes in pitch order: the arrangement's sort by time leaves their order open)
+            CollectionAssert.AreEqual(madeUp.Part(BandPart.Keys).Select(n => (n.AtQuarter, n.Pitch, n.Quarters)).OrderBy(k => k),
+                                      a.Part(BandPart.Keys).Select(n => (n.AtQuarter, n.Pitch, n.Quarters)).OrderBy(k => k));
+        }
+
+        [Test]
+        public void EveryInstrumentOnDefault_PlaysAsBeforeThereWereTracks()
+        {
+            var song = GuitarProSong();
+            var chart = new SongChart(song);
+            var connections = new BandConnections();
+            foreach (Instrument i in System.Enum.GetValues(typeof(Instrument)))
+                connections.Choose(i, TrackRef.Default);
+            var before = Arranger.Arrange(chart, BandStyle.Named("Ballad"));
+            var now = Arranger.Arrange(chart, BandStyle.Named("Ballad"), connections);
+            CollectionAssert.AreEqual(before.Notes.Where(n => n.Part != BandPart.Lead1 && n.Part != BandPart.Lead2).Select(n => n.ToString()),
+                                      now.Notes.Select(n => n.ToString()));
+            CollectionAssert.AreEqual(before.Strokes.Select(s => (s.AtQuarter, s.Up, s.Velocity)), now.Strokes.Select(s => (s.AtQuarter, s.Up, s.Velocity)));
+        }
+
+        [Test]
         public void TheEngine_IsToldTheTracksAndWhatEachInstrumentPlays()
         {
             var song = GuitarProSong();

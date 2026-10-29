@@ -204,9 +204,10 @@ namespace GuitarTutor.Core.Band
         const int KeysCentre = 64;
 
         /// <summary>
-        /// The band's parts for a song in a style. With <paramref name="connections"/>, the lead guitar and instrument 1
-        /// play the tracks connected to them (nothing where none is: the band makes up no lead part); without, the lead
-        /// channels play the song's lead parts (<see cref="SongPart.Voice"/>), as before there were connections.
+        /// The band's parts for a song in a style. With <paramref name="connections"/>, the drums, bass and keyboards
+        /// play the tracks connected to them instead of the parts they make up, and the lead guitar and instrument 1 play
+        /// theirs (nothing where none is: the band makes up no lead part); without, the band makes up its parts and the
+        /// lead channels play the song's lead parts (<see cref="SongPart.Voice"/>), as before there were connections.
         /// </summary>
         public static Arrangement Arrange(SongChart chart, BandStyle style = null, BandConnections connections = null)
         {
@@ -218,6 +219,9 @@ namespace GuitarTutor.Core.Band
             var chords = chart.Song.Chords.Where(c => Chord.TryParse(c.Name, out _)).OrderBy(c => c.AtQuarter).ToList();
             var capo = Math.Max(0, chart.Song.Info.Capo);
             List<int> lastVoicing = null;
+            var drumsTrack = connections?.TrackFor(chart.Song, Instrument.Drums);
+            var bassTrack = connections?.TrackFor(chart.Song, Instrument.Bass);
+            var keysTrack = connections?.TrackFor(chart.Song, Instrument.Keys);
 
             foreach (var bar in chart.Bars)
             {
@@ -227,12 +231,12 @@ namespace GuitarTutor.Core.Band
                 var fill = nextBar != null && nextBar.StartsSection && bar.Quarters >= 2;
                 var quiet = style.SideStickWhenQuiet && IsQuiet(bar.Section);
 
-                // ------------------------------------------------ drums
-                if (bar.StartsSection || bar.Index == 0 || last)
+                // ------------------------------------------------ drums (made up unless they play the song's drum track)
+                if (drumsTrack == null && (bar.StartsSection || bar.Index == 0 || last))
                     notes.Add(new BandNote(BandPart.Drums, Drum.Crash, bar.AtQuarter, 2, Humanise(bar.Index == 0 ? 96 : 108)));
-                if (last)
+                if (drumsTrack == null && last)
                     notes.Add(new BandNote(BandPart.Drums, Drum.Kick, bar.AtQuarter, 0.5, 110));
-                else
+                else if (drumsTrack == null)
                 {
                     var hits = fourFour ? style.Drums : GenericBar(bar.Signature);
                     var fillFrom = fill ? bar.Quarters - 1 : double.MaxValue;
@@ -258,7 +262,7 @@ namespace GuitarTutor.Core.Band
                     : fourFour ? style.Bass : GenericBass(bar.Signature);
                 var keysHits = last ? new List<(double at, double length)> { (0, bar.Quarters) }
                     : fourFour ? style.Keys : new List<(double at, double length)> { (0, bar.Quarters) };
-                foreach (var (at, length, tone) in WithChordChanges(bassHits, bar, chords))
+                foreach (var (at, length, tone) in bassTrack != null ? NoHits : WithChordChanges(bassHits, bar, chords))
                 {
                     var chord = ChordAt(chords, bar.AtQuarter + at, out var span);
                     if (chord == null)
@@ -270,7 +274,7 @@ namespace GuitarTutor.Core.Band
                     var end = Math.Min(bar.AtQuarter + at + length, span.AtQuarter + span.Quarters);
                     notes.Add(new BandNote(BandPart.Bass, pitch, bar.AtQuarter + at, end - bar.AtQuarter - at, Humanise(at == 0 ? 100 : 86)));
                 }
-                foreach (var (at, length, _) in WithChordChanges(keysHits.Select(k => (k.at, k.length, BandStyle.Tone.Root)).ToList(), bar, chords))
+                foreach (var (at, length, _) in keysTrack != null ? NoHits : WithChordChanges(keysHits.Select(k => (k.at, k.length, BandStyle.Tone.Root)).ToList(), bar, chords))
                 {
                     var chord = ChordAt(chords, bar.AtQuarter + at, out var span);
                     if (chord == null)
@@ -283,6 +287,13 @@ namespace GuitarTutor.Core.Band
                         notes.Add(new BandNote(BandPart.Keys, pitch + capo, bar.AtQuarter + at, end - bar.AtQuarter - at, velocity));
                 }
             }
+            // the drums, bass and keyboards that play the song's tracks: their notes as the file has them (a dead note's
+            // pitch is its open string's: it is not one to play)
+            foreach (var (track, part) in new[] { (drumsTrack, BandPart.Drums), (bassTrack, BandPart.Bass), (keysTrack, BandPart.Keys) })
+                if (track != null)
+                    foreach (var n in track.Notes)
+                        if (!n.Technique.Contains('x'))
+                            notes.Add(new BandNote(part, n.Pitch, n.AtQuarter, Math.Max(0.05, n.Quarters), n.Velocity));
             Strum(chart, chords, arrangement, Humanise);
             // the song's other instruments on the lead channels (their notes as the file has them)
             if (connections == null)
@@ -306,6 +317,9 @@ namespace GuitarTutor.Core.Band
             notes.Sort((a, b) => a.AtQuarter != b.AtQuarter ? a.AtQuarter.CompareTo(b.AtQuarter) : a.Part.CompareTo(b.Part));
             return arrangement;
         }
+
+        /// <summary>No hits: a part that plays a track makes up none.</summary>
+        static readonly List<(double at, double length, BandStyle.Tone tone)> NoHits = new List<(double, double, BandStyle.Tone)>();
 
         // ------------------------------------------------------------ guitar
         /// <summary>A downstroke on every beat: for songs without a strumming pattern.</summary>

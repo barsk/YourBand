@@ -61,7 +61,8 @@ Each step leaves "Default" playing exactly as today, and is checked before the n
    number, name, strings, tuning and whether it is drums), the track dropdowns in the control panel, and the
    messages between the game and the engine. The game arranges the band from the connections and sends the
    notes, as today.
-5. **Drums, keys and bass from tracks.** General MIDI drum notes (with a note map for kits that are not
+5. **Drums, keys and bass from tracks.** (Done 2026-10-29: the Arranger plays their connected tracks; the engine plays a
+   drum a kit lacks on the nearest one it has, MONSTER Drums' layout measured.) General MIDI drum notes (with a note map for kits that are not
    General MIDI), the keyboard's notes as written, the bass line.
 6. **Guitars from tracks.** The rhythm and lead guitars play their tracks: strummed where the track strums,
    note by note where it picks, through the modes the engine already has.

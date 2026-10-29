@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <map>
+#include <vector>
 
 namespace gt
 {
@@ -42,6 +44,28 @@ namespace
             pitch += 12;
         return pitch;
     }
+    /** For a General MIDI drum note a kit does not have, the drums to play it on instead, nearest first (none: hand
+        percussion with no stand-in, left out). Built when the program starts: the audio thread only looks it up. */
+    const std::map<int, std::vector<int>> drumStandIns {
+        { 35, { 36 } }, { 36, { 35 } },                                                       // kicks
+        { 37, { 38 } }, { 38, { 40 } }, { 39, { 38, 37 } }, { 40, { 38 } },                   // side stick, snares, clap
+        { 41, { 43, 45 } }, { 43, { 41, 45 } }, { 45, { 47, 43 } }, { 47, { 48, 45 } },       // toms, low to high
+        { 48, { 50, 47 } }, { 50, { 48, 47 } },
+        { 42, { 44 } }, { 44, { 42 } }, { 46, { 42 } },                                       // hi-hats
+        { 49, { 57, 52, 55 } }, { 52, { 49, 57 } }, { 55, { 49, 57 } }, { 57, { 49 } },       // crashes, china, splash
+        { 51, { 59, 53 } }, { 53, { 51 } }, { 59, { 51 } },                                   // rides, ride bell
+        { 54, { 42 } }, { 69, { 42 } }, { 70, { 42 } }, { 82, { 42 } },                       // tambourine, cabasa, maracas, shaker
+        { 75, { 37 } }, { 76, { 37 } }, { 77, { 37 } },                                       // claves, woodblocks
+    };
+
+    /** The drums the built-in kit (DrumKit) plays. */
+    bool builtInKitHas (int note)
+    {
+        return note == drum::kick || note == drum::sideStick || note == drum::snare || note == drum::closedHat
+            || note == drum::pedalHat || note == drum::openHat || note == drum::lowTom || note == drum::midTom
+            || note == drum::highTom || note == drum::crash || note == drum::ride || note == drum::sticks;
+    }
+
     constexpr double retriggerGapSec = 0.06;   // a lead's note lets go this long before the same key is struck again
     constexpr double muteTailSec = 0.040;   // the Mute keyswitch is let go this much after the strum (it is
                                              // pressed a few samples before, so a chug of ~44 ms)
@@ -339,20 +363,52 @@ void BandProcessor::apply (const Command& c, juce::MidiBuffer& midi)
 
 /** A note onto its instrument, at a sample of the block: the plugin as MIDI (its end noted for later), or the built-in
     voice. <paramref name="time"/> is the note's own time (its end and release go from there). */
+void BandProcessor::setDrumPluginNotes (const std::vector<int>& notes)
+{
+    for (auto& has : drumPluginHas)
+        has.store (false);
+    for (auto n : notes)
+        if (n >= 0 && n < (int) drumPluginHas.size())
+            drumPluginHas[(size_t) n].store (true);
+    drumPluginHasAll.store (notes.empty());
+}
+
+int BandProcessor::kitNote (int note) const
+{
+    const auto onKitPlugin = onPlugin[(size_t) drums].load();
+    const auto has = [&] (int n)
+    {
+        return n >= 0 && n < (int) drumPluginHas.size()
+            && (onKitPlugin ? drumPluginHasAll.load() || drumPluginHas[(size_t) n].load() : builtInKitHas (n));
+    };
+    if (has (note))
+        return note;
+    if (const auto it = drumStandIns.find (note); it != drumStandIns.end())
+        for (auto n : it->second)
+            if (has (n))
+                return n;
+    return -1;
+}
+
 void BandProcessor::emit (const BandNote& note, double time, int at, juce::MidiBuffer& midi)
 {
+    // a drum the kit does not have: on the nearest one it has, or not at all
+    const auto drumNote = note.part == drums ? kitNote (note.pitch) : note.pitch;
+    if (drumNote < 0)
+        return;
     if (note.part == keys || onPlugin[(size_t) note.part].load())
     {
         // a drum hit is short; a bass note lets go just before the next, as a player's would
         const auto length = note.part == drums ? juce::jmax (0.1, note.length) : note.part == bass ? note.length * 0.95 : note.length;
         // bass plugins sound an octave below the note they get, as bass parts are written (MONSTER Bass
         // and Ample Bass: note 40 is the low E, measured with plugin_probe --map)
-        const auto pitch = note.part == bass ? note.pitch + 12 : note.part == guitar ? guitarPluginPitch (note.pitch) : note.pitch;
+        const auto pitch = note.part == bass ? note.pitch + 12 : note.part == guitar ? guitarPluginPitch (note.pitch)
+                         : note.part == drums ? drumNote : note.pitch;
         midi.addEvent (juce::MidiMessage::noteOn (channelOf (note.part), pitch, note.velocity), at);
         addOff ({ note.part, pitch, -1, time + length });
     }
     else if (note.part == drums)
-        kit.trigger (note.pitch, note.velocity, at);
+        kit.trigger (drumNote, note.velocity, at);
     else if (note.part == bass)
     {
         bassVoice.noteOn (note.pitch, note.velocity, at);
