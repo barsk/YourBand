@@ -29,7 +29,7 @@ It is for personal use first and may be published later, so licences are kept cl
 | Offline tools | Python | Import, alignment and the Blender asset pipeline already live there |
 | Guitar tone | The engine hosts the TONE3000 plugin (VST3); one instance, tones switched with its own presets | Same tones as the standalone app, one program owns the audio interface; TONE3000 swaps presets with a short fade, which a pause between phrases hides |
 | Audio driver | Focusrite's own ASIO driver, not ASIO4ALL | Lower latency |
-| Band bass and guitar tone | Clean sampled notes through more TONE3000 instances | Real amp tone for the band from the same library |
+| Band bass and guitar tone | Instrument plugins with amps of their own (Ample Bass, Kontakt with Shreddage), straight to the mixer; the band guitar's TONE3000 instance removed (2026-10-29) | First: clean sampled notes through more TONE3000 instances. The plugins sound better and play techniques |
 | VR | PC VR through Virtual Desktop (Wi-Fi or USB) | Better quality than Link; audio stays on the PC |
 | Mixed reality | Virtual Desktop chroma key, key colour configurable (default magenta) | Works without Meta's developer-only passthrough; could ship |
 | XR API | Unity's standard OpenXR, no Meta-only SDK features | Virtual Desktop has its own OpenXR runtime |

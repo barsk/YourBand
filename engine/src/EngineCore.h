@@ -6,9 +6,11 @@
 //   band: drums ---------------------------------------> volume --+            +--> outputs
 //         bass ----------------------------------------> volume --+            |
 //         keys MIDI ---> Numa Player ------------------> volume --+--> band bus --+
-//         guitar DI ---> TONE3000 (band guitar amp) ---> volume --+    (limiter)
+//         guitar ----------------------------------------> volume --+    (limiter)
 //
-// The drums, bass and guitar play synthesized, or on instrument plugins (MIDI) chosen in the control panel.
+// The drums, bass and guitar play synthesized, or on instrument plugins (MIDI) chosen in the control panel. A
+// guitar plugin (Kontakt with Shreddage) has an amp of its own: it goes straight to the mixer, as the built-in guitar
+// does (a DI sound).
 //
 // Tones are switched with TONE3000's own presets: it builds the new model in the background and fades its
 // output across the swap, so a switch in a pause between phrases is not heard.
@@ -47,8 +49,8 @@ struct Preset
 class EngineCore final : private juce::ChangeListener
 {
 public:
-    /** The plugins: your guitar's amp, the band guitarist's amp, and the band's drum, bass and guitar instruments. */
-    enum class Slot { guitar, bandAmp, bandDrums, bandBass, bandGuitar, bandLead1, bandLead2 };
+    /** The plugins: your guitar's amp, and the band's instruments (drums, bass, guitar and the two lead channels). */
+    enum class Slot { guitar, bandDrums, bandBass, bandGuitar, bandLead1, bandLead2 };
 
     EngineCore();
     ~EngineCore() override;
@@ -63,7 +65,7 @@ public:
     juce::String deviceSummary() const;
     bool isSilent() const { return silent; }
 
-    /** Loads two instances of the plugin (your guitar's amp and the band guitarist's). Returns an error, or empty. */
+    /** Loads the amp plugin (TONE3000) for your guitar. Returns an error, or empty. */
     juce::String loadPlugins (const juce::File& pluginFile);
     /** Loads the keyboard plugin (Numa Player) for the band's keys. Returns an error message, or empty. */
     juce::String loadKeys (const juce::File& pluginFile);
@@ -78,13 +80,6 @@ public:
     bool usesBandInstrument (Slot slot) const;
     /** A band instrument plugin's sound level in the mix, used instead of the part's while the band plays on it. */
     void setBandPluginLevel (Slot, float gain);
-    /** The band's guitar plugin through the band guitar's amp (TONE3000), or straight to the mixer (with an amp
-        of its own). */
-    void setGuitarPluginThroughAmp (bool on);
-    bool guitarPluginThroughAmp() const { return guitarThroughAmp; }
-    /** The guitar plugin's level into the band guitar's amp: an amp model wants a guitar's level, as from its
-        pickups (the built-in guitar: about -33 dB RMS a note), and some plugins play far louder. */
-    void setGuitarPluginTrim (float gain);
     /** Whether the band's guitarist plays the rhythm (the song's strumming on its chords). */
     void setBandGuitarPlays (bool on) { bandProcessor->setGuitarPlays (on); }
     /** The band guitar's notes go to its plugin this early (seconds), to make up for a sound that builds slowly. */
@@ -100,11 +95,10 @@ public:
     juce::MemoryBlock pluginState (Slot) const;
     void setPluginState (Slot, const juce::MemoryBlock&);
 
-    /** The saved presets of a TONE3000 instance (your guitar's, or the band guitarist's), and switching between
-        them (message thread). */
-    std::vector<Preset> presets (Slot = Slot::guitar) const;
-    void selectPreset (int index, Slot = Slot::guitar);
-    int currentPreset (Slot = Slot::guitar) const;
+    /** The saved presets of your guitar's TONE3000, and switching between them (message thread). */
+    std::vector<Preset> presets() const;
+    void selectPreset (int index);
+    int currentPreset() const;
 
     /** The device input channel the guitar is plugged into (0-based; on a Scarlett Solo the instrument
         jack is input 2, channel 1). */
@@ -153,18 +147,17 @@ private:
     juce::AudioProcessorPlayer player;
 
     SharedClock clock;
-    Node::Ptr input, output, guitarTone, bandNode, bandAmp, guitarTrim, keysNode, drumsMix, bassMix, keysMix, guitarMix, bandBus;
+    Node::Ptr input, output, guitarTone, bandNode, keysNode, drumsMix, bassMix, keysMix, guitarMix, bandBus;
     Node::Ptr drumsPlugin, bassPlugin, guitarPlugin, keysChannel, drumsChannel, bassChannel, guitarChannel;
     Node::Ptr lead1Plugin, lead2Plugin, lead1Mix, lead2Mix, lead1Channel, lead2Channel;  // the two lead channels
     BandProcessor* bandProcessor = nullptr;
     juce::String currentKeysSound;
     // drums, bass, keys, guitar: the built-in bass a DI sound (as loud as the bass plugins at 1.75, measured), the
-    // guitar after its amp
-    std::array<float, 6> soundLevels { 0.8f, 1.75f, 1.3f, 0.8f, 0.8f, 0.8f }, faderLevels { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
+    // built-in guitar a DI sound too (at the bass's level, not measured)
+    std::array<float, 6> soundLevels { 0.8f, 1.75f, 1.3f, 1.75f, 0.8f, 0.8f }, faderLevels { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
     std::array<float, 6> pluginLevels { 0.8f, 0.8f, 0.8f, 0.8f, 0.8f, 0.8f };  // on their plugins (the keys always are)
     int inputChannel = 1;
     bool silent = false;
-    bool guitarThroughAmp = true;
     std::array<bool, 6> bandWants {};  // per part: on its plugin (useBandInstrument)
     Node::Ptr spareNode;  // a connection to it or not: a different graph, for one more rebuild (unloadBandInstrument)
     bool spareLinked = false;

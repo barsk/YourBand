@@ -66,8 +66,8 @@ private:
     void refreshPresets();
     void stepPreset (int step);
     void selectPreset (int index);
-    /** Whether the band guitarist plays the rhythm: from the control panel or the game, kept for next time and
-        told to the game. */
+    /** Whether the band guitarist plays the rhythm: from the game (its G key), kept for next time and told to the
+        game. */
     void setBandGuitarPlays (bool on);
     void sendBandGuitar();
     /** The import window (made the first time), and a song it has written: the game is asked to open it. */
@@ -90,11 +90,7 @@ private:
     juce::TextButton importButton { "Import new..." };  // next to the song list: opens the import window
     std::unique_ptr<ImportWindow> importWindow;
     juce::TextButton guitarButton { "Guitar tone..." };
-    juce::ToggleButton guitarThroughAmp { "through band guitar tone" }, guitarPlays { "Band guitarist plays rhythm" };
-    juce::Label bandToneLabel { {}, "Band guitar tone" };
-    juce::ComboBox bandToneBox;
-    juce::TextButton bandToneButton { "Band guitar tone..." };
-    struct BandChoice { juce::File file; juce::String name; bool silentUntilChosen; float level, trim; bool added; };
+    struct BandChoice { juce::File file; juce::String name; bool silentUntilChosen; float level; bool added; };
     struct BandPart  // a band part's row: its sound, and its plugin's window
     {
         juce::Label label;

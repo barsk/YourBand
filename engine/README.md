@@ -6,8 +6,8 @@ plugin for your guitar and the band guitarist's, plays the band, and will grow t
 What it does now:
 - Your guitar through TONE3000, with TONE3000's own presets switched from the footswitch (E1).
 - The band (M2): it plays the parts the game arranges, on the song's tempo map, with a count-in: drums, bass
-  and a rhythm guitarist (built-in or on instrument plugins), and the keys on Numa Player. The band guitarist
-  plays through the second TONE3000 instance. The band owns the song's transport. The game asks it to play,
+  and a rhythm guitarist (built-in or on instrument plugins), and the keys on Numa Player. The band owns the
+  song's transport. The game asks it to play,
   pause, seek and change speed over a local connection, and reads its clock from shared memory
   ([../schema/engine-protocol.md](../schema/engine-protocol.md)).
 - Latency and CPU readouts, the footswitch, and a log.
@@ -30,9 +30,7 @@ The program is `build\Release\gt_engine_artefacts\Release\GuitarTutor Engine.exe
    device panel at the top). The guitar input is input 2, the Scarlett Solo's instrument jack.
 3. "Guitar tone..." opens the guitar's TONE3000 window. Its saved presets (shared with the standalone app)
    appear in the preset list; step through them with the buttons or the footswitch.
-4. "Band guitar tone..." opens the second instance, the band guitarist's amp: pick its tone there, or in
-   the "Band guitar tone" list (the same presets).
-5. Footswitch: button 1 next preset, button 2 previous preset. Buttons 3-6 go to the game: play / pause,
+4. Footswitch: button 1 next preset, button 2 previous preset. Buttons 3-6 go to the game: play / pause,
    previous section, next section, restart. Any game controller works as a footswitch until the Arduino
    pedal exists.
 
@@ -40,7 +38,7 @@ Tone switching uses TONE3000's presets: it builds the new model in the backgroun
 the swap (25 ms fades), so a switch in a pause between phrases is not heard. An instance runs its amp model
 whether you play or not, which is why there is one guitar instance rather than one per tone.
 
-Device settings and both TONE3000 instances (with their tones) are remembered in `%APPDATA%\GuitarTutor\GuitarTutor Engine.settings`;
+Device settings and the TONE3000 instance (with its tone) are remembered in `%APPDATA%\GuitarTutor\GuitarTutor Engine.settings`;
 the log is kept in `engine.log` in the same folder.
 
 ## Measured (2026-10-21, Scarlett Solo, Focusrite USB ASIO, 48 kHz)
@@ -117,15 +115,14 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   (`bandBass.<plugin file>` in the settings). MONSTER Bass takes about 7 s to load and 5 s to let go of its
   samples; the control panel waits meanwhile, while the band plays on. The band sends each part on its own
   MIDI channel (keys 1, bass 2, drums 10) and each plugin hears only its own.
-- The band guitarist (when "Band guitarist plays rhythm" is ticked, or G in the game; both are the same
-  setting) strums the song's strumming pattern for each section on the chord shapes the chart shows (the
+- The band guitarist (switched on and off with G in the game; remembered) strums the song's strumming pattern for each section on the chord shapes the chart shows (the
   game writes it: `Arranger.Strum`): a stroke crosses the strings 12 ms apart down, 9 ms up (the top four
-  strings), and each string rings until it is struck again or the chord changes. It plays through the band
-  guitar's TONE3000 ("Band guitar tone"), the built-in guitar (picked strings built from their harmonics,
-  `GuitarVoice`, about -33 dB RMS a note, a guitar's level) or a plugin: MONSTER Guitar (its "[Notes]"
-  instruments; a "[Chord]" one plays a whole chord for each string's note) or Kontakt with Shreddage 3
-  Stratus FREE. A guitar plugin goes through a trim into the amp (MONSTER Guitar plays about 30 dB louder
-  than a guitar: -30 dB), or straight to the mixer with "through band guitar tone" off. Guitar plugins get
+  strings), and each string rings until it is struck again or the chord changes. It plays on the built-in
+  guitar (picked strings built from their harmonics, `GuitarVoice`, a DI sound straight to the mixer) or a
+  plugin with an amp of its own, straight to the mixer: MONSTER Guitar (its "[Notes]" instruments; a "[Chord]"
+  one plays a whole chord for each string's note) or Kontakt with Shreddage 3 Stratus FREE. (The band guitar's
+  own TONE3000 amp, with its tone list and the "through band guitar tone" switch, was removed on 2026-10-29: the
+  band guitar plays on a plugin.) Guitar plugins get
   the notes as they sound (MONSTER Guitar: note 40 is E2), but a note below D#2 (Shreddage's lowest: a drop D song's
   low D2) goes an octave up, and a chord note that lands on another of its chord that way is played once.
   On Kontakt the band plays Shreddage in its strumming mode: the chord goes to it as a held voicing (silent
@@ -167,7 +164,7 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   loads it in the background and once crashed the engine when it played during the load, so the engine
   pauses a plugin's audio whenever it gives it a new state.
 - Mixer: each part's sound has a level (drums 0.8, the built-in bass 1.75 or the bass plugin's own, keys set
-  by the game per style, guitar 0.8 after its amp),
+  by the game per style, the built-in guitar 1.75 (a DI sound, not measured) or the guitar plugin's own),
   then your fader in the control panel (0 dB is the balanced mix; double-click for 0 dB again; remembered
   between runs), then a soft limiter on the band's sum (peaks above 0.7 bend towards 1).
 

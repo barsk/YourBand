@@ -25,11 +25,11 @@ the message set settles.
 | `pause` | | Stop; sounding notes are released |
 | `seek` | `to` | Move to `to`; keeps playing if playing |
 | `speed` | `value` | Practice speed: 1 is the song's tempo |
-| `window` | `show` | Brings up a window of the engine: `controlPanel` (devices, faders, log), `guitar` (your guitar's TONE3000), `bandGuitarTone` (the band guitarist's TONE3000), `drums`, `bandBass` or `bandGuitar` (the band's instrument plugins) |
+| `window` | `show` | Brings up a window of the engine: `controlPanel` (devices, faders, log), `guitar` (your guitar's TONE3000), `drums`, `bandBass` or `bandGuitar` (the band's instrument plugins) |
 | `quit` | | Close the engine (it saves its settings); the game sends it when it closes an engine it started |
-| `mix` | `part`, `gain` | The level of a band part's sound: `drums`, `bass`, `keys` or `guitar`, 1 as played (defaults: drums 0.8, bass 1.75 (a DI sound), keys 1.3, guitar 0.8 after its amp; the game sets the keys per style). The control panel's faders multiply it and are remembered by the engine |
+| `mix` | `part`, `gain` | The level of a band part's sound: `drums`, `bass`, `keys` or `guitar`, 1 as played (defaults: drums 0.8, bass 1.75 (a DI sound), keys 1.3, guitar 1.75 (the built-in guitar, a DI sound); the game sets the keys per style). The control panel's faders multiply it and are remembered by the engine |
 | `bandBass` | `plugin` | The band's bass on an instrument plugin, named by its file name (`MONSTER Bass v2`, `ABPL`), or `synthesized`; as chosen in the control panel, and kept for next time |
-| `bandGuitar` | `plays` | Whether the band guitarist plays the rhythm (G in the game); the engine keeps it for next time, as the control panel's checkbox, and answers with `bandGuitar` |
+| `bandGuitar` | `plays` | Whether the band guitarist plays the rhythm (G in the game); the engine keeps it for next time and answers with `bandGuitar` |
 
 | `songs` | `names`, `current` | The songs the game can open (their file names without the suffix) and the index of the open one: after the engine connects and whenever the game opens a song. The control panel shows them in its song list |
 
@@ -40,7 +40,7 @@ the message set settles.
 | `hello` | `engine`, `protocol`, `sampleRate`, `clock` | Answer to the game's hello; `clock` names the shared memory |
 | `loaded` | `notes`, `keys` | A `load` has been taken over by the audio thread; `keys`: the sound in use, or empty if there is no keyboard plugin |
 | `command` | `command` | A control the engine read (the footswitch): `playPause`, `restart`, `sectionPrevious`, `sectionNext`. Tone presets are switched in the engine and not sent |
-| `bandGuitar` | `plays` | Whether the band guitarist plays the rhythm: after `hello`, and whenever it changes (the control panel's checkbox, or the game's `bandGuitar`) |
+| `bandGuitar` | `plays` | Whether the band guitarist plays the rhythm: after `hello`, and whenever it changes (the game's `bandGuitar`) |
 | `openSong` | `index` | The song chosen in the control panel's song list: an index into the game's last `songs` |
 | `importedSong` | `path` | The control panel's import window has written this song file (in the game's songs-local folder): the game reads its song list again, sends `songs`, and opens it |
 

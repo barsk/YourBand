@@ -114,7 +114,7 @@ namespace GuitarTutor.Runtime.UI
                          ("1  2  3  4", "chords, strumming, tab, song panels"),
                          ("P", "next strumming pattern"),
                          ("B", "next band style"),
-                         ("G", "band guitarist plays the rhythm, or rests (also in the control panel)"),
+                         ("G", "band guitarist plays the rhythm, or rests"),
                          ("V", "band view: the band in 3D behind the chart, or the chart alone"),
                          ("X", "VR mode: the band in your room, in the headset (Virtual Desktop)"),
                          ("L", "next song"),

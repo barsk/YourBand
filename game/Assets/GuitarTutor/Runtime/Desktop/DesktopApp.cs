@@ -348,7 +348,7 @@ namespace GuitarTutor.Runtime.Desktop
             }
             else if (type == "bandGuitar")
             {
-                // from the control panel's checkbox, or the answer to G
+                // the engine's answer to G (and its remembered setting, after hello)
                 bandGuitarPlays = (bool?)message["plays"] ?? false;
                 Debug.Log("GuitarTutor: the band guitarist " + (bandGuitarPlays ? "plays the rhythm" : "rests"));
             }
