@@ -204,8 +204,8 @@ namespace GuitarTutor.Core.Band
         const int KeysCentre = 64;
 
         /// <summary>
-        /// The band's parts for a song in a style. With <paramref name="connections"/>, the drums, bass and keyboards
-        /// play the tracks connected to them instead of the parts they make up, and the lead guitar and instrument 1 play
+        /// The band's parts for a song in a style. With <paramref name="connections"/>, the rhythm guitar, drums, bass and
+        /// keyboards play the tracks connected to them instead of the parts they make up, and the lead guitar and instrument 1 play
         /// theirs (nothing where none is: the band makes up no lead part); without, the band makes up its parts and the
         /// lead channels play the song's lead parts (<see cref="SongPart.Voice"/>), as before there were connections.
         /// </summary>
@@ -222,6 +222,7 @@ namespace GuitarTutor.Core.Band
             var drumsTrack = connections?.TrackFor(chart.Song, Instrument.Drums);
             var bassTrack = connections?.TrackFor(chart.Song, Instrument.Bass);
             var keysTrack = connections?.TrackFor(chart.Song, Instrument.Keys);
+            var rhythmTrack = connections?.TrackFor(chart.Song, Instrument.RhythmGuitar);
 
             foreach (var bar in chart.Bars)
             {
@@ -294,7 +295,10 @@ namespace GuitarTutor.Core.Band
                     foreach (var n in track.Notes)
                         if (!n.Technique.Contains('x'))
                             notes.Add(new BandNote(part, n.Pitch, n.AtQuarter, Math.Max(0.05, n.Quarters), n.Velocity));
-            Strum(chart, chords, arrangement, Humanise);
+            if (rhythmTrack != null)
+                TrackRhythm(chart, rhythmTrack, arrangement);
+            else
+                Strum(chart, chords, arrangement, Humanise);
             // the song's other instruments on the lead channels (their notes as the file has them)
             if (connections == null)
                 foreach (var part in chart.Song.Parts.Where(p => p.Voice == 1 || p.Voice == 2))
@@ -464,6 +468,142 @@ namespace GuitarTutor.Core.Band
                 }
             }
         }
+
+        /// <summary>
+        /// The band guitarist's rhythm from a track of the song (docs/instrument-tracks.md), as the engine's two ways of
+        /// playing a guitar take it. Where the track strikes three strings or more at once it strums: the chord is held (a
+        /// strum-capable guitar strums it), and each strum is a stroke, down or up as the file records it (else down on the
+        /// beat and up off it, as the importer's strumming has it), muted where the strings are dead or palm-muted; the
+        /// other guitars get the strings one by one, a stroke's width apart. Where it picks (one or two strings at a time:
+        /// fingerpicking, a riff, a solo) the notes play as notes, with no strumming over them, as the song's own tab's
+        /// single-string notes do.
+        /// </summary>
+        static void TrackRhythm(SongChart chart, SongTrack track, Arrangement arrangement)
+        {
+            const double together = 0.02;  // notes this close are struck together
+            const double longRest = 2.0;   // a picked stretch with a rest this long (quarters) ends before it
+            var song = chart.Song;
+            var notes = arrangement.Notes;
+            var onsets = new List<List<TrackNote>>();
+            foreach (var n in track.Notes.OrderBy(n => n.AtQuarter))
+            {
+                if (onsets.Count > 0 && n.AtQuarter - onsets[onsets.Count - 1][0].AtQuarter < together)
+                    onsets[onsets.Count - 1].Add(n);
+                else
+                    onsets.Add(new List<TrackNote> { n });
+            }
+            bool Dead(TrackNote n) => n.Technique.Contains('x');
+
+            // the picked stretches, and the strums between them
+            var strums = new List<List<TrackNote>>();
+            double? from = null;
+            var end = 0.0;
+            var picked = new List<TrackNote>();
+            void Close(double to)
+            {
+                if (from == null)
+                    return;
+                arrangement.SingleSpans.Add((from.Value, Math.Max(from.Value + 0.05, to)));
+                foreach (var n in picked)
+                    notes.Add(new BandNote(BandPart.Guitar, n.Pitch, n.AtQuarter, Math.Max(0.05, Math.Min(n.Quarters, to - n.AtQuarter)), n.Velocity, single: true));
+                from = null;
+                picked.Clear();
+            }
+            foreach (var onset in onsets)
+            {
+                var at = onset[0].AtQuarter;
+                if (onset.Count >= 3)
+                {
+                    Close(Math.Min(at, end));
+                    strums.Add(onset);
+                    continue;
+                }
+                var sounding = onset.Where(n => !Dead(n)).ToList();
+                if (sounding.Count == 0)
+                    continue;  // a scratch on dead strings, not a note
+                if (from != null && at - end > longRest)
+                    Close(end);
+                from = from ?? at;
+                picked.AddRange(sounding);
+                end = Math.Max(end, sounding.Max(n => n.AtQuarter + n.Quarters));
+            }
+            Close(end);
+
+            // per bar, the sixteenths struck: whether the strumming is in eighths or sixteenths, for the down-up rule
+            var slots = new Dictionary<int, HashSet<int>>();
+            int SlotOf(double at, ChartBar bar) => (int)Math.Round((at - bar.AtQuarter) * 4);
+            foreach (var s in strums)
+                if (chart.BarOf(s[0].AtQuarter) is ChartBar bar)
+                {
+                    if (!slots.TryGetValue(bar.Index, out var set))
+                        slots[bar.Index] = set = new HashSet<int>();
+                    set.Add(SlotOf(s[0].AtQuarter, bar));
+                }
+
+            List<TrackNote> held = null;  // the chord held: the last strum's sounding strings
+            var strikes = new List<(double at, int str, int pitch, int velocity, bool muted, double end)>();
+            var heldSpans = new List<(double From, double To, List<TrackNote> Chord)>();
+            for (int i = 0; i < strums.Count; ++i)
+            {
+                var strum = strums[i];
+                var at = strum[0].AtQuarter;
+                var sounding = strum.Where(n => !Dead(n)).OrderBy(n => n.StringIndex >= 0 ? n.StringIndex : n.Pitch).ToList();
+                var muted = sounding.Count == 0 || strum.All(n => n.Technique.Contains('m') || Dead(n));
+                bool down;
+                if (strum.Any(n => n.Technique.Contains('D')))
+                    down = true;
+                else if (strum.Any(n => n.Technique.Contains('U')))
+                    down = false;
+                else
+                {
+                    var bar = chart.BarOf(at);
+                    var slot = bar != null ? SlotOf(at, bar) : 0;
+                    var set = bar != null && slots.TryGetValue(bar.Index, out var s) ? s : new HashSet<int>();
+                    var fast = set.Contains(slot - 1) || set.Contains(slot + 1);
+                    down = slot % (fast ? 2 : 4) == 0;
+                }
+                var velocity = strum.Max(n => n.Velocity);
+                arrangement.Strokes.Add(new BandStroke(at, !down, velocity, muted));
+                if (sounding.Count > 0)
+                {
+                    // a new chord is held from here: until the next chord, a picked stretch, or its notes' end
+                    var next = strums.Skip(i + 1).Select(x => x[0].AtQuarter).DefaultIfEmpty(double.PositiveInfinity).First();
+                    var stretch = arrangement.SingleSpans.Where(sp => sp.From > at).Select(sp => sp.From).DefaultIfEmpty(double.PositiveInfinity).Min();
+                    var to = Math.Min(Math.Min(next, stretch), at + sounding.Max(n => n.Quarters));
+                    if (held != null && heldSpans.Count > 0 && SameChord(held, sounding) && Math.Abs(heldSpans[heldSpans.Count - 1].To - at) < 1e-6)
+                        heldSpans[heldSpans.Count - 1] = (heldSpans[heldSpans.Count - 1].From, to, held);
+                    else
+                        heldSpans.Add((at, to, sounding));
+                    held = sounding;
+                }
+                // the strings one by one, as a hand crosses them (down: low to high; up: high to low)
+                var order = down ? sounding : Enumerable.Reverse(sounding).ToList();
+                var perString = (down ? DownSpread : UpSpread) * song.Tempo.BpmAt(at) / 60.0;  // in quarter notes
+                for (int k = 0; k < order.Count; ++k)
+                    strikes.Add((at + k * perString, order[k].StringIndex >= 0 ? order[k].StringIndex : order[k].Pitch, order[k].Pitch,
+                                 velocity, muted, order[k].AtQuarter + order[k].Quarters));
+            }
+            foreach (var (spanFrom, spanTo, chord) in heldSpans)
+                foreach (var n in chord)
+                    arrangement.Voicings.Add(new VoicingNote(n.Pitch, spanFrom, Math.Max(0.05, spanTo - spanFrom)));
+            // each string rings for its note's length, or until it is struck again
+            foreach (var onString in strikes.GroupBy(s => s.str))
+            {
+                var list = onString.OrderBy(s => s.at).ToList();
+                for (int k = 0; k < list.Count; ++k)
+                {
+                    var s = list[k];
+                    var stop = k + 1 < list.Count ? Math.Min(s.end, list[k + 1].at) : s.end;
+                    var length = s.muted ? Math.Min(0.08, stop - s.at) : stop - s.at - 0.01;
+                    if (length > 0.01)
+                        notes.Add(new BandNote(BandPart.Guitar, s.pitch, s.at, length, s.velocity));
+                }
+            }
+        }
+
+        /// <summary>Whether two strums sound the same chord: the same pitches.</summary>
+        static bool SameChord(List<TrackNote> a, List<TrackNote> b) =>
+            a.Select(n => n.Pitch).OrderBy(p => p).SequenceEqual(b.Select(n => n.Pitch).OrderBy(p => p));
 
         /// <summary>
         /// The single-string notes of the song's tab (the notes of a riff's onsets that have just one note) and the

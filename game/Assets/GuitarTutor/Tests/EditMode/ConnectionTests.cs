@@ -124,6 +124,47 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
+        public void TheRhythmGuitar_StrumsWhereItsTrackStrumsAndPicksWhereItPicks()
+        {
+            var song = GuitarProSong();
+            var rhythm = song.Tracks[3];  // Guitar 2, the song's own tab's track
+            rhythm.Notes.Clear();
+            void Strum(double at, string technique = "")
+            {
+                for (int s = 2; s < 6; ++s)
+                    rhythm.Notes.Add(new TrackNote { AtQuarter = at, Quarters = 0.5, Pitch = 50 + 5 * s, StringIndex = s, Fret = 0, Velocity = 95, Technique = technique });
+            }
+            Strum(0);
+            Strum(0.5);
+            Strum(1);
+            Strum(1.5, "x");  // dead strings: a muted stroke
+            foreach (var at in new[] { 2.0, 2.5, 3.0 })  // picked, one string at a time
+                rhythm.Notes.Add(new TrackNote { AtQuarter = at, Quarters = 0.5, Pitch = 62, StringIndex = 3, Fret = 7, Velocity = 79 });
+            Strum(4, "U");  // the file records an upstroke
+            var a = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"), new BandConnections());
+
+            CollectionAssert.AreEqual(new[] { (0.0, false, false), (0.5, true, false), (1.0, false, false), (1.5, true, true), (4.0, true, false) },
+                                      a.Strokes.Select(s => (s.AtQuarter, s.Up, s.Muted)));  // down on the beat, up off it
+            CollectionAssert.AreEqual(new[] { (2.0, 3.5) }, a.SingleSpans);  // the picked stretch: no strumming over it
+            var guitar = a.Part(BandPart.Guitar).ToList();
+            Assert.AreEqual(3, guitar.Count(n => n.Single));
+            Assert.AreEqual(16, guitar.Count(n => !n.Single));  // four strums of four strings (the dead one sounds none)
+            // the chord is held through the strums that repeat it, until the picking; then again from the last strum
+            CollectionAssert.AreEqual(new[] { (0.0, 1.5), (4.0, 0.5) }, a.Voicings.Select(v => (v.AtQuarter, v.Quarters)).Distinct());
+            Assert.AreEqual(8, a.Voicings.Count);
+        }
+
+        [Test]
+        public void ASongStrummedFromUltimateGuitar_KeepsItsGuitaristOnThatStrumming()
+        {
+            var song = GuitarProSong();
+            song.Sources.Add(new Source { Kind = "ultimate-guitar-strumming", Url = "heart-of-gold.html" });
+            var auto = BandConnections.AutoConnect(song);
+            Assert.IsFalse(auto.ContainsKey(Instrument.RhythmGuitar));
+            Assert.AreEqual("Guitar 1", auto[Instrument.LeadGuitar].Name);  // the strummed track is no lead's either
+        }
+
+        [Test]
         public void EveryInstrumentOnDefault_PlaysAsBeforeThereWereTracks()
         {
             var song = GuitarProSong();

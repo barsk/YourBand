@@ -240,7 +240,7 @@ namespace GuitarTutor.Core.Songs
         /// <summary>
         /// How it is played, a letter each: b bend, s slide, h hammer-on or pull-off (to the next note), ~ vibrato, m palm
         /// mute, x dead (muted) note, g ghost note, a accent, . staccato, r let ring, n harmonic, t tapped, z tremolo
-        /// picking, q grace note. Empty: plainly.
+        /// picking, q grace note; D or U the pick stroke the file records for its beat (down, up). Empty: plainly.
         /// </summary>
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore), System.ComponentModel.DefaultValue("")]
         public string Technique { get; set; } = "";

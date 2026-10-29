@@ -93,7 +93,7 @@ namespace GuitarTutor.Core.Band
 
         /// <summary>
         /// The best guess at what each instrument plays, from the tracks' kinds: the rhythm guitar the song's own tab's
-        /// track (the strummed guitar the chords come from); the drums, bass and keyboards the busiest track of their kind
+        /// track (the strummed guitar the chords come from), unless the song's strumming is an Ultimate Guitar page's; the drums, bass and keyboards the busiest track of their kind
         /// that plays through enough of the song (<see cref="MinBarShare"/>); the lead guitar the busiest other guitar;
         /// instrument 1 a lead instrument (a harmonica, strings), else a vocal line. A track goes to one instrument only;
         /// an instrument with nothing fitting plays its default part. A song with no tracks (from Ultimate Guitar pages)
@@ -117,6 +117,10 @@ namespace GuitarTutor.Core.Band
             }
             if (Take(Instrument.RhythmGuitar, t => song.Riffs.Any(r => r.Name == t.Name)) == null)
                 Take(Instrument.RhythmGuitar, t => t.Kind == "guitar");
+            // a song strummed as an Ultimate Guitar page has it (chosen at its import): the guitarist plays that, its
+            // default part, and the strummed track is no other instrument's either
+            if (song.Sources.Any(s => s.Kind == "ultimate-guitar-strumming"))
+                result.Remove(Instrument.RhythmGuitar);
             Take(Instrument.Drums, t => t.Kind == "drums" && Through(t));
             Take(Instrument.Bass, t => t.Kind == "bass" && Through(t));
             Take(Instrument.Keys, t => t.Kind == "keys" && Through(t));

@@ -688,6 +688,8 @@ namespace GuitarTutor.SongTool
             if (n.IsLeftHandTapped) t.Append('t');
             if (n.Beat.IsTremolo) t.Append('z');
             if (n.Beat.GraceType != GraceType.None) t.Append('q');
+            if (n.Beat.PickStroke == PickStroke.Down) t.Append('D');
+            else if (n.Beat.PickStroke == PickStroke.Up) t.Append('U');
             return t.ToString();
         }
 

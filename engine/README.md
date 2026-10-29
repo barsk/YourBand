@@ -85,9 +85,11 @@ game (`tracks`): "Default (generated)", the part the band makes up, then a Guita
 choice, named with its twin). The game connects them automatically for a new song; choosing one here tells the game
 (`connect`), which keeps the choice in a file next to the song (`<song>.band.json`) and arranges the band again. A song
 from Ultimate Guitar pages has no tracks: the lists only offer the default. Then the row's plugin and its window (the
-keyboards play on Numa Player). The drums, bass, keyboards, lead guitar and instrument 1 play their tracks (as the
-file has them: its velocities, no made-up fills); the rhythm guitar still plays its default part whatever is chosen,
-until the band learns to play a guitar track.
+keyboards play on Numa Player). Every instrument plays its track as the file has it (its velocities, no made-up fills).
+The rhythm guitar plays its track through the guitar's two ways of playing: where three strings or more are struck at
+once it strums (the chord held, a stroke each time, down or up as the file records it, else down on the beat and up off
+it, muted on dead or palm-muted strings), and where one or two are it plays them as notes, as a single-note stretch. A
+song strummed from an Ultimate Guitar page keeps its guitarist on that strumming (Default) unless you choose the track.
 
 Play from the game (Space) or the footswitch. Playing from the start, or from wherever you moved to, begins
 with a bar of count-in on sticks; after a pause the band plays on from where it stopped.

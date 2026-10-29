@@ -64,7 +64,8 @@ Each step leaves "Default" playing exactly as today, and is checked before the n
 5. **Drums, keys and bass from tracks.** (Done 2026-10-29: the Arranger plays their connected tracks; the engine plays a
    drum a kit lacks on the nearest one it has, MONSTER Drums' layout measured.) General MIDI drum notes (with a note map for kits that are not
    General MIDI), the keyboard's notes as written, the bass line.
-6. **Guitars from tracks.** The rhythm and lead guitars play their tracks: strummed where the track strums,
+6. **Guitars from tracks.** (Done 2026-10-29: three strings or more at once are strummed, fewer picked as notes; a song
+   strummed from an Ultimate Guitar page keeps its guitarist on that strumming unless you choose the track.) The rhythm and lead guitars play their tracks: strummed where the track strums,
    note by note where it picks, through the modes the engine already has.
 7. **Sounds per song.** The plugin and sound per instrument and song, the Band defaults dialog, saving when
    the plugin window closes, loading on song change.

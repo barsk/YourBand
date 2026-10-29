@@ -53,7 +53,7 @@ track written as tab on one staff its tuning and capo. Each note has its soundin
 note, as alphaTab's percussion mapper gives it), its string and fret where the track is tab, a velocity from the
 written dynamics and accents (as alphaTab's player: ppp 15 to fff 127), its techniques as letters (b bend, s slide,
 h hammer-on or pull-off, ~ vibrato, m palm mute, x dead, g ghost, a accent, . staccato, r let ring, n harmonic,
-t tapped, z tremolo, q grace) and a bend's height in semitones. A track with the same notes as an earlier one (a
+t tapped, z tremolo, q grace; D or U the beat's recorded pick stroke) and a bend's height in semitones. A track with the same notes as an earlier one (a
 doubled rhythm guitar) keeps only `sameAs`. Drum notes the file gives no drum are left out (the report says how
 many). Nothing plays the tracks yet: they are what the band's instruments will choose from
 ([../../docs/instrument-tracks.md](../../docs/instrument-tracks.md)); `show` lists them.
