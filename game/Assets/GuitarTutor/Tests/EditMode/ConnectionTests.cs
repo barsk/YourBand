@@ -129,29 +129,38 @@ namespace GuitarTutor.Core.Tests
             var song = GuitarProSong();
             var rhythm = song.Tracks[3];  // Guitar 2, the song's own tab's track
             rhythm.Notes.Clear();
-            void Strum(double at, string technique = "")
+            void Strike(double at, int[] strings, string technique = "")
             {
-                for (int s = 2; s < 6; ++s)
-                    rhythm.Notes.Add(new TrackNote { AtQuarter = at, Quarters = 0.5, Pitch = 50 + 5 * s, StringIndex = s, Fret = 0, Velocity = 95, Technique = technique });
+                foreach (var s in strings)
+                    rhythm.Notes.Add(new TrackNote { AtQuarter = at, Quarters = 0.5, Pitch = 40 + 5 * s, StringIndex = s, Fret = 0, Velocity = 95, Technique = technique });
             }
-            Strum(0);
-            Strum(0.5);
-            Strum(1);
-            Strum(1.5, "x");  // dead strings: a muted stroke
+            var top = new[] { 2, 3, 4, 5 };
+            Strike(0, top);
+            Strike(0.5, top);
+            Strike(1, top);
+            Strike(1.5, top, "x");  // dead strings: a muted stroke
             foreach (var at in new[] { 2.0, 2.5, 3.0 })  // picked, one string at a time
                 rhythm.Notes.Add(new TrackNote { AtQuarter = at, Quarters = 0.5, Pitch = 62, StringIndex = 3, Fret = 7, Velocity = 79 });
-            Strum(4, "U");  // the file records an upstroke
+            Strike(3.5, new[] { 0, 1 });  // two strings: a stroke too (a bass note and a pinch)
+            Strike(4, top, "U");  // the file records an upstroke
             var a = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"), new BandConnections());
 
-            CollectionAssert.AreEqual(new[] { (0.0, false, false), (0.5, true, false), (1.0, false, false), (1.5, true, true), (4.0, true, false) },
+            CollectionAssert.AreEqual(new[] { (0.0, false, false), (0.5, true, false), (1.0, false, false), (1.5, true, true), (3.5, true, false), (4.0, true, false) },
                                       a.Strokes.Select(s => (s.AtQuarter, s.Up, s.Muted)));  // down on the beat, up off it
             CollectionAssert.AreEqual(new[] { (2.0, 3.5) }, a.SingleSpans);  // the picked stretch: no strumming over it
             var guitar = a.Part(BandPart.Guitar).ToList();
             Assert.AreEqual(3, guitar.Count(n => n.Single));
-            Assert.AreEqual(16, guitar.Count(n => !n.Single));  // four strums of four strings (the dead one sounds none)
-            // the chord is held through the strums that repeat it, until the picking; then again from the last strum
-            CollectionAssert.AreEqual(new[] { (0.0, 1.5), (4.0, 0.5) }, a.Voicings.Select(v => (v.AtQuarter, v.Quarters)).Distinct());
-            Assert.AreEqual(8, a.Voicings.Count);
+            Assert.AreEqual(18, guitar.Count(n => !n.Single));  // the struck strings (the dead strum sounds none)
+            // one held chord per chord of the chart, on the strings the track strums in it
+            var strums = new[] { 0.0, 0.5, 1.0, 3.5, 4.0 };
+            var chords = song.Chords.Where(c => strums.Any(s => s >= c.AtQuarter && s < c.AtQuarter + c.Quarters)).ToList();
+            CollectionAssert.AreEqual(chords.Select(c => (c.AtQuarter, c.Quarters)), a.Voicings.Select(v => (v.AtQuarter, v.Quarters)).Distinct());
+            foreach (var c in chords)
+            {
+                var strings = rhythm.Notes.Where(n => !n.Technique.Contains("x") && n.AtQuarter >= c.AtQuarter && n.AtQuarter < c.AtQuarter + c.Quarters
+                                                      && strums.Contains(n.AtQuarter)).Select(n => n.StringIndex).Distinct().Count();
+                Assert.AreEqual(strings, a.Voicings.Count(v => v.AtQuarter == c.AtQuarter));
+            }
         }
 
         [Test]
