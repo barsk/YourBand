@@ -31,7 +31,7 @@ the message set settles.
 | `bandBass` | `plugin` | The band's bass on an instrument plugin, named by its file name (`MONSTER Bass v2`, `ABPL`), or `synthesized`; as chosen in the control panel, and kept for next time |
 | `bandGuitar` | `plays` | Whether the band guitarist plays the rhythm (G in the game); the engine keeps it for next time and answers with `bandGuitar` |
 
-| `tracks` | `tracks` [{`index`, `name`}...], `instruments` [{`id`, `name`, `track`, `chosen`}...] | The song's tracks the band's instruments can play (a Guitar Pro song's, one per doubled pair; `name` describes it: "Guitar 2 = Guitar 3 (guitar, 300 notes)"; none for a song from Ultimate Guitar pages) and, for each instrument (`rhythm`, `bass`, `keys`, `drums`, `lead`, `instrument1`), the `index` of the track it plays (-1: its default part) and whether that was chosen or connected automatically: after every `load`. The control panel's instrument rows show them |
+| `tracks` | `tracks` [{`index`, `name`, `kind`}...], `instruments` [{`id`, `name`, `track`, `picked`, `chosen`}...] | The song's tracks the band's instruments can play (a Guitar Pro song's, one per doubled pair; `name` describes it: "Guitar 2 = Guitar 3 (guitar, 300 notes)"; none for a song from Ultimate Guitar pages) and, for each instrument (`rhythm`, `bass`, `keys`, `drums`, `lead`, `instrument1`), the `index` of the track it plays (-1: its default part), whether the rhythm guitar plays it picked (note by note, not strummed: `kind` says which tracks are guitars it can), and whether that was chosen or connected automatically: after every `load`. The control panel's instrument rows show them |
 | `songs` | `names`, `current` | The songs the game can open (their file names without the suffix) and the index of the open one: after the engine connects and whenever the game opens a song. The control panel shows them in its song list |
 
 ## Engine → game
@@ -42,7 +42,7 @@ the message set settles.
 | `loaded` | `notes`, `keys` | A `load` has been taken over by the audio thread; `keys`: the sound in use, or empty if there is no keyboard plugin |
 | `command` | `command` | A control the engine read (the footswitch): `playPause`, `restart`, `sectionPrevious`, `sectionNext`. Tone presets are switched in the engine and not sent |
 | `bandGuitar` | `plays` | Whether the band guitarist plays the rhythm: after `hello`, and whenever it changes (the game's `bandGuitar`) |
-| `connect` | `instrument`, `track` | A track chosen in the control panel for an instrument (an `index` from the last `tracks`; -1: its default part): the game keeps it in the song's band file (`<song>.band.json`) and arranges the band again (`load`, `tracks`) |
+| `connect` | `instrument`, `track`, `picked` | A track chosen in the control panel for an instrument (an `index` from the last `tracks`; -1: its default part; `picked`: the rhythm guitar plays it note by note): the game keeps it in the song's band file (`<song>.band.json`) and arranges the band again (`load`, `tracks`) |
 | `openSong` | `index` | The song chosen in the control panel's song list: an index into the game's last `songs` |
 | `importedSong` | `path` | The control panel's import window has written this song file (in the game's songs-local folder): the game reads its song list again, sends `songs`, and opens it |
 

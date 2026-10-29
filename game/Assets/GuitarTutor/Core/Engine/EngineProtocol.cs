@@ -86,7 +86,8 @@ namespace GuitarTutor.Core.Engine
 
         /// <summary>
         /// The song's tracks the band's instruments can play (one per doubled pair: its label names both) and, per
-        /// instrument, the track it plays (-1: its default part) and whether that was chosen or connected automatically.
+        /// instrument, the track it plays (-1: its default part), whether it plays it picked (the rhythm guitar), and
+        /// whether that was chosen or connected automatically.
         /// </summary>
         public static string Tracks(Song song, BandConnections connections)
         {
@@ -95,7 +96,7 @@ namespace GuitarTutor.Core.Engine
             {
                 var doubles = song.Tracks.Where(d => d.SameAs == t.Name).Select(d => d.Name).ToList();
                 var name = t.Name + (doubles.Count > 0 ? " = " + string.Join(" = ", doubles) : "");
-                tracks.Add(new JObject { ["index"] = t.Index, ["name"] = $"{name} ({t.Kind}, {t.Notes.Count} notes)" });
+                tracks.Add(new JObject { ["index"] = t.Index, ["name"] = $"{name} ({t.Kind}, {t.Notes.Count} notes)", ["kind"] = t.Kind });
             }
             var instruments = new JArray();
             foreach (Instrument i in Enum.GetValues(typeof(Instrument)))
@@ -104,6 +105,7 @@ namespace GuitarTutor.Core.Engine
                     ["id"] = BandConnections.Ids[i],
                     ["name"] = BandConnections.Names[i],
                     ["track"] = connections.TrackFor(song, i)?.Index ?? -1,
+                    ["picked"] = connections.PlaysPicked(song, i),
                     ["chosen"] = connections.IsChosen(i),
                 });
             return Line(new JObject { ["type"] = "tracks", ["tracks"] = tracks, ["instruments"] = instruments });

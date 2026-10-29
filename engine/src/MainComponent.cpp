@@ -568,10 +568,13 @@ void MainComponent::setUpInstrumentRows()
             auto& r = instrumentRows[i];
             if (! game.isConnected() || r.track.getSelectedId() <= 0)
                 return;
+            const auto id = r.track.getSelectedId();
+            const auto picked = id >= pickedTrackIds;
             auto* message = new juce::DynamicObject();
             message->setProperty ("type", "connect");
             message->setProperty ("instrument", r.id);
-            message->setProperty ("track", r.track.getSelectedId() - 2);  // -1: the default part
+            message->setProperty ("track", (picked ? id - pickedTrackIds : id) - 2);  // -1: the default part
+            message->setProperty ("picked", picked);
             game.send (juce::var (message));
             log (r.label.getText() + " plays " + (r.track.getSelectedId() == 1 ? juce::String ("its default part") : r.track.getText()));
         };
@@ -593,12 +596,22 @@ void MainComponent::showTracks (const juce::var& message)
         if (tracks != nullptr)
             for (const auto& t : *tracks)
                 row.track.addItem (t["name"].toString(), (int) t["index"] + 2);
+        // the rhythm guitar can also play a guitar track picked, note by note (a fingerpicked part), not strummed
+        if (tracks != nullptr && row.id == "rhythm")
+            for (const auto& t : *tracks)
+                if (t["kind"].toString() == "guitar")
+                    row.track.addItem (t["name"].toString().upToFirstOccurrenceOf (" (", false, false) + ", picked note by note",
+                                       pickedTrackIds + (int) t["index"] + 2);
         auto playing = -1;
+        auto picked = false;
         if (instruments != nullptr)
             for (const auto& i : *instruments)
                 if (i["id"].toString() == row.id)
+                {
                     playing = (int) i["track"];
-        row.track.setSelectedId (playing + 2, juce::dontSendNotification);
+                    picked = (bool) i["picked"];
+                }
+        row.track.setSelectedId ((picked && playing >= 0 ? pickedTrackIds : 0) + playing + 2, juce::dontSendNotification);
         if (row.track.getSelectedId() == 0)
             row.track.setSelectedId (1, juce::dontSendNotification);
         row.track.setEnabled (tracks != nullptr && ! tracks->isEmpty());

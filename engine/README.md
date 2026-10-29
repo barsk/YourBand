@@ -89,8 +89,9 @@ keyboards play on Numa Player). Every instrument plays its track as the file has
 The rhythm guitar plays its track through the guitar's two ways of playing: where two strings or more are struck at
 once it strums (a stroke each time, down or up as the file records it, else down on the beat and up off it, muted on dead
 or palm-muted strings; the chord held is the chart's chord on the strings the track strikes in it, one per chord), and
-where one is it plays the notes as a single-note stretch. A fingerpicked part's bass notes and pinches are strokes on one
-held chord, so the guitar does not keep leaving its strumming mode. A
+where one is it plays the notes as a single-note stretch. A fingerpicked track (one that seldom strikes five strings at
+once: Redbud Tree's) is played picked instead, every note as a note with no strokes, so the guitar never enters its
+strumming mode; the rhythm row offers each guitar track both ways ("..., picked note by note"). A
 song strummed from an Ultimate Guitar page keeps its guitarist on that strumming (Default) unless you choose the track.
 
 Play from the game (Space) or the footswitch. Playing from the start, or from wherever you moved to, begins

@@ -17,9 +17,13 @@ namespace GuitarTutor.Core.Band
         /// <summary>The track's <see cref="SongTrack.Index"/>; -1: none, the instrument plays its default (generated) part.</summary>
         public int Index { get; set; } = -1;
         public string Name { get; set; } = "";
+        /// <summary>The rhythm guitar plays the track picked, every note as a note, instead of strumming it.</summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public bool Picked { get; set; }
 
         public static TrackRef Default => new TrackRef();
-        public static TrackRef Of(SongTrack track) => track == null ? Default : new TrackRef { Index = track.Index, Name = track.Name };
+        public static TrackRef Of(SongTrack track, bool picked = false) =>
+            track == null ? Default : new TrackRef { Index = track.Index, Name = track.Name, Picked = picked };
         [JsonIgnore] public bool IsDefault => Index < 0;
     }
 
@@ -73,6 +77,46 @@ namespace GuitarTutor.Core.Band
                     return Played(song, track);
             }
             return AutoConnect(song).TryGetValue(instrument, out var auto) ? auto : null;
+        }
+
+        /// <summary>
+        /// Whether the rhythm guitar plays its track picked, every note as a note, instead of strumming where it strums:
+        /// as chosen, or for a track connected automatically, if it is fingerpicked (<see cref="FingerPicked"/>).
+        /// </summary>
+        public bool PlaysPicked(Song song, Instrument instrument)
+        {
+            var track = TrackFor(song, instrument);
+            if (track == null || instrument != Instrument.RhythmGuitar)
+                return false;
+            return Chosen.TryGetValue(Ids[instrument], out var chosen) && chosen != null && !chosen.IsDefault && Find(song, chosen) != null
+                ? chosen.Picked
+                : FingerPicked(track);
+        }
+
+        /// <summary>
+        /// A strum crosses five or six strings now and then; a fingerpicked part (a bass note and a pinch on three or four
+        /// strings, Redbud Tree's) hardly ever does: it strikes five or more in fewer than this share of its onsets.
+        /// (Strummed songs measured: 20 to 76 %; Redbud Tree 0 %.)
+        /// </summary>
+        public const double FullStrumShare = 0.05;
+
+        /// <summary>Whether a track is fingerpicked rather than strummed: it seldom strikes five strings or more at once.</summary>
+        public static bool FingerPicked(SongTrack track)
+        {
+            const double together = 0.02;
+            var onsets = new List<int>();  // the strings of each onset
+            double last = double.NegativeInfinity;
+            foreach (var n in track.Notes.Where(n => n.StringIndex >= 0).OrderBy(n => n.AtQuarter))
+            {
+                if (onsets.Count > 0 && n.AtQuarter - last < together)
+                    ++onsets[onsets.Count - 1];
+                else
+                {
+                    onsets.Add(1);
+                    last = n.AtQuarter;
+                }
+            }
+            return onsets.Count > 0 && onsets.Count(s => s >= 5) < FullStrumShare * onsets.Count;
         }
 
         /// <summary>The track a choice names: the one with its place and name, else the one with its name.</summary>

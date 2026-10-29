@@ -295,7 +295,9 @@ namespace GuitarTutor.Core.Band
                     foreach (var n in track.Notes)
                         if (!n.Technique.Contains('x'))
                             notes.Add(new BandNote(part, n.Pitch, n.AtQuarter, Math.Max(0.05, n.Quarters), n.Velocity));
-            if (rhythmTrack != null)
+            if (rhythmTrack != null && connections.PlaysPicked(chart.Song, Instrument.RhythmGuitar))
+                PickedRhythm(rhythmTrack, arrangement);
+            else if (rhythmTrack != null)
                 TrackRhythm(chart, rhythmTrack, arrangement);
             else
                 Strum(chart, chords, arrangement, Humanise);
@@ -465,6 +467,28 @@ namespace GuitarTutor.Core.Band
                     var length = s.muted ? Math.Min(0.08, end - s.at) : end - s.at - 0.01;
                     if (length > 0.01)
                         notes.Add(new BandNote(BandPart.Guitar, s.pitch, s.at, length, s.velocity));
+                }
+            }
+        }
+
+        /// <summary>
+        /// The band guitarist's rhythm from a track played picked (a fingerpicked part, Redbud Tree's): every note as a
+        /// note, as the file has it, and no strokes, so a strum-capable guitar stays out of its strumming mode. A note rings
+        /// for its length, or with let ring until the next note on its string (a bar at most), and a string sounds one
+        /// note at a time. Dead notes are left out.
+        /// </summary>
+        static void PickedRhythm(SongTrack track, Arrangement arrangement)
+        {
+            const double ringAtMost = 4.0;  // quarters a let-ring note rings on, at most
+            foreach (var onString in track.Notes.Where(n => !n.Technique.Contains('x')).GroupBy(n => n.StringIndex >= 0 ? n.StringIndex : -1 - n.Pitch))
+            {
+                var list = onString.OrderBy(n => n.AtQuarter).ToList();
+                for (int k = 0; k < list.Count; ++k)
+                {
+                    var n = list[k];
+                    var next = k + 1 < list.Count ? list[k + 1].AtQuarter : double.PositiveInfinity;
+                    var end = n.Technique.Contains('r') ? Math.Min(next, n.AtQuarter + ringAtMost) : Math.Min(next, n.AtQuarter + n.Quarters);
+                    arrangement.Notes.Add(new BandNote(BandPart.Guitar, n.Pitch, n.AtQuarter, Math.Max(0.05, end - n.AtQuarter - 0.01), n.Velocity));
                 }
             }
         }
