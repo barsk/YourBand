@@ -69,6 +69,41 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
+        public void Tabs_AreTheSongsOwnThenEachTrackWrittenAsTab()
+        {
+            var song = DemoSong.Create();
+            Assert.AreEqual(1, new SongChart(song).Tabs.Count);  // no tracks (an Ultimate Guitar song): its own tab only
+
+            var standard = new[] { "E2", "A2", "D3", "G3", "B3", "E4" };
+            var bassTuning = new[] { "E1", "A1", "D2", "G2" };
+            // the song's own tab's track (named as its riff), a bass, a doubled bass, and a piano not written as tab
+            song.Tracks.Add(new SongTrack { Index = 0, Name = "Intro lick", Kind = "guitar", Tuning = standard.ToList(),
+                                            Notes = { new TrackNote { AtQuarter = 0, Quarters = 1, Pitch = 64, StringIndex = 5, Fret = 0 } } });
+            song.Tracks.Add(new SongTrack { Index = 1, Name = "Bass", Kind = "bass", Tuning = bassTuning.ToList(), Notes =
+            {
+                new TrackNote { AtQuarter = 17, Quarters = 1, Pitch = 33, StringIndex = 1, Fret = 0 },
+                new TrackNote { AtQuarter = 16.5, Quarters = 0.5, Pitch = 33, StringIndex = 1, Fret = 0, Technique = "xm" },
+                new TrackNote { AtQuarter = 18, Quarters = 1, Pitch = 30, StringIndex = 0, Fret = 2, Technique = "gb" },
+            } });
+            song.Tracks.Add(new SongTrack { Index = 2, Name = "Bass 2", Kind = "bass", Tuning = bassTuning.ToList(), SameAs = "Bass" });
+            song.Tracks.Add(new SongTrack { Index = 3, Name = "Piano", Kind = "keys", Notes = { new TrackNote { AtQuarter = 0, Quarters = 4, Pitch = 60 } } });
+
+            var chart = new SongChart(song);
+            CollectionAssert.AreEqual(new[] { "Intro lick", "Bass" }, chart.Tabs.Select(t => t.Name));
+            Assert.IsTrue(chart.Tabs[0].IsSongTab);
+            Assert.AreEqual(chart.Bars[1].Notes.Count, chart.Tabs[0].NotesIn(1).Count);  // the song's own: its riffs, as the bars hold them
+            var bass = chart.Tabs[1];
+            Assert.IsFalse(bass.IsSongTab);
+            CollectionAssert.AreEqual(bassTuning, bass.Tuning);
+            var bar4 = bass.NotesIn(4);  // quarters 16-20
+            CollectionAssert.AreEqual(new[] { 0.5, 1.0, 2.0 }, bar4.Select(n => n.Offset));
+            CollectionAssert.AreEqual(new[] { "x", "", "gb" }, bar4.Select(n => n.Note.Technique));  // dead, plain, ghost with a bend
+            Assert.AreEqual("Bass", bar4[0].Riff.Name);
+            Assert.AreEqual(0, bass.NotesIn(0).Count);
+            Assert.AreEqual(0, bass.NotesIn(999).Count);
+        }
+
+        [Test]
         public void ChordNames_InOrderOfFirstUse()
         {
             CollectionAssert.AreEqual(new[] { "G", "D", "Em", "C", "Bm" }, Demo().ChordNames);

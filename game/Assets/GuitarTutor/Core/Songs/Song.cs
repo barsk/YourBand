@@ -166,7 +166,10 @@ namespace GuitarTutor.Core.Songs
         public int Fret { get; set; }
         public double AtQuarter { get; set; }
         public double Quarters { get; set; }
-        /// <summary>As written in tab: "b" bend, "s" slide, "h" hammer-on, "p" pull-off, "~" vibrato; empty if none.</summary>
+        /// <summary>
+        /// As written in tab: "b" bend, "s" slide, "h" hammer-on, "p" pull-off, "~" vibrato; empty if none. A track's tab
+        /// (<see cref="Chart.ChartTab"/>) also has "x" for a dead note, and "g" before the symbol for a ghost note.
+        /// </summary>
         public string Technique { get; set; } = "";
     }
 

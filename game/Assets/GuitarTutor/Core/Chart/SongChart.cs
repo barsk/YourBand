@@ -72,6 +72,33 @@ namespace GuitarTutor.Core.Chart
         public List<BarNote> Notes { get; } = new List<BarNote>();
     }
 
+    /// <summary>
+    /// A tab the TAB panel can show: the song's own (its riffs; a Guitar Pro song's from its main guitar track), or
+    /// another of a Guitar Pro file's tracks written as tab. Its notes are bar by bar, as <see cref="ChartBar.Notes"/>
+    /// holds the song's own.
+    /// </summary>
+    public sealed class ChartTab
+    {
+        /// <summary>The track's name; the song's own tab has its main track's name (a Guitar Pro song), else none.</summary>
+        public string Name { get; }
+        /// <summary>The open strings, lowest first, as note names.</summary>
+        public IReadOnlyList<string> Tuning { get; }
+        /// <summary>The song's own tab (the one the band's guitarist follows), not another track's.</summary>
+        public bool IsSongTab { get; }
+        readonly IReadOnlyList<IReadOnlyList<BarNote>> notes;
+
+        internal ChartTab(string name, IReadOnlyList<string> tuning, bool isSongTab, IReadOnlyList<IReadOnlyList<BarNote>> barNotes)
+        {
+            Name = name;
+            Tuning = tuning;
+            IsSongTab = isSongTab;
+            notes = barNotes;
+        }
+
+        /// <summary>The tab notes played in a bar, in time order.</summary>
+        public IReadOnlyList<BarNote> NotesIn(int bar) => bar >= 0 && bar < notes.Count ? notes[bar] : Array.Empty<BarNote>();
+    }
+
     /// <summary>A section as the section map shows it: which bars it covers.</summary>
     public readonly struct SectionSpan
     {
@@ -134,10 +161,13 @@ namespace GuitarTutor.Core.Chart
         /// <summary>The song's chords by name, in the order they first appear.</summary>
         public IReadOnlyList<string> ChordNames { get; }
         public double EndQuarter { get; }
+        /// <summary>The tabs the TAB panel can show: the song's own first, then the Guitar Pro file's other tracks written as tab.</summary>
+        public IReadOnlyList<ChartTab> Tabs => tabs;
 
         readonly List<ChartBar> bars = new List<ChartBar>();
         readonly List<SectionSpan> sections = new List<SectionSpan>();
         readonly List<ChartRow> rows = new List<ChartRow>();
+        readonly List<ChartTab> tabs = new List<ChartTab>();
         readonly List<int> rowOfBar = new List<int>();
         readonly List<LyricLine> lines;
         readonly List<ChordEvent> chords;
@@ -196,6 +226,7 @@ namespace GuitarTutor.Core.Chart
                 bar.Words.Sort((a, b) => a.Offset.CompareTo(b.Offset));
                 bar.Notes.Sort((a, b) => a.Offset.CompareTo(b.Offset));
             }
+            BuildTabs(song);
 
             for (int i = 0; i < bars.Count;)
             {
@@ -220,6 +251,49 @@ namespace GuitarTutor.Core.Chart
                     rowOfBar.Add(rows.Count - 1);
                 i = j;
             }
+        }
+
+        // ------------------------------------------------------------ tabs
+        /// <summary>
+        /// The song's own tab, then each track of the file that is written as tab, has notes of its own (not the same as
+        /// another's) and is not the song's own tab's track.
+        /// </summary>
+        void BuildTabs(Song song)
+        {
+            var own = song.Riffs.Count > 0 ? song.Tracks.FirstOrDefault(t => song.Riffs.Any(r => r.Name == t.Name)) : null;
+            tabs.Add(new ChartTab(own?.Name ?? "", song.Info.Tuning, true, bars.Select(b => (IReadOnlyList<BarNote>)b.Notes).ToList()));
+            foreach (var track in song.Tracks)
+            {
+                if (track == own || track.SameAs != null || track.Tuning.Count == 0 || !track.Notes.Any(n => n.StringIndex >= 0))
+                    continue;
+                var riff = new Riff { Name = track.Name };
+                var perBar = bars.Select(_ => new List<BarNote>()).ToList();
+                foreach (var n in track.Notes)
+                {
+                    if (n.StringIndex < 0 || n.StringIndex >= track.Tuning.Count)
+                        continue;
+                    var note = TabNoteOf(n);
+                    riff.Notes.Add(note);
+                    var bar = BarOf(n.AtQuarter);
+                    if (bar != null)
+                        perBar[bar.Index].Add(new BarNote(note, n.AtQuarter - bar.AtQuarter, riff));
+                }
+                foreach (var list in perBar)
+                    list.Sort((a, b) => a.Offset.CompareTo(b.Offset));
+                tabs.Add(new ChartTab(track.Name, track.Tuning, false, perBar.Select(l => (IReadOnlyList<BarNote>)l).ToList()));
+            }
+        }
+
+        /// <summary>
+        /// A track's note as the tab shows it: "x" for a dead note, a "g" before the symbol for a ghost note (the tab puts
+        /// its fret in brackets), and the one technique symbol the tab shows (bend, slide, hammer-on, vibrato).
+        /// </summary>
+        static TabNote TabNoteOf(TrackNote n)
+        {
+            var t = n.Technique ?? "";
+            var symbol = t.Contains('x') ? "x"
+                : (t.Contains('g') ? "g" : "") + (t.Contains('b') ? "b" : t.Contains('s') ? "s" : t.Contains('h') ? "h" : t.Contains('~') ? "~" : "");
+            return new TabNote { StringIndex = n.StringIndex, Fret = n.Fret, AtQuarter = n.AtQuarter, Quarters = n.Quarters, Technique = symbol };
         }
 
         // ------------------------------------------------------------ rows

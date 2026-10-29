@@ -39,6 +39,7 @@ namespace GuitarTutor.Runtime.UI
 
         public ChartStrip Strip { get; }
         readonly LoadingOverlay loading = new LoadingOverlay();
+        int tabIndex;  // which of the chart's tabs the TAB panel shows
 
         readonly Label title, artist, status, hint, vrHint;
         readonly VisualElement help, vrHelp;
@@ -97,7 +98,7 @@ namespace GuitarTutor.Runtime.UI
 
             Strip = new ChartStrip();
             Add(Strip);
-            hint = ChartLook.Label(string.Join("   ·   ", "Space play / pause", "R restart", "Left / Right bar", "PgUp / PgDn section", "Up / Down speed", "1-4 panels", "P pattern", "B band style", "G band guitarist", "V band view", "X VR", "C control panel", "T tone", "H help"),
+            hint = ChartLook.Label(string.Join("   ·   ", "Space play / pause", "R restart", "Left / Right bar", "PgUp / PgDn section", "Up / Down speed", "1-4 panels", "Tab track's tab", "P pattern", "B band style", "G band guitarist", "V band view", "X VR", "C control panel", "T tone", "H help"),
                 "gt-hint", this);
             vrHint = ChartLook.Label(string.Join("   ·   ", "A play / pause", "B restart", "right stick: bar, speed", "left stick: section", "trigger: move the chart or a musician, grip: the band", "right stick click: in front of you", "left stick click: band guitarist", "left stick up: help"),
                 "gt-hint", this);
@@ -112,6 +113,7 @@ namespace GuitarTutor.Runtime.UI
                          ("PgUp / PgDn", "the section before / after"),
                          ("Up / Down", "speed up / slow down by 5%"),
                          ("1  2  3  4", "chords, strumming, tab, song panels"),
+                         ("Tab", "the TAB panel shows another track's tab (Guitar Pro songs); Shift+Tab the one before"),
                          ("P", "next strumming pattern"),
                          ("B", "next band style"),
                          ("G", "band guitarist plays the rhythm, or rests"),
@@ -169,6 +171,32 @@ namespace GuitarTutor.Runtime.UI
         /// <summary>Covers the window with a circling ring and this line (the mouse is blocked meanwhile), or uncovers it (null).</summary>
         public void SetLoading(string message) => loading.Show(message);
 
+        /// <summary>
+        /// The TAB panel to the next of the song's tabs (or the one before): the song's own, then the Guitar Pro file's
+        /// other tracks written as tab. Shows the panel if it was hidden. Returns the tab's name, or null if the song has
+        /// only its own.
+        /// </summary>
+        public string StepTab(int step)
+        {
+            if (chart == null || chart.Tabs.Count < 2)
+                return null;
+            tabIndex = ((tabIndex + step) % chart.Tabs.Count + chart.Tabs.Count) % chart.Tabs.Count;
+            tab.SetTab(chart.Tabs[tabIndex]);
+            ShowTabTitle();
+            if (!IsShown(Panel.Tab))
+                SetShown(Panel.Tab, true);
+            var shown = chart.Tabs[tabIndex];
+            return shown.Name != "" ? shown.Name : "the song's tab";
+        }
+
+        /// <summary>"TAB", the track's name, and which of the song's tabs it is when there are more.</summary>
+        void ShowTabTitle()
+        {
+            var shown = chart.Tabs[tabIndex];
+            panelTitles[Panel.Tab].text = "TAB" + (shown.Name != "" ? " · " + shown.Name : "")
+                                        + (chart.Tabs.Count > 1 ? $"  ({tabIndex + 1} of {chart.Tabs.Count}, Tab for the next)" : "");
+        }
+
         public void ToggleHelp() => (vr ? vrHelp : help).ToggleInClassList("gt-hidden");
 
         /// <summary>The controllers' hints and help (VR mode), or the keyboard's.</summary>
@@ -188,7 +216,9 @@ namespace GuitarTutor.Runtime.UI
             title.text = song.Info.Title;
             artist.text = song.Info.Artist;
             Strip.SetSong(chart);
-            tab.SetSong(chart, song.Info.Tuning);
+            tab.SetSong(chart);
+            tabIndex = 0;
+            ShowTabTitle();
             cards.Clear();
             chordRow.Clear();
             strum.Show(null, TimeSignature.FourFour);

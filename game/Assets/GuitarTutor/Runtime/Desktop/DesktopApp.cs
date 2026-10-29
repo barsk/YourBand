@@ -24,7 +24,7 @@ namespace GuitarTutor.Runtime.Desktop
     public enum Command
     {
         PlayPause, Restart, Home, BarBack, BarOn, SectionBack, SectionOn, Faster, Slower,
-        NextPattern, NextSong, NextStyle, BandGuitar, BandView, Vr, ControlPanel, ToneWindow, Help, Quit,
+        NextPattern, NextTab, PreviousTab, NextSong, NextStyle, BandGuitar, BandView, Vr, ControlPanel, ToneWindow, Help, Quit,
     }
 
     /// <summary>
@@ -608,6 +608,11 @@ namespace GuitarTutor.Runtime.Desktop
                     vrToggledAt = Time.realtimeSinceStartup;
                     SetVr(!vr.Active);
                     break;
+                case Command.NextTab:
+                case Command.PreviousTab:
+                    if (screen.StepTab(command == Command.NextTab ? 1 : -1) is string shownTab)
+                        Debug.Log("GuitarTutor: the TAB panel shows " + shownTab);
+                    break;
                 case Command.Help: screen.ToggleHelp(); break;
                 case Command.Quit: Application.Quit(); break;
             }
@@ -631,6 +636,8 @@ namespace GuitarTutor.Runtime.Desktop
             foreach (var (key, command) in keys)
                 if (k[key].wasPressedThisFrame)
                     Execute(command);
+            if (k.tabKey.wasPressedThisFrame)
+                Execute(k.shiftKey.isPressed ? Command.PreviousTab : Command.NextTab);
             if (loading)
                 return;
             Key[] panelKeys = { Key.Digit1, Key.Digit2, Key.Digit3, Key.Digit4 };
