@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using AlphaTab;
 using AlphaTab.Importer;
+using AlphaTab.Midi;
 using AlphaTab.Model;
 using GuitarTutor.Core.Import.UltimateGuitar;
 using GuitarTutor.Core.Music;
@@ -50,6 +52,85 @@ namespace GuitarTutor.SongTool
             return bar;
         }
 
+        /// <summary>
+        /// A bar as it is played: the written bar and when it starts in the song, with repeats, alternate endings and the
+        /// jumps (Da Capo, Dal Segno, Coda, Fine) unrolled. A bar played twice is two of these.
+        /// </summary>
+        sealed class PlayedBar
+        {
+            public MasterBar Master;
+            public int Index;      // the written bar (0-based)
+            public int Number;     // the bar as played (0-based): the song's bar
+            public double Start;   // ticks from the song's start
+            public double Length;  // ticks
+            public int Pass;       // the times the bar was played before this one
+            public bool Repeated;  // the bar is played more than once
+        }
+
+        /// <summary>
+        /// The bars in the order they are played, the order of alphaTab's player (as TuxGuitar plays them). The written
+        /// order where the file has no repeats or jumps, or if alphaTab cannot work it out; then each bar starts where it
+        /// is written.
+        /// </summary>
+        static List<PlayedBar> PlayOrder(Score score, double tpq, ImportReport report)
+        {
+            var bars = score.MasterBars;
+            List<int> order = null;
+            try
+            {
+                var generator = new MidiFileGenerator(score, new Settings(), new AlphaSynthMidiFileHandler(new MidiFile()));
+                generator.Generate();
+                order = generator.TickLookup.MasterBars.Select(m => (int)m.MasterBar.Index).ToList();
+            }
+            catch (Exception e)
+            {
+                report?.Add($"The order the bars are played in could not be worked out ({e.Message}): they are read as written.");
+            }
+            if (order == null || order.Count == 0 || order.Any(i => i < 0 || i >= bars.Count))
+                order = Enumerable.Range(0, bars.Count).ToList();
+
+            double Length(int i) => i + 1 < bars.Count
+                ? bars[i + 1].Start - bars[i].Start
+                : bars[i].TimeSignatureNumerator * 4.0 / bars[i].TimeSignatureDenominator * tpq;
+            var timeline = new List<PlayedBar>(order.Count);
+            var passes = new Dictionary<int, int>();
+            foreach (var index in order)
+            {
+                passes.TryGetValue(index, out var pass);
+                passes[index] = pass + 1;
+                var previous = timeline.Count > 0 ? timeline[timeline.Count - 1] : null;
+                timeline.Add(new PlayedBar
+                {
+                    Master = bars[index],
+                    Index = index,
+                    Number = timeline.Count,
+                    Start = previous == null ? bars[index].Start : previous.Start + previous.Length,
+                    Length = Length(index),
+                    Pass = pass,
+                });
+            }
+            foreach (var pb in timeline)
+                pb.Repeated = passes[pb.Index] > 1;
+
+            if (report != null && !order.SequenceEqual(Enumerable.Range(0, bars.Count)))
+            {
+                var runs = new List<string>();
+                for (int i = 0; i < order.Count;)
+                {
+                    int j = i;
+                    while (j + 1 < order.Count && order[j + 1] == order[j] + 1)
+                        ++j;
+                    runs.Add(i == j ? $"{order[i] + 1}" : $"{order[i] + 1}-{order[j] + 1}");
+                    i = j + 1;
+                }
+                report.Add($"Repeats and jumps: {order.Count} bars as played, from {bars.Count} written (bars {string.Join(", ", runs)}).");
+            }
+            return timeline;
+        }
+
+        /// <summary>The staff's written bar at an index, null if the staff has none there.</summary>
+        static Bar BarAt(Staff staff, int index) => index >= 0 && index < staff.Bars.Count ? staff.Bars[index] : null;
+
         static readonly string[] NoteNames = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
 
         /// <summary>alphaTab's internal resolution: ticks per quarter note (verified against a real file).</summary>
@@ -95,6 +176,7 @@ namespace GuitarTutor.SongTool
 
             var song = new Song();
             var tpq = TicksPerQuarter(score);
+            var timeline = PlayOrder(score, tpq, report);
 
             // ------------------------------------------------------------ info
             song.Info.Title = score.Title ?? "";
@@ -112,29 +194,29 @@ namespace GuitarTutor.SongTool
                 : TimeSignature.FourFour;
             song.Tempo = new TempoMap(bpm, first);
             var current = first;  // a change is any bar whose signature differs from the bar before it (a single 2/4 bar goes back to 4/4)
-            foreach (var mb in score.MasterBars)
+            foreach (var pb in timeline)
             {
-                var sig = new TimeSignature((int)mb.TimeSignatureNumerator, (int)mb.TimeSignatureDenominator);
-                if (mb.Index > 0 && !sig.Equals(current))
-                    song.Tempo.SetMeter((int)mb.Index, sig);
+                var sig = new TimeSignature((int)pb.Master.TimeSignatureNumerator, (int)pb.Master.TimeSignatureDenominator);
+                if (pb.Number > 0 && !sig.Equals(current))
+                    song.Tempo.SetMeter(pb.Number, sig);
                 current = sig;
             }
 
             // ------------------------------------------------------------ sections
-            Sections(score, song, tpq);
-            CarveLeadSections(score, track, song, tpq, report);
+            Sections(timeline, song, tpq);
+            CarveLeadSections(score, timeline, track, song, tpq, report);
 
             // ------------------------------------------------------------ riffs + chords + voicings
-            RiffsAndChords(score, staff, song, report, tpq);
+            RiffsAndChords(timeline, staff, song, report, tpq);
 
             // ------------------------------------------------------------ strumming (the grid the track plays, with a direction per stroke)
-            Strumming(score, staff, song, report, tpq, ugStrumming, ugSectionMap);
+            Strumming(timeline, staff, song, report, tpq, ugStrumming, ugSectionMap);
 
             // ------------------------------------------------------------ lyrics (from whichever track carries them)
-            Lyrics(score, song, tpq, report);
+            Lyrics(score, timeline, song, tpq, report);
 
             // ------------------------------------------------------------ the other instruments
-            Parts(score, track, song, tpq, report);
+            Parts(score, timeline, track, song, tpq, report);
 
             // ------------------------------------------------------------ provenance
             song.Sources.Add(new Source
@@ -248,21 +330,25 @@ namespace GuitarTutor.SongTool
         }
 
         // ------------------------------------------------------------ sections
-        static void Sections(Score score, Song song, double tpq)
+        static void Sections(List<PlayedBar> bars, Song song, double tpq)
         {
-            var bars = score.MasterBars;
+            // (a section played again, after a repeat or a jump, is there again; a coda the file gives no section name
+            // starts one of its own, else it would run on from the section the jump came from)
             var sectionBars = new List<(int Index, string Text)>();
             for (int i = 0; i < bars.Count; ++i)
             {
-                var text = bars[i].Section?.Text;
+                var text = bars[i].Master.Section?.Text;
+                var directions = bars[i].Master.Directions;
+                if (string.IsNullOrWhiteSpace(text) && directions != null)
+                    text = directions.Contains(AlphaTab.Model.Direction.TargetCoda) ? "Coda"
+                         : directions.Contains(AlphaTab.Model.Direction.TargetDoubleCoda) ? "Double coda" : null;
                 if (!string.IsNullOrWhiteSpace(text))
                     sectionBars.Add((i, text.Trim()));
             }
             double SongEnd()
             {
                 var last = bars[bars.Count - 1];
-                var qpb = last.TimeSignatureNumerator * 4.0 / last.TimeSignatureDenominator;
-                return (last.Start + qpb * tpq) / tpq;
+                return (last.Start + last.Length) / tpq;
             }
             for (int s = 0; s < sectionBars.Count; ++s)
             {
@@ -289,18 +375,18 @@ namespace GuitarTutor.SongTool
             || (t.Staves.Count > 0 && t.Staves[0].StringTuning.Tunings.Count is > 0 and <= 4);
 
         /// <summary>The tracks that play a lead line besides the rhythm guitar: not its own, not drums, vocal or bass, with notes.</summary>
-        static List<Track> LeadTracks(Score score, Track strumTrack) =>
+        static List<Track> LeadTracks(Score score, List<PlayedBar> timeline, Track strumTrack) =>
             score.Tracks.Where(t => t != strumTrack && t.Staves.Count > 0 && !t.Staves[0].IsPercussion && !IsVocal(t) && !IsBass(t)
-                                    && BarActivity(t, score).Any(a => a)).ToList();
+                                    && BarActivity(t, timeline).Any(a => a)).ToList();
 
-        /// <summary>Per bar of the score, whether the track plays a note in it.</summary>
-        static bool[] BarActivity(Track track, Score score)
+        /// <summary>Per bar as played, whether the track plays a note in it.</summary>
+        static bool[] BarActivity(Track track, List<PlayedBar> timeline)
         {
-            var active = new bool[score.MasterBars.Count];
+            var active = new bool[timeline.Count];
             var staff = track.Staves[0];
-            foreach (var bar in staff.Bars)
-                if (bar.Index >= 0 && bar.Index < active.Length)
-                    active[(int)bar.Index] = Played(staff, bar).Voices.SelectMany(v => v.Beats).Any(b => b.Notes.Count > 0);
+            foreach (var pb in timeline)
+                if (BarAt(staff, pb.Index) is Bar bar)
+                    active[pb.Number] = Played(staff, bar).Voices.SelectMany(v => v.Beats).Any(b => b.Notes.Count > 0);
             return active;
         }
 
@@ -309,16 +395,15 @@ namespace GuitarTutor.SongTool
         /// "Harmonica Intro" inside an intro, else "Harmonica Solo"; what is left of the section after it is
         /// "(cont.)". A track that plays most of the song (a second guitar doing fills) is not a solo.
         /// </summary>
-        static void CarveLeadSections(Score score, Track strumTrack, Song song, double tpq, ImportReport report)
+        static void CarveLeadSections(Score score, List<PlayedBar> bars, Track strumTrack, Song song, double tpq, ImportReport report)
         {
             if (song.Sections.Count == 0)
                 return;
-            var bars = score.MasterBars;
             double BarStart(int i) => bars[i].Start / tpq;
             double BarEnd(int i) => i + 1 < bars.Count ? bars[i + 1].Start / tpq : song.Sections.Max(s => s.AtQuarter + s.Quarters);
-            foreach (var track in LeadTracks(score, strumTrack))
+            foreach (var track in LeadTracks(score, bars, strumTrack))
             {
-                var active = BarActivity(track, score);
+                var active = BarActivity(track, bars);
                 if (active.Count(a => a) > 0.4 * active.Length)
                     continue;
                 for (int i = 0; i < active.Length;)
@@ -370,10 +455,9 @@ namespace GuitarTutor.SongTool
         /// The file's other instruments as parts of the song: every track but the strummed guitar and the drums, with
         /// its notes. The first two lead tracks (harmonica, lead guitar...) get the band's lead channels 1 and 2.
         /// </summary>
-        static void Parts(Score score, Track strumTrack, Song song, double tpq, ImportReport report)
+        static void Parts(Score score, List<PlayedBar> timeline, Track strumTrack, Song song, double tpq, ImportReport report)
         {
-            var leads = LeadTracks(score, strumTrack);
-            var masterByIndex = score.MasterBars.ToDictionary(mb => mb.Index);
+            var leads = LeadTracks(score, timeline, strumTrack);
             foreach (var track in score.Tracks)
             {
                 if (track == strumTrack || track.Staves.Count == 0 || track.Staves[0].IsPercussion)
@@ -385,9 +469,9 @@ namespace GuitarTutor.SongTool
                     Program = (int)(track.PlaybackInfo?.Program ?? 0),
                     Role = IsVocal(track) ? "vocal" : IsBass(track) ? "bass" : "lead",
                 };
-                foreach (var bar in staff.Bars)
+                foreach (var pb in timeline)
                 {
-                    if (!masterByIndex.TryGetValue(bar.Index, out var master))
+                    if (!(BarAt(staff, pb.Index) is Bar bar))
                         continue;
                     foreach (var voice in Played(staff, bar).Voices)
                         foreach (var beat in voice.Beats)
@@ -399,7 +483,7 @@ namespace GuitarTutor.SongTool
                                 pitch = pitch >= 0 ? pitch + (int)staff.Capo : (int)n.RealValue;
                                 if (pitch < 0 || pitch > 127)
                                     continue;
-                                var at = (master.Start + beat.DisplayStart) / tpq;
+                                var at = (pb.Start + beat.DisplayStart) / tpq;
                                 var length = Math.Max(0, beat.DisplayDuration) / tpq;
                                 var last = part.Notes.LastOrDefault();
                                 if (n.IsTieDestination && last != null && last.Pitch == pitch)
@@ -444,18 +528,17 @@ namespace GuitarTutor.SongTool
             public string ChordName;   // the file's own name for the region, if its strums agree on one
         }
 
-        static void RiffsAndChords(Score score, Staff staff, Song song, ImportReport report, double tpq)
+        static void RiffsAndChords(List<PlayedBar> timeline, Staff staff, Song song, ImportReport report, double tpq)
         {
             var riff = new Riff { Name = staff.Track.Name };
             var voicings = new Dictionary<string, Voicing>();
             var strums = new List<Strum>();
-            var masterByIndex = score.MasterBars.ToDictionary(mb => mb.Index);
             string writtenChord = null;   // the file's chord name in force: a chord marker holds until the next one
             var anyMarker = false;
 
-            foreach (var bar in staff.Bars)
+            foreach (var pb in timeline)
             {
-                if (!masterByIndex.TryGetValue(bar.Index, out var master))
+                if (!(BarAt(staff, pb.Index) is Bar bar))
                     continue;
                 foreach (var voice in Played(staff, bar).Voices)
                 {
@@ -463,7 +546,7 @@ namespace GuitarTutor.SongTool
                     {
                         writtenChord = ChordName(beat) ?? writtenChord;
                         anyMarker |= ChordName(beat) != null;
-                        var at = (master.Start + beat.DisplayStart) / tpq;
+                        var at = (pb.Start + beat.DisplayStart) / tpq;
                         var length = Math.Max(0, beat.DisplayDuration) / tpq;
                         // (a dead note, the "x" of a muted strum, has fret 0 in the file but no pitch: not an open string)
                         var notes = beat.Notes.Where(n => n.String >= 1 && !n.IsDead).ToList();
@@ -519,7 +602,7 @@ namespace GuitarTutor.SongTool
                 song.Riffs.Add(riff);
 
             // a file that names no chords: the notes decide, all of them (a fingerpicked part has no strums to go by)
-            var regions = anyMarker ? ChordRegions(strums) : RecognizedRegions(riff, staff, score, tpq);
+            var regions = anyMarker ? ChordRegions(strums) : RecognizedRegions(riff, staff, timeline, tpq);
             if (!anyMarker && regions.Count > 0)
                 report.Add("The file writes no chord names: the chords are read from its notes (bass notes first).");
             foreach (var region in regions)
@@ -548,7 +631,7 @@ namespace GuitarTutor.SongTool
         }
 
         /// <summary>The chords <see cref="ChordRecognizer"/> reads from all the tab's notes, as regions.</summary>
-        static List<ChordRegion> RecognizedRegions(Riff riff, Staff staff, Score score, double tpq)
+        static List<ChordRegion> RecognizedRegions(Riff riff, Staff staff, List<PlayedBar> timeline, double tpq)
         {
             var tunings = staff.StringTuning.Tunings;
             var strings = tunings.Count;
@@ -560,7 +643,7 @@ namespace GuitarTutor.SongTool
                 Fret = n.Fret,
                 Pitch = n.StringIndex >= 0 && n.StringIndex < strings ? (int)tunings[strings - 1 - n.StringIndex] + n.Fret : -1,
             }).ToList();
-            var barStarts = score.MasterBars.Select(mb => mb.Start / tpq).OrderBy(x => x).ToList();
+            var barStarts = timeline.Select(pb => pb.Start / tpq).ToList();
             return ChordRecognizer.Recognize(notes, barStarts, strings).Select(r => new ChordRegion
             {
                 Start = r.Start,
@@ -828,20 +911,20 @@ namespace GuitarTutor.SongTool
         /// <summary>The name of the strumming of a song with no sections: it has no section list, so the pattern is the whole song's.</summary>
         const string WholeSongName = "Song";
 
-        static void Strumming(Score score, Staff staff, Song song, ImportReport report, double tpq, List<StrumPattern> ug, Dictionary<string, string> ugMap)
+        static void Strumming(List<PlayedBar> timeline, Staff staff, Song song, ImportReport report, double tpq, List<StrumPattern> ug, Dictionary<string, string> ugMap)
         {
             if (ug != null && ug.Count == 0)
                 ug = null;
             var wholeSong = song.Sections.Count == 0;   // (a file with no section marks: one run of strumming for the whole song)
-            var masterByIndex = score.MasterBars.ToDictionary(mb => mb.Index);
 
-            // 1) per bar: which sixteenth slots strum, and the recorded direction of each strummed slot
-            var byBar = new Dictionary<double, (char[] Grid, Stroke[] Recorded)>();
-            foreach (var bar in staff.Bars)
+            // 1) per bar as played: which sixteenth slots strum, and the recorded direction of each strummed slot
+            var byBar = new Dictionary<int, (char[] Grid, Stroke[] Recorded)>();
+            foreach (var pb in timeline)
             {
-                if (!masterByIndex.TryGetValue(bar.Index, out var master))
+                if (!(BarAt(staff, pb.Index) is Bar bar))
                     continue;
-                var barStart = master.Start / tpq;
+                var master = pb.Master;
+                var barStart = pb.Start / tpq;
                 var slots = (int)Math.Round(master.TimeSignatureNumerator * 4.0 / master.TimeSignatureDenominator * 4);
                 var grid = new char[slots];
                 var rec = new Stroke[slots];
@@ -857,7 +940,7 @@ namespace GuitarTutor.SongTool
                             continue;   // not a strummed chord
                         if (beat.Notes.Where(n => n.String >= 1).All(n => n.IsTieDestination))
                             continue;   // the strum before, held on
-                        var slot = (int)Math.Round(((master.Start + beat.DisplayStart) / tpq - barStart) * 4);
+                        var slot = (int)Math.Round(((pb.Start + beat.DisplayStart) / tpq - barStart) * 4);
                         if (slot < 0 || slot >= slots)
                             continue;
                         grid[slot] = 'X';
@@ -866,7 +949,7 @@ namespace GuitarTutor.SongTool
                     }
                 foreach (var (slot, beat) in strums)
                     rec[slot] = Recorded(beat, RuleDown(active, slot));
-                byBar[bar.Index] = (grid, rec);
+                byBar[pb.Number] = (grid, rec);
             }
             if (byBar.Count == 0)
                 return;
@@ -875,7 +958,7 @@ namespace GuitarTutor.SongTool
             var bySection = new Dictionary<string, List<(char[] Grid, Stroke[] Rec)>>();
             foreach (var kv in byBar.OrderBy(x => x.Key))   // bars in order, so “first to appear” is stable
             {
-                var barStart = masterByIndex[kv.Key].Start / tpq;
+                var barStart = timeline[kv.Key].Start / tpq;
                 var section = song.Sections.FirstOrDefault(s => barStart >= s.AtQuarter - 1e-6 && barStart < s.AtQuarter + s.Quarters - 1e-6);
                 if (section == null && !wholeSong)
                     continue;
@@ -1030,15 +1113,15 @@ namespace GuitarTutor.SongTool
             var tpq = TicksPerQuarter(score);
             var track = PickTrack(score, trackIndex, report);
             var staff = track.Staves[0];
-            var masterByIndex = score.MasterBars.ToDictionary(mb => mb.Index);
             Console.WriteLine($"track '{track.Name}' of {score.Tracks.Count}:");
             var n = 0;
             var distinct = new Dictionary<string, int>();
-            foreach (var bar in staff.Bars)
+            foreach (var pb in PlayOrder(score, tpq, null))
             {
-                if (!masterByIndex.TryGetValue(bar.Index, out var master))
+                if (!(BarAt(staff, pb.Index) is Bar bar))
                     continue;
-                var barStart = master.Start / tpq;
+                var master = pb.Master;
+                var barStart = pb.Start / tpq;
                 var slots = (int)Math.Round(master.TimeSignatureNumerator * 4.0 / master.TimeSignatureDenominator * 4);
                 var grid = new char[slots];
                 var rec = new Stroke[slots];
@@ -1051,7 +1134,7 @@ namespace GuitarTutor.SongTool
                     {
                         if (beat.Notes.Count(x => x.String >= 1) < 2 || beat.Notes.Where(x => x.String >= 1).All(x => x.IsTieDestination))
                             continue;
-                        var slot = (int)Math.Round(((master.Start + beat.DisplayStart) / tpq - barStart) * 4);
+                        var slot = (int)Math.Round(((pb.Start + beat.DisplayStart) / tpq - barStart) * 4);
                         if (slot < 0 || slot >= slots)
                             continue;
                         grid[slot] = 'X';
@@ -1175,24 +1258,24 @@ namespace GuitarTutor.SongTool
         // ------------------------------------------------------------ lyrics
         /// <summary>
         /// The words, in time order, from whichever track carries them. A new line starts after a gap of more than a
-        /// bar or at a section boundary.
+        /// bar or at a section boundary. A bar that is played more than once and has more than one line of words sings
+        /// its first line the first time, its second the second time, and so on (verse 1, verse 2).
         /// </summary>
-        static void Lyrics(Score score, Song song, double tpq, ImportReport report)
+        static void Lyrics(Score score, List<PlayedBar> timeline, Song song, double tpq, ImportReport report)
         {
-            var masterByIndex = score.MasterBars.ToDictionary(mb => mb.Index);
             var sectionAt = new Dictionary<double, string>();
-            foreach (var mb in score.MasterBars)
-                if (mb.Section != null && !string.IsNullOrWhiteSpace(mb.Section.Text))
-                    sectionAt[mb.Start / tpq] = mb.Section.Text.Trim();
+            foreach (var pb in timeline)
+                if (pb.Master.Section != null && !string.IsNullOrWhiteSpace(pb.Master.Section.Text))
+                    sectionAt[pb.Start / tpq] = pb.Master.Section.Text.Trim();
 
             var words = new List<(double At, string Text)>();
             foreach (var track in score.Tracks)
             {
                 foreach (var staff in track.Staves)
                 {
-                    foreach (var bar in staff.Bars)
+                    foreach (var pb in timeline)
                     {
-                        if (!masterByIndex.TryGetValue(bar.Index, out var master))
+                        if (!(BarAt(staff, pb.Index) is Bar bar))
                             continue;
                         foreach (var voice in Played(staff, bar).Voices)
                         {
@@ -1201,10 +1284,12 @@ namespace GuitarTutor.SongTool
                                 var lyrics = beat.Lyrics;
                                 if (lyrics == null)
                                     continue;
-                                var at = (master.Start + beat.DisplayStart) / tpq;
-                                foreach (var text in lyrics)
-                                    if (!string.IsNullOrWhiteSpace(text))
-                                        words.Add((at, text.Trim()));
+                                var at = (pb.Start + beat.DisplayStart) / tpq;
+                                var lines = lyrics.Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+                                if (pb.Repeated && lines.Count > 1)
+                                    lines = new List<string> { lines[Math.Min(pb.Pass, lines.Count - 1)] };
+                                foreach (var text in lines)
+                                    words.Add((at, text.Trim()));
                             }
                         }
                     }

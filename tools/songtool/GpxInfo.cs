@@ -2,7 +2,10 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Collections.Generic;
+using AlphaTab;
 using AlphaTab.Importer;
+using AlphaTab.Midi;
 using AlphaTab.Model;
 
 namespace GuitarTutor.SongTool
@@ -45,6 +48,47 @@ namespace GuitarTutor.SongTool
                     }
             }
             return 0;
+        }
+
+        /// <summary>
+        /// The order the bars are played in (repeats, alternate endings, Da Capo, Dal Segno, Coda, Fine), as alphaTab's player
+        /// plays them, in runs of bars (1-based), with each bar's repeat marks and directions.
+        /// </summary>
+        public static int Order(string path)
+        {
+            var score = ScoreLoader.LoadScoreFromBytes(File.ReadAllBytes(path));
+            foreach (var mb in score.MasterBars)
+            {
+                var marks = new StringBuilder();
+                if (mb.IsRepeatStart) marks.Append(" |:");
+                if (mb.IsRepeatEnd) marks.Append($" :| x{mb.RepeatCount}");
+                if (mb.AlternateEndings != 0) marks.Append(" endings " + Convert.ToString((int)mb.AlternateEndings, 2));
+                if (mb.Directions != null)
+                    foreach (var d in mb.Directions)
+                        marks.Append(" " + d);
+                if (marks.Length > 0)
+                    Console.WriteLine($"bar {mb.Index + 1}:{marks}");
+            }
+            var played = PlayOrder(score);
+            var runs = new List<string>();
+            for (int i = 0; i < played.Count;)
+            {
+                int j = i;
+                while (j + 1 < played.Count && played[j + 1] == played[j] + 1)
+                    ++j;
+                runs.Add(i == j ? $"{played[i] + 1}" : $"{played[i] + 1}-{played[j] + 1}");
+                i = j + 1;
+            }
+            Console.WriteLine($"played: {played.Count} bars of {score.MasterBars.Count}: {string.Join(", ", runs)}");
+            return 0;
+        }
+
+        /// <summary>The master bars' indices in the order alphaTab's MIDI generator plays them.</summary>
+        static List<int> PlayOrder(Score score)
+        {
+            var generator = new MidiFileGenerator(score, new Settings(), new AlphaSynthMidiFileHandler(new MidiFile()));
+            generator.Generate();
+            return generator.TickLookup.MasterBars.Select(m => (int)m.MasterBar.Index).ToList();
         }
 
         public static int Print(string path)

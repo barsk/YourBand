@@ -40,6 +40,13 @@ channels 1 and 2. A lead track that plays only here and there makes its stretche
 
 Reads a Guitar Pro file with [alphaTab](https://www.nuget.org/packages/AlphaTab) (the `AlphaTab` NuGet package,
 kept in this tool so the game never takes the dependency) and writes the same `song.json` the UG importer does.
+The song is read in the order it is **played**, not the order it is written: repeats, alternate endings and the
+jumps (Da Capo, Dal Segno, Coda, Fine) are unrolled the way alphaTab's player (and TuxGuitar) plays them, so a
+section played twice is in the song twice, and every bar number below is a bar as played. A coda with no section
+name of its own becomes a section "Coda". On a bar played more than once, a beat with several lines of lyrics sings
+the first line the first time, the second the second time. `gpx-info <file> --order` lists the repeat marks and
+directions and the order the bars are played in (Wicked Game: 133 bars from 101 written, bars 1-89, 18-49, 90-101).
+
 It imports what the current song model holds:
 
 - the main guitar track's notes as the tab (one riff, exact string/fret/timing, plus the one technique symbol the
