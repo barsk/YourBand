@@ -85,16 +85,26 @@ namespace GuitarTutor.Core.Band
             track.SameAs == null ? track : song.Tracks.FirstOrDefault(t => t.Name == track.SameAs && t.SameAs == null) ?? track;
 
         /// <summary>
+        /// A drums, bass or keyboard track that plays in fewer of the song's bars than this is not connected automatically:
+        /// a part the band makes up is better than one that is silent most of the song (a piano in a few bars). The leads
+        /// take a short track: a solo is short.
+        /// </summary>
+        public const double MinBarShare = 1.0 / 3;
+
+        /// <summary>
         /// The best guess at what each instrument plays, from the tracks' kinds: the rhythm guitar the song's own tab's
-        /// track (the strummed guitar the chords come from); the drums, bass and keyboards the busiest track of their kind;
-        /// the lead guitar the busiest other guitar; instrument 1 a lead instrument (a harmonica, strings), else a vocal
-        /// line. A track goes to one instrument only; an instrument with nothing fitting plays its default part. A song
-        /// with no tracks (from Ultimate Guitar pages) connects nothing.
+        /// track (the strummed guitar the chords come from); the drums, bass and keyboards the busiest track of their kind
+        /// that plays through enough of the song (<see cref="MinBarShare"/>); the lead guitar the busiest other guitar;
+        /// instrument 1 a lead instrument (a harmonica, strings), else a vocal line. A track goes to one instrument only;
+        /// an instrument with nothing fitting plays its default part. A song with no tracks (from Ultimate Guitar pages)
+        /// connects nothing.
         /// </summary>
         public static Dictionary<Instrument, SongTrack> AutoConnect(Song song)
         {
             var result = new Dictionary<Instrument, SongTrack>();
             var free = song.Tracks.Where(t => t.SameAs == null && t.Notes.Count > 0).ToList();
+            var bars = Bars(song);
+            bool Through(SongTrack t) => bars > 0 && t.Notes.Select(n => song.Tempo.BarAt(n.AtQuarter).bar).Distinct().Count() >= MinBarShare * bars;
             SongTrack Take(Instrument instrument, Func<SongTrack, bool> fits)
             {
                 var pick = free.Where(fits).OrderByDescending(t => t.Notes.Count).FirstOrDefault();
@@ -107,13 +117,24 @@ namespace GuitarTutor.Core.Band
             }
             if (Take(Instrument.RhythmGuitar, t => song.Riffs.Any(r => r.Name == t.Name)) == null)
                 Take(Instrument.RhythmGuitar, t => t.Kind == "guitar");
-            Take(Instrument.Drums, t => t.Kind == "drums");
-            Take(Instrument.Bass, t => t.Kind == "bass");
-            Take(Instrument.Keys, t => t.Kind == "keys");
+            Take(Instrument.Drums, t => t.Kind == "drums" && Through(t));
+            Take(Instrument.Bass, t => t.Kind == "bass" && Through(t));
+            Take(Instrument.Keys, t => t.Kind == "keys" && Through(t));
             Take(Instrument.LeadGuitar, t => t.Kind == "guitar");
             if (Take(Instrument.Instrument1, t => t.Kind == "other") == null)
                 Take(Instrument.Instrument1, t => t.Kind == "voice");
             return result;
+        }
+
+        /// <summary>The song's bars: up to the end of its last section or chord (a song with neither: its last track note).</summary>
+        static int Bars(Song song)
+        {
+            var end = song.Sections.Select(s => s.AtQuarter + s.Quarters)
+                .Concat(song.Chords.Select(c => c.AtQuarter + c.Quarters))
+                .DefaultIfEmpty(0).Max();
+            if (end <= 0)
+                end = song.Tracks.SelectMany(t => t.Notes).Select(n => n.AtQuarter + n.Quarters).DefaultIfEmpty(0).Max();
+            return end > 0 ? song.Tempo.BarAt(Math.Max(0, end - 1e-6)).bar + 1 : 0;
         }
 
         // ------------------------------------------------------------ the file

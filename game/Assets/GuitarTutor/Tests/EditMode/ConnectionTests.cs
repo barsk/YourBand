@@ -31,8 +31,9 @@ namespace GuitarTutor.Core.Tests
             song.Tracks.Add(Track(2, "Guitar 1", "guitar", 25));
             song.Tracks.Add(Track(3, "Guitar 2", "guitar", 300));
             song.Tracks.Add(Track(4, "Guitar 3", "guitar", 0, sameAs: "Guitar 2"));
-            song.Tracks.Add(Track(5, "Bass", "bass", 40));
+            song.Tracks.Add(Track(5, "Bass", "bass", 60));  // a note a quarter: through 15 of the song's 36 bars
             song.Tracks.Add(Track(6, "Drumkit", "drums", 90));
+            song.Tracks.Add(Track(7, "Piano", "keys", 8));  // two bars only
             return song;
         }
 
@@ -45,7 +46,7 @@ namespace GuitarTutor.Core.Tests
             Assert.AreEqual("Drumkit", auto[Instrument.Drums].Name);
             Assert.AreEqual("Guitar 1", auto[Instrument.LeadGuitar].Name);
             Assert.AreEqual("Harmonica", auto[Instrument.Instrument1].Name);  // a lead instrument before the vocal
-            Assert.IsFalse(auto.ContainsKey(Instrument.Keys));  // no keyboard track: the keys play their part
+            Assert.IsFalse(auto.ContainsKey(Instrument.Keys));  // the piano plays in two bars: the keys play their part
             Assert.AreEqual(0, BandConnections.AutoConnect(DemoSong.Create()).Count);  // no tracks (an Ultimate Guitar song)
         }
 
@@ -115,8 +116,8 @@ namespace GuitarTutor.Core.Tests
             var a = Arranger.Arrange(chart, BandStyle.Named("Ballad"), connections);
             CollectionAssert.AreEqual(song.Tracks[6].Notes.Select(n => (n.Pitch, n.AtQuarter, n.Velocity)),
                                       a.Part(BandPart.Drums).Select(n => (n.Pitch, n.AtQuarter, n.Velocity)));
-            Assert.AreEqual(39, a.Part(BandPart.Bass).Count());
-            // no keyboard track: the keys make up their part as before (the same notes; their velocities vary a little differently)
+            Assert.AreEqual(59, a.Part(BandPart.Bass).Count());
+            // the piano is too short to be connected automatically: the keys make up their part as before (the same notes; their velocities vary a little differently)
             // (a chord's notes in pitch order: the arrangement's sort by time leaves their order open)
             CollectionAssert.AreEqual(madeUp.Part(BandPart.Keys).Select(n => (n.AtQuarter, n.Pitch, n.Quarters)).OrderBy(k => k),
                                       a.Part(BandPart.Keys).Select(n => (n.AtQuarter, n.Pitch, n.Quarters)).OrderBy(k => k));
@@ -146,7 +147,7 @@ namespace GuitarTutor.Core.Tests
             var (type, message) = EngineProtocol.Read(EngineProtocol.Tracks(song, connections));
             Assert.AreEqual("tracks", type);
             var tracks = (JArray)message["tracks"];
-            Assert.AreEqual(6, tracks.Count);  // the doubling guitar is one choice with its twin
+            Assert.AreEqual(7, tracks.Count);  // the doubling guitar is one choice with its twin
             Assert.AreEqual("Guitar 2 = Guitar 3 (guitar, 300 notes)", (string)tracks[3]["name"]);
             var instruments = ((JArray)message["instruments"]).ToDictionary(i => (string)i["id"]);
             Assert.AreEqual(6, instruments.Count);

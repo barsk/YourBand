@@ -19,7 +19,7 @@ plays them as it does today.
 |---|---|
 | Instruments | Six, as today: rhythm guitar, bass, keyboards, drums, lead guitar, instrument 1 (was Lead 2). More later |
 | Tracks | A Guitar Pro import keeps every track: notes with pitch, string and fret, ties, dynamics and techniques |
-| Connection | Each instrument has a track dropdown in the control panel. The first choice, "Default (generated)", is today's playing. A new song is connected automatically (best effort); you fine-tune it |
+| Connection | Each instrument has a track dropdown in the control panel. The first choice, "Default (generated)", is today's playing. A new song is connected automatically (best effort); you fine-tune it. A drums, bass or keys track that plays in under a third of the song's bars is not connected automatically (a piano in a few bars): the band's own part plays |
 | Duplicate tracks | Tracks with identical notes (Wicked Game's left and right rhythm guitars) are one choice |
 | Vocals | A vocal track is a choice like any other, for instance instrument 1 on Numa Player's synth voice |
 | Where choices live | In a file of its own next to the song (`<song>.band.json`), so a reimport keeps them |
