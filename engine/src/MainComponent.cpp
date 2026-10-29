@@ -237,11 +237,9 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
     else
         log ("Keys: Numa Player, " + engine.keysSound());
 
-    for (auto* c : std::initializer_list<juce::Component*> { &guitarButton, &presetLabel, &presetBox, &previousButton, &nextButton })
+    for (auto* c : std::initializer_list<juce::Component*> { &guitarButton, &presetLabel, &presetBox })
         addAndMakeVisible (*c);
     guitarButton.onClick = [this] { showPlugin (EngineCore::Slot::guitar, "Guitar tone"); };
-    previousButton.onClick = [this] { stepPreset (-1); };
-    nextButton.onClick = [this] { stepPreset (1); };
     presetBox.onChange = [this] { selectPreset (presetBox.getSelectedId() - 1); };
     refreshPresets();
     log (juce::String ((int) presetList.size()) + " presets saved in TONE3000");
@@ -993,8 +991,6 @@ void MainComponent::resized()
     row = r.removeFromTop (28);
     presetLabel.setBounds (row.removeFromLeft (100));
     presetBox.setBounds (row.removeFromLeft (260));
-    previousButton.setBounds (row.removeFromLeft (140).reduced (6, 0));
-    nextButton.setBounds (row.removeFromLeft (140).reduced (6, 0));
     r.removeFromTop (10);
 
     // the band's instruments: the track each plays, its plugin, the plugin's window

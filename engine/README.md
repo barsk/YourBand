@@ -29,7 +29,7 @@ The program is `build\Release\gt_engine_artefacts\Release\GuitarTutor Engine.exe
 2. Start the engine. It opens Focusrite's ASIO driver at 48 kHz with a 64-sample buffer (change it in the
    device panel at the top). The guitar input is input 2, the Scarlett Solo's instrument jack.
 3. "Guitar tone..." opens the guitar's TONE3000 window. Its saved presets (shared with the standalone app)
-   appear in the preset list; step through them with the buttons or the footswitch.
+   appear in the preset list; choose one there, or step through them with the footswitch.
 4. Footswitch: button 1 next preset, button 2 previous preset. Buttons 3-6 go to the game: play / pause,
    previous section, next section, restart. Any game controller works as a footswitch until the Arduino
    pedal exists.

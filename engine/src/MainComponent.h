@@ -118,7 +118,6 @@ private:
     std::unique_ptr<juce::FileChooser> pluginChooser;
     std::map<EngineCore::Slot, juce::File> bandPlugins;  // the band instrument plugins loaded
     std::map<EngineCore::Slot, juce::MemoryBlock> blankStates;  // an instrument plugin's state before a sound is chosen
-    juce::TextButton previousButton { "< Previous" }, nextButton { "Next >" };
     juce::Label latencyLabel, cpuLabel, footLabel, gameLabel, bandLabel;
     // the band's mixer: drums, bass, keys, guitar, lead 1, lead 2
     std::array<juce::Slider, 6> faders;
