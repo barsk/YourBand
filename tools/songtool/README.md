@@ -47,6 +47,17 @@ name of its own becomes a section "Coda". On a bar played more than once, a beat
 the first line the first time, the second the second time. `gpx-info <file> --order` lists the repeat marks and
 directions and the order the bars are played in (Wicked Game: 133 bars from 101 written, bars 1-89, 18-49, 90-101).
 
+Every track with notes is also kept as written, in `tracks` (the strummed guitar's too): its name, General MIDI
+program, a kind guessed from its name, program and strings (guitar, bass, keys, drums, voice, other), and for a
+track written as tab on one staff its tuning and capo. Each note has its sounding pitch (a drum's General MIDI
+note, as alphaTab's percussion mapper gives it), its string and fret where the track is tab, a velocity from the
+written dynamics and accents (as alphaTab's player: ppp 15 to fff 127), its techniques as letters (b bend, s slide,
+h hammer-on or pull-off, ~ vibrato, m palm mute, x dead, g ghost, a accent, . staccato, r let ring, n harmonic,
+t tapped, z tremolo, q grace) and a bend's height in semitones. A track with the same notes as an earlier one (a
+doubled rhythm guitar) keeps only `sameAs`. Drum notes the file gives no drum are left out (the report says how
+many). Nothing plays the tracks yet: they are what the band's instruments will choose from
+([../../docs/instrument-tracks.md](../../docs/instrument-tracks.md)); `show` lists them.
+
 It imports what the current song model holds:
 
 - the main guitar track's notes as the tab (one riff, exact string/fret/timing, plus the one technique symbol the

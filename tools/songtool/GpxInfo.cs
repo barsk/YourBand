@@ -42,7 +42,7 @@ namespace GuitarTutor.SongTool
                         if (beat.Notes.Any(n => n.Accentuated != AccentuationType.None)) flags.Append(" accent");
                         if (beat.Notes.Any(n => n.SlideOutType != SlideOutType.None || n.SlideInType != SlideInType.None)) flags.Append(" slide");
                         Console.WriteLine($"bar {i + 1} beat {beat.Index} start {beat.DisplayStart} dur {beat.DisplayDuration}{flags}  "
-                                          + string.Join(" ", beat.Notes.Select(n => $"s{n.String}:{(n.IsDead ? "x" : n.Fret.ToString())}"
+                                          + string.Join(" ", beat.Notes.Select(n => (n.IsPercussion ? $"drum {n.PercussionArticulation} e{n.Element}v{n.Variation} {GpxImporter.DrumArticulation(n)?.ElementType}={GpxImporter.DrumArticulation(n)?.OutputMidiNumber} " : !n.IsStringed ? $"note art{n.PercussionArticulation} e{n.Element}v{n.Variation} o{n.Octave}t{n.Tone} real{n.RealValue} " : "") + $"s{n.String}:{(n.IsDead ? "x" : n.Fret.ToString())}"
                                               + (n.IsGhost ? "g" : "") + (n.IsHammerPullOrigin ? "h" : "") + (n.IsTieDestination ? "t" : "")
                                               + (n.IsLetRing ? "L" : "") + (n.IsPalmMute ? "m" : "") + (n.IsStaccato ? "s" : ""))));
                     }

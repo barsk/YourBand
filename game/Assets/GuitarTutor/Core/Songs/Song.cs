@@ -28,6 +28,11 @@ namespace GuitarTutor.Core.Songs
         public List<Source> Sources { get; set; } = new List<Source>();
         /// <summary>The other instruments of the source (a Guitar Pro file's harmonica, lead guitar, vocal, bass): their notes.</summary>
         public List<SongPart> Parts { get; set; } = new List<SongPart>();
+        /// <summary>
+        /// Every track of a Guitar Pro file as written, the strummed guitar's too: what the band's instruments can play
+        /// (docs/instrument-tracks.md). Empty for a song from Ultimate Guitar pages.
+        /// </summary>
+        public List<SongTrack> Tracks { get; set; } = new List<SongTrack>();
 
         /// <summary>The chord sounding at a position (null before the first chord or in a gap).</summary>
         public ChordEvent ChordAt(double quarter) =>
@@ -187,6 +192,58 @@ namespace GuitarTutor.Core.Songs
         public double AtQuarter { get; set; }
         public double Quarters { get; set; }
         public int Velocity { get; set; } = 84;
+    }
+
+    /// <summary>
+    /// A track of the source file, with its notes as played (repeats and jumps unrolled). A track whose notes are the
+    /// same as an earlier one's (a second rhythm guitar doubling the first) names it in <see cref="SameAs"/> and has
+    /// no notes of its own.
+    /// </summary>
+    public sealed class SongTrack
+    {
+        /// <summary>The track's place in the file (0-based).</summary>
+        public int Index { get; set; }
+        public string Name { get; set; } = "";
+        /// <summary>The file's General MIDI program (25: steel-string guitar; 22: harmonica).</summary>
+        public int Program { get; set; }
+        /// <summary>What it seems to be: "guitar", "bass", "keys", "drums", "voice" or "other" (from its name, program and strings).</summary>
+        public string Kind { get; set; } = "other";
+        /// <summary>
+        /// The open strings, lowest first, as note names, for a track written as tab (its notes have a string and a fret);
+        /// empty for one that is not (piano, drums).
+        /// </summary>
+        public List<string> Tuning { get; set; } = new List<string>();
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public int Capo { get; set; }
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public string SameAs { get; set; }
+        public List<TrackNote> Notes { get; set; } = new List<TrackNote>();
+    }
+
+    /// <summary>A note of a track.</summary>
+    public sealed class TrackNote
+    {
+        public double AtQuarter { get; set; }
+        public double Quarters { get; set; }
+        /// <summary>The sounding MIDI pitch (capo included); on a drum track the General MIDI drum note (36 kick, 38 snare).</summary>
+        public int Pitch { get; set; }
+        /// <summary>The string from the lowest (0) and the fret as written (above the capo); -1 where the track is not tab.</summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore), System.ComponentModel.DefaultValue(-1)]
+        public int StringIndex { get; set; } = -1;
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore), System.ComponentModel.DefaultValue(-1)]
+        public int Fret { get; set; } = -1;
+        /// <summary>1-127, from the written dynamics (pp 31, mf 79, ff 111) and accents (louder) or a ghost note (softer).</summary>
+        public int Velocity { get; set; } = 79;
+        /// <summary>
+        /// How it is played, a letter each: b bend, s slide, h hammer-on or pull-off (to the next note), ~ vibrato, m palm
+        /// mute, x dead (muted) note, g ghost note, a accent, . staccato, r let ring, n harmonic, t tapped, z tremolo
+        /// picking, q grace note. Empty: plainly.
+        /// </summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore), System.ComponentModel.DefaultValue("")]
+        public string Technique { get; set; } = "";
+        /// <summary>A bend's highest point, in semitones (1: a half step, 2: a whole step); 0 if none.</summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public double Bend { get; set; }
     }
 
     /// <summary>Another source's chords for a stretch of the song (as names, in order).</summary>

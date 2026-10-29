@@ -218,6 +218,9 @@ namespace GuitarTutor.SongTool
             // ------------------------------------------------------------ the other instruments
             Parts(score, timeline, track, song, tpq, report);
 
+            // ------------------------------------------------------------ every track, as written (for the band's instruments)
+            Tracks(score, timeline, song, tpq, report);
+
             // ------------------------------------------------------------ provenance
             song.Sources.Add(new Source
             {
@@ -501,6 +504,207 @@ namespace GuitarTutor.SongTool
             if (song.Parts.Count > 0)
                 report.Add("Parts: " + string.Join(", ", song.Parts.Select(p => $"{p.Name} ({p.Notes.Count} notes, "
                                                                                 + (p.Voice > 0 ? $"lead {p.Voice}" : p.Role + ", not played") + ")")) + ".");
+        }
+
+        // ------------------------------------------------------------ tracks
+        /// <summary>
+        /// Every track with notes, the strummed guitar's too, as <see cref="SongTrack"/>s: each note's pitch, its string and
+        /// fret where the track is tab, its velocity and techniques. A note tied from the one before is that note held on.
+        /// A track with the same notes as an earlier one keeps only its name and the other's (<see cref="SongTrack.SameAs"/>).
+        /// </summary>
+        static void Tracks(Score score, List<PlayedBar> timeline, Song song, double tpq, ImportReport report)
+        {
+            var noDrum = 0;  // notes on a drum track that name no drum (alphaTab would play them as MIDI note 0, silent)
+            foreach (var track in score.Tracks)
+            {
+                if (track.Staves.Count == 0)
+                    continue;
+                var first = track.Staves[0];
+                var drums = first.IsPercussion || track.IsPercussion;
+                // tab: one stringed staff (a track on two staves, as a string section or a piano is written, can sound two
+                // notes on one "string" at once: it keeps its pitches only)
+                var tab = !drums && track.Staves.Count == 1 && first.IsStringed && first.StringTuning.Tunings.Count > 0;
+                var songTrack = new SongTrack
+                {
+                    Index = (int)track.Index,
+                    Name = track.Name ?? "",
+                    Program = (int)(track.PlaybackInfo?.Program ?? 0),
+                    Kind = TrackKind(track),
+                    Tuning = tab ? Tuning(first) : new List<string>(),
+                    Capo = tab ? (int)first.Capo : 0,
+                };
+                foreach (var staff in track.Staves)
+                {
+                    // a note sounding on, to be held on by a tied note: the latest one per pitch and string
+                    var sounding = new Dictionary<(int Pitch, int String), TrackNote>();
+                    foreach (var pb in timeline)
+                    {
+                        if (!(BarAt(staff, pb.Index) is Bar bar))
+                            continue;
+                        foreach (var voice in Played(staff, bar).Voices)
+                            foreach (var beat in voice.Beats)
+                            {
+                                if (beat.IsRest)
+                                    continue;
+                                var at = (pb.Start + beat.DisplayStart) / tpq;
+                                var length = Math.Max(0, beat.DisplayDuration) / tpq;
+                                foreach (var n in beat.Notes)
+                                {
+                                    if (drums && !n.IsPercussion)
+                                    {
+                                        ++noDrum;
+                                        continue;
+                                    }
+                                    var pitch = TrackPitch(track, staff, n);
+                                    if (pitch < 0 || pitch > 127)
+                                        continue;
+                                    var stringIndex = tab && n.IsStringed ? (int)n.String - 1 : -1;
+                                    if (n.IsTieDestination && sounding.TryGetValue((pitch, stringIndex), out var held)
+                                        && Math.Abs(held.AtQuarter + held.Quarters - at) < 1e-6)
+                                    {
+                                        held.Quarters += length;
+                                        continue;
+                                    }
+                                    var note = new TrackNote
+                                    {
+                                        AtQuarter = at,
+                                        Quarters = length,
+                                        Pitch = pitch,
+                                        StringIndex = stringIndex,
+                                        Fret = stringIndex >= 0 ? (int)n.Fret : -1,
+                                        Velocity = Velocity(n),
+                                        Technique = Techniques(n),
+                                        Bend = n.HasBend && n.MaxBendPoint != null ? n.MaxBendPoint.Value / 2.0 : 0,
+                                    };
+                                    sounding[(pitch, stringIndex)] = note;
+                                    songTrack.Notes.Add(note);
+                                }
+                            }
+                    }
+                }
+                if (songTrack.Notes.Count == 0)
+                    continue;
+                songTrack.Notes.Sort((a, b) => a.AtQuarter != b.AtQuarter ? a.AtQuarter.CompareTo(b.AtQuarter) : a.Pitch.CompareTo(b.Pitch));
+                var twin = song.Tracks.FirstOrDefault(t => t.SameAs == null && SameNotes(t, songTrack));
+                if (twin != null)
+                {
+                    songTrack.SameAs = twin.Name;
+                    songTrack.Notes.Clear();
+                }
+                song.Tracks.Add(songTrack);
+            }
+            if (song.Tracks.Count > 0)
+                report.Add("Tracks: " + string.Join(", ", song.Tracks.Select(t => $"{t.Name} ("
+                    + (t.SameAs != null ? $"same as {t.SameAs}" : $"{t.Kind}, {t.Notes.Count} notes") + ")")) + ".");
+            if (noDrum > 0)
+                report.Add($"{noDrum} notes on a drum track name no drum (no articulation in the file): left out.");
+        }
+
+        /// <summary>What a track seems to be, from its name, General MIDI program and strings.</summary>
+        static string TrackKind(Track track)
+        {
+            var program = (int)(track.PlaybackInfo?.Program ?? 0);
+            var name = track.Name ?? "";
+            if (track.IsPercussion || (track.Staves.Count > 0 && track.Staves[0].IsPercussion))
+                return "drums";
+            if (IsVocal(track))
+                return "voice";
+            if (IsBass(track))
+                return "bass";
+            if (Regex.IsMatch(name, "guit|gtr", RegexOptions.IgnoreCase) || (program >= 24 && program <= 31))
+                return "guitar";
+            if (Regex.IsMatch(name, "piano|keys|keyboard|organ|rhodes|wurli|synth", RegexOptions.IgnoreCase)
+                || (program >= 0 && program <= 20) || (program >= 80 && program <= 103))
+                return "keys";
+            return "other";
+        }
+
+        /// <summary>A track note's sounding pitch: a stringed note's from its string and fret (capo included), a drum's General MIDI note.</summary>
+        static int TrackPitch(Track track, Staff staff, Note n)
+        {
+            if (n.IsPercussion)
+                return DrumNote(n);
+            if (n.IsStringed)
+            {
+                var pitch = Pitch(staff, n);
+                return pitch >= 0 ? pitch + (int)staff.Capo : -1;
+            }
+            return (int)n.RealValue;
+        }
+
+        /// <summary>
+        /// A drum note's General MIDI note, as alphaTab's player maps it: the file's articulation (a Guitar Pro 7 file's
+        /// own, or Guitar Pro 5's element and variation) through alphaTab's percussion mapper. The mapper is internal to
+        /// alphaTab, so it is called by reflection; -1 if it is not there.
+        /// </summary>
+        static int DrumNote(Note n) => DrumArticulation(n) is InstrumentArticulation a ? (int)a.OutputMidiNumber : -1;
+
+        /// <summary>A drum note's articulation (the drum and how it is struck), as alphaTab's player has it; null if none.</summary>
+        internal static InstrumentArticulation DrumArticulation(Note n) =>
+            PercussionArticulation?.Invoke(null, new object[] { n }) as InstrumentArticulation;
+
+        static readonly System.Reflection.MethodInfo PercussionArticulation = typeof(Note).Assembly
+            .GetType("AlphaTab.Model.PercussionMapper")
+            ?.GetMethod("GetArticulation", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic
+                                           | System.Reflection.BindingFlags.Static, null, new[] { typeof(Note) }, null);
+
+        /// <summary>
+        /// A note's velocity, as alphaTab's player gives it: the written dynamics (ppp 15 up to fff 127, 16 a step; softer
+        /// and louder ones beyond them; a sforzando or fortepiano's strong attack 111), louder with an accent (a heavy one
+        /// more), softer as a ghost note.
+        /// </summary>
+        static int Velocity(Note n)
+        {
+            var d = n.Dynamics;
+            var v = d <= DynamicValue.FFF ? 15 + 16 * (int)d
+                  : d == DynamicValue.PPPP ? 10 : d == DynamicValue.PPPPP ? 6 : d == DynamicValue.PPPPPP ? 3
+                  : d == DynamicValue.FFFF || d == DynamicValue.FFFFF || d == DynamicValue.FFFFFF ? 127
+                  : d == DynamicValue.N ? 1 : d == DynamicValue.PF ? 47
+                  : 111;
+            if (n.Accentuated == AccentuationType.Normal)
+                v += 16;
+            else if (n.Accentuated == AccentuationType.Heavy)
+                v += 32;
+            if (n.IsGhost)
+                v -= 16;
+            return Math.Max(1, Math.Min(127, v));
+        }
+
+        /// <summary>The note's techniques, a letter each (see <see cref="TrackNote.Technique"/>).</summary>
+        static string Techniques(Note n)
+        {
+            var t = new System.Text.StringBuilder();
+            if (n.HasBend) t.Append('b');
+            if (n.SlideInType != SlideInType.None || n.SlideOutType != SlideOutType.None) t.Append('s');
+            if (n.IsHammerPullOrigin) t.Append('h');
+            if (n.Vibrato != VibratoType.None || n.Beat.Vibrato != VibratoType.None) t.Append('~');
+            if (n.IsPalmMute) t.Append('m');
+            if (n.IsDead) t.Append('x');
+            if (n.IsGhost) t.Append('g');
+            if (n.Accentuated != AccentuationType.None) t.Append('a');
+            if (n.IsStaccato) t.Append('.');
+            if (n.IsLetRing) t.Append('r');
+            if (n.HarmonicType != HarmonicType.None) t.Append('n');
+            if (n.IsLeftHandTapped) t.Append('t');
+            if (n.Beat.IsTremolo) t.Append('z');
+            if (n.Beat.GraceType != GraceType.None) t.Append('q');
+            return t.ToString();
+        }
+
+        /// <summary>Whether two tracks play the same notes, on the same strings and frets.</summary>
+        static bool SameNotes(SongTrack a, SongTrack b)
+        {
+            if (a.Notes.Count != b.Notes.Count || a.Notes.Count == 0)
+                return false;
+            for (int i = 0; i < a.Notes.Count; ++i)
+            {
+                var x = a.Notes[i];
+                var y = b.Notes[i];
+                if (x.Pitch != y.Pitch || x.StringIndex != y.StringIndex || x.Fret != y.Fret
+                    || Math.Abs(x.AtQuarter - y.AtQuarter) > 1e-6 || Math.Abs(x.Quarters - y.Quarters) > 1e-6)
+                    return false;
+            }
+            return true;
         }
 
         // ------------------------------------------------------------ riffs, chords, voicings

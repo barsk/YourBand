@@ -215,6 +215,9 @@ namespace GuitarTutor.SongTool
             }
             Console.WriteLine($"{song.Info.Artist} - {song.Info.Title}: {bars} bars, {song.Tempo.BpmAt(0)} BPM, "
                               + $"strumming {string.Join(" ", song.Strumming.FirstOrDefault()?.Strokes.Select(Symbol) ?? new string[0])}");
+            foreach (var t in song.Tracks)
+                Console.WriteLine($"  track {t.Index}: {t.Name} (" + (t.SameAs != null ? $"same as {t.SameAs}"
+                                  : $"{t.Kind}, {t.Notes.Count} notes" + (t.Tuning.Count > 0 ? $", tab in {string.Join(" ", t.Tuning)}" : "")) + ")");
             string previousSection = null;
             for (int b = first; b <= last; ++b)
             {

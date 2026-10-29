@@ -50,10 +50,10 @@ with other plugins or sounds loads them; the game shows its loading ring meanwhi
 
 Each step leaves "Default" playing exactly as today, and is checked before the next starts.
 
-1. **Play order.** The importer reads bars from first to last. A Guitar Pro file can repeat bars, take
+1. **Play order.** (Done 2026-10-29.) The importer reads bars from first to last. A Guitar Pro file can repeat bars, take
    alternate endings and jump (Wicked Game has a D.S. al Coda): the song is unrolled into the order it is
    played, the way TuxGuitar plays it. Every track depends on this.
-2. **All tracks imported.** The song model gets the tracks (notes with pitch, string, fret, velocity and
+2. **All tracks imported.** (Done 2026-10-29: `tracks` in the song file.) The song model gets the tracks (notes with pitch, string, fret, velocity and
    technique; tuning, capo, program, kind); identical tracks are merged. Nothing plays them yet.
 3. **TAB panel shortcut.** The first visible result: Tab cycles the TAB panel through the tracks with tab data.
 4. **Connections.** The per-song connection file, the automatic connection (from the track's instrument
