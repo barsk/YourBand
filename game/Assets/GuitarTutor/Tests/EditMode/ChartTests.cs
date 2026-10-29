@@ -76,7 +76,7 @@ namespace GuitarTutor.Core.Tests
 
             var standard = new[] { "E2", "A2", "D3", "G3", "B3", "E4" };
             var bassTuning = new[] { "E1", "A1", "D2", "G2" };
-            // the song's own tab's track (named as its riff), a bass, a doubled bass, and a piano not written as tab
+            // the song's own tab's track (named as its riff), a bass, a doubled bass, a piano not written as tab, and a vocal
             song.Tracks.Add(new SongTrack { Index = 0, Name = "Intro lick", Kind = "guitar", Tuning = standard.ToList(),
                                             Notes = { new TrackNote { AtQuarter = 0, Quarters = 1, Pitch = 64, StringIndex = 5, Fret = 0 } } });
             song.Tracks.Add(new SongTrack { Index = 1, Name = "Bass", Kind = "bass", Tuning = bassTuning.ToList(), Notes =
@@ -87,6 +87,8 @@ namespace GuitarTutor.Core.Tests
             } });
             song.Tracks.Add(new SongTrack { Index = 2, Name = "Bass 2", Kind = "bass", Tuning = bassTuning.ToList(), SameAs = "Bass" });
             song.Tracks.Add(new SongTrack { Index = 3, Name = "Piano", Kind = "keys", Notes = { new TrackNote { AtQuarter = 0, Quarters = 4, Pitch = 60 } } });
+            song.Tracks.Add(new SongTrack { Index = 4, Name = "Vocal", Kind = "voice", Tuning = standard.ToList(),  // a melody on a guitar staff
+                                            Notes = { new TrackNote { AtQuarter = 16, Quarters = 1, Pitch = 64, StringIndex = 5, Fret = 0 } } });
 
             var chart = new SongChart(song);
             CollectionAssert.AreEqual(new[] { "Intro lick", "Bass" }, chart.Tabs.Select(t => t.Name));

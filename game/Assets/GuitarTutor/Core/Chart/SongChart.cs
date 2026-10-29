@@ -256,7 +256,8 @@ namespace GuitarTutor.Core.Chart
         // ------------------------------------------------------------ tabs
         /// <summary>
         /// The song's own tab, then each track of the file that is written as tab, has notes of its own (not the same as
-        /// another's) and is not the song's own tab's track.
+        /// another's) and is not the song's own tab's track. A vocal track is left out: a file writes the melody on a
+        /// guitar's staff, but nobody plays it from tab.
         /// </summary>
         void BuildTabs(Song song)
         {
@@ -264,7 +265,7 @@ namespace GuitarTutor.Core.Chart
             tabs.Add(new ChartTab(own?.Name ?? "", song.Info.Tuning, true, bars.Select(b => (IReadOnlyList<BarNote>)b.Notes).ToList()));
             foreach (var track in song.Tracks)
             {
-                if (track == own || track.SameAs != null || track.Tuning.Count == 0 || !track.Notes.Any(n => n.StringIndex >= 0))
+                if (track == own || track.SameAs != null || track.Kind == "voice" || track.Tuning.Count == 0 || !track.Notes.Any(n => n.StringIndex >= 0))
                     continue;
                 var riff = new Riff { Name = track.Name };
                 var perBar = bars.Select(_ => new List<BarNote>()).ToList();
