@@ -30,6 +30,7 @@ struct EngineOptions
     juce::String bandLead1, bandLead2;  // --lead1 / --lead2 <plugin file name, e.g. "Numa Player" | synthesized (off)>: the same
     juce::File snapshot;       // --snapshot <file.png>: a picture of the control panel 3 s after the start (tests); with --import-test, of the import window too
     juce::String importTest;   // --import-test <UG chords page URL>: opens the import window and imports that page (tests)
+    juce::String connectTest;  // --connect-test <instrument>:<track index>: picks that track for the instrument, as you would (tests); -1 its default part
 
     static EngineOptions fromCommandLine (const juce::StringArray& args);
 };
@@ -91,14 +92,29 @@ private:
     std::unique_ptr<ImportWindow> importWindow;
     juce::TextButton guitarButton { "Guitar tone..." };
     struct BandChoice { juce::File file; juce::String name; bool silentUntilChosen; float level; bool added; };
-    struct BandPart  // a band part's row: its sound, and its plugin's window
+    struct BandPart  // a band part's plugin, and its window
     {
-        juce::Label label;
         juce::ComboBox box;
         juce::TextButton windowButton { "Plugin window..." };
         std::vector<BandChoice> choices;  // the plugins it can play on
     };
     std::map<EngineCore::Slot, BandPart> bandParts;
+    /** The band's instruments (docs/instrument-tracks.md), a row each: the song's track it plays (chosen here, kept by
+        the game), then its plugin and the plugin's window (the keyboards play on Numa Player, not chosen here). */
+    struct InstrumentRow
+    {
+        juce::String id;  // as the game knows it: "rhythm", "bass", "keys", "drums", "lead", "instrument1"
+        bool hasSlot = false;
+        EngineCore::Slot slot = EngineCore::Slot::bandGuitar;
+        juce::Label label;
+        juce::ComboBox track;
+    };
+    std::array<InstrumentRow, 6> instrumentRows;
+    juce::Label keysPluginLabel { {}, "Numa Player" };
+    void setUpInstrumentRows();
+    /** The game's "tracks": the song's tracks to choose from in each row, and the one each instrument plays; without a
+        game, or for a song with no tracks, only the default part (and no choosing). */
+    void showTracks (const juce::var& message);
     std::unique_ptr<juce::FileChooser> pluginChooser;
     std::map<EngineCore::Slot, juce::File> bandPlugins;  // the band instrument plugins loaded
     std::map<EngineCore::Slot, juce::MemoryBlock> blankStates;  // an instrument plugin's state before a sound is chosen

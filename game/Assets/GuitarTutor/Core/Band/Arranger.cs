@@ -203,7 +203,12 @@ namespace GuitarTutor.Core.Band
         public const int KeysLow = 55, KeysHigh = 77;      // G3 to F5
         const int KeysCentre = 64;
 
-        public static Arrangement Arrange(SongChart chart, BandStyle style = null)
+        /// <summary>
+        /// The band's parts for a song in a style. With <paramref name="connections"/>, the lead guitar and instrument 1
+        /// play the tracks connected to them (nothing where none is: the band makes up no lead part); without, the lead
+        /// channels play the song's lead parts (<see cref="SongPart.Voice"/>), as before there were connections.
+        /// </summary>
+        public static Arrangement Arrange(SongChart chart, BandStyle style = null, BandConnections connections = null)
         {
             style = style ?? DefaultStyle(chart.Song);
             var arrangement = new Arrangement { Style = style.Name };
@@ -280,12 +285,24 @@ namespace GuitarTutor.Core.Band
             }
             Strum(chart, chords, arrangement, Humanise);
             // the song's other instruments on the lead channels (their notes as the file has them)
-            foreach (var part in chart.Song.Parts.Where(p => p.Voice == 1 || p.Voice == 2))
-            {
-                arrangement.LeadNames[part.Voice - 1] = part.Name;
-                foreach (var n in part.Notes)
-                    notes.Add(new BandNote(part.Voice == 1 ? BandPart.Lead1 : BandPart.Lead2, n.Pitch, n.AtQuarter, Math.Max(0.05, n.Quarters), n.Velocity));
-            }
+            if (connections == null)
+                foreach (var part in chart.Song.Parts.Where(p => p.Voice == 1 || p.Voice == 2))
+                {
+                    arrangement.LeadNames[part.Voice - 1] = part.Name;
+                    foreach (var n in part.Notes)
+                        notes.Add(new BandNote(part.Voice == 1 ? BandPart.Lead1 : BandPart.Lead2, n.Pitch, n.AtQuarter, Math.Max(0.05, n.Quarters), n.Velocity));
+                }
+            else
+                foreach (var (instrument, part, channel) in new[] { (Instrument.LeadGuitar, BandPart.Lead1, 0), (Instrument.Instrument1, BandPart.Lead2, 1) })
+                {
+                    var track = connections.TrackFor(chart.Song, instrument);
+                    if (track == null)
+                        continue;
+                    arrangement.LeadNames[channel] = track.Name;
+                    foreach (var n in track.Notes)
+                        if (!n.Technique.Contains('x'))  // (a dead note's pitch is its open string's: it is not one to play)
+                            notes.Add(new BandNote(part, n.Pitch, n.AtQuarter, Math.Max(0.05, n.Quarters), n.Velocity));
+                }
             notes.Sort((a, b) => a.AtQuarter != b.AtQuarter ? a.AtQuarter.CompareTo(b.AtQuarter) : a.Part.CompareTo(b.Part));
             return arrangement;
         }

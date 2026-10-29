@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using GuitarTutor.Core.Band;
 using GuitarTutor.Core.Music;
+using GuitarTutor.Core.Songs;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -74,14 +75,39 @@ namespace GuitarTutor.Core.Engine
 
         public static string Speed(double speed) => Line(new JObject { ["type"] = "speed", ["value"] = speed });
 
-        /// <summary>Brings up one of the engine's windows: "controlPanel", "guitar" (your tone), "bandGuitarTone",
-        /// "drums", "bandBass" or "bandGuitar" (the band's plugins).</summary>
+        /// <summary>Brings up one of the engine's windows: "controlPanel", "guitar" (your tone), "drums", "bandBass"
+        /// or "bandGuitar" (the band's plugins).</summary>
         public static string ShowWindow(string which) => Line(new JObject { ["type"] = "window", ["show"] = which });
 
         /// <summary>Whether the band's guitarist plays the rhythm (the engine answers with the same message).</summary>
         public static string BandGuitar(bool plays) => Line(new JObject { ["type"] = "bandGuitar", ["plays"] = plays });
 
         public static string Quit() => Line(new JObject { ["type"] = "quit" });
+
+        /// <summary>
+        /// The song's tracks the band's instruments can play (one per doubled pair: its label names both) and, per
+        /// instrument, the track it plays (-1: its default part) and whether that was chosen or connected automatically.
+        /// </summary>
+        public static string Tracks(Song song, BandConnections connections)
+        {
+            var tracks = new JArray();
+            foreach (var t in song.Tracks.Where(t => t.SameAs == null && t.Notes.Count > 0))
+            {
+                var doubles = song.Tracks.Where(d => d.SameAs == t.Name).Select(d => d.Name).ToList();
+                var name = t.Name + (doubles.Count > 0 ? " = " + string.Join(" = ", doubles) : "");
+                tracks.Add(new JObject { ["index"] = t.Index, ["name"] = $"{name} ({t.Kind}, {t.Notes.Count} notes)" });
+            }
+            var instruments = new JArray();
+            foreach (Instrument i in Enum.GetValues(typeof(Instrument)))
+                instruments.Add(new JObject
+                {
+                    ["id"] = BandConnections.Ids[i],
+                    ["name"] = BandConnections.Names[i],
+                    ["track"] = connections.TrackFor(song, i)?.Index ?? -1,
+                    ["chosen"] = connections.IsChosen(i),
+                });
+            return Line(new JObject { ["type"] = "tracks", ["tracks"] = tracks, ["instruments"] = instruments });
+        }
 
         /// <summary>The songs the game can open (their names) and which one is open, for the engine's song list.</summary>
         public static string Songs(IEnumerable<string> names, int current) =>

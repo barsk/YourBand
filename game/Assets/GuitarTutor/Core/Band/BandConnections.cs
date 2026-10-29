@@ -1,0 +1,163 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using GuitarTutor.Core.Songs;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
+
+namespace GuitarTutor.Core.Band
+{
+    /// <summary>The band's instruments (docs/instrument-tracks.md), each of which can play one of a song's tracks.</summary>
+    public enum Instrument { RhythmGuitar, Bass, Keys, Drums, LeadGuitar, Instrument1 }
+
+    /// <summary>A track of a song, as a choice stores it: its place in the file and its name (either finds it after a reimport).</summary>
+    public sealed class TrackRef
+    {
+        /// <summary>The track's <see cref="SongTrack.Index"/>; -1: none, the instrument plays its default (generated) part.</summary>
+        public int Index { get; set; } = -1;
+        public string Name { get; set; } = "";
+
+        public static TrackRef Default => new TrackRef();
+        public static TrackRef Of(SongTrack track) => track == null ? Default : new TrackRef { Index = track.Index, Name = track.Name };
+        [JsonIgnore] public bool IsDefault => Index < 0;
+    }
+
+    /// <summary>
+    /// Which track each of the band's instruments plays in a song. What you choose is kept in a file next to the song
+    /// (<c>wonderwall.band.json</c> beside <c>wonderwall.song.json</c>), so a new import of the song keeps it; an
+    /// instrument you have not chosen for is connected automatically (<see cref="AutoConnect"/>), each time the song is
+    /// opened. A track that doubles another (<see cref="SongTrack.SameAs"/>) plays the other's notes.
+    /// </summary>
+    public sealed class BandConnections
+    {
+        public const int CurrentVersion = 1;
+
+        /// <summary>The ids of the instruments in a file and in the messages to the engine.</summary>
+        public static readonly IReadOnlyDictionary<Instrument, string> Ids = new Dictionary<Instrument, string>
+        {
+            [Instrument.RhythmGuitar] = "rhythm", [Instrument.Bass] = "bass", [Instrument.Keys] = "keys",
+            [Instrument.Drums] = "drums", [Instrument.LeadGuitar] = "lead", [Instrument.Instrument1] = "instrument1",
+        };
+
+        public static readonly IReadOnlyDictionary<Instrument, string> Names = new Dictionary<Instrument, string>
+        {
+            [Instrument.RhythmGuitar] = "Rhythm guitar", [Instrument.Bass] = "Bass", [Instrument.Keys] = "Keyboards",
+            [Instrument.Drums] = "Drums", [Instrument.LeadGuitar] = "Lead guitar", [Instrument.Instrument1] = "Instrument 1",
+        };
+
+        public int Version { get; set; } = CurrentVersion;
+        /// <summary>The choices made, by instrument id ("lead"); an instrument not here is connected automatically.</summary>
+        public Dictionary<string, TrackRef> Chosen { get; set; } = new Dictionary<string, TrackRef>();
+
+        public static Instrument? InstrumentOf(string id) =>
+            Ids.Where(kv => kv.Value == id).Select(kv => (Instrument?)kv.Key).FirstOrDefault();
+
+        /// <summary>Whether the instrument's track was chosen (else it is connected automatically).</summary>
+        public bool IsChosen(Instrument instrument) => Chosen.ContainsKey(Ids[instrument]);
+
+        public void Choose(Instrument instrument, TrackRef track) => Chosen[Ids[instrument]] = track ?? TrackRef.Default;
+
+        /// <summary>
+        /// The track an instrument plays in the song (one with notes: a doubling track's twin), or null for its default
+        /// part: your choice if you made one and the track is still there, else the automatic connection.
+        /// </summary>
+        public SongTrack TrackFor(Song song, Instrument instrument)
+        {
+            if (Chosen.TryGetValue(Ids[instrument], out var chosen) && chosen != null)
+            {
+                if (chosen.IsDefault)
+                    return null;
+                var track = Find(song, chosen);
+                if (track != null)
+                    return Played(song, track);
+            }
+            return AutoConnect(song).TryGetValue(instrument, out var auto) ? auto : null;
+        }
+
+        /// <summary>The track a choice names: the one with its place and name, else the one with its name.</summary>
+        public static SongTrack Find(Song song, TrackRef track) =>
+            song.Tracks.FirstOrDefault(t => t.Index == track.Index && t.Name == track.Name)
+            ?? song.Tracks.FirstOrDefault(t => t.Name == track.Name);
+
+        /// <summary>The track whose notes a track plays: itself, or the one it doubles.</summary>
+        public static SongTrack Played(Song song, SongTrack track) =>
+            track.SameAs == null ? track : song.Tracks.FirstOrDefault(t => t.Name == track.SameAs && t.SameAs == null) ?? track;
+
+        /// <summary>
+        /// The best guess at what each instrument plays, from the tracks' kinds: the rhythm guitar the song's own tab's
+        /// track (the strummed guitar the chords come from); the drums, bass and keyboards the busiest track of their kind;
+        /// the lead guitar the busiest other guitar; instrument 1 a lead instrument (a harmonica, strings), else a vocal
+        /// line. A track goes to one instrument only; an instrument with nothing fitting plays its default part. A song
+        /// with no tracks (from Ultimate Guitar pages) connects nothing.
+        /// </summary>
+        public static Dictionary<Instrument, SongTrack> AutoConnect(Song song)
+        {
+            var result = new Dictionary<Instrument, SongTrack>();
+            var free = song.Tracks.Where(t => t.SameAs == null && t.Notes.Count > 0).ToList();
+            SongTrack Take(Instrument instrument, Func<SongTrack, bool> fits)
+            {
+                var pick = free.Where(fits).OrderByDescending(t => t.Notes.Count).FirstOrDefault();
+                if (pick != null)
+                {
+                    result[instrument] = pick;
+                    free.Remove(pick);
+                }
+                return pick;
+            }
+            if (Take(Instrument.RhythmGuitar, t => song.Riffs.Any(r => r.Name == t.Name)) == null)
+                Take(Instrument.RhythmGuitar, t => t.Kind == "guitar");
+            Take(Instrument.Drums, t => t.Kind == "drums");
+            Take(Instrument.Bass, t => t.Kind == "bass");
+            Take(Instrument.Keys, t => t.Kind == "keys");
+            Take(Instrument.LeadGuitar, t => t.Kind == "guitar");
+            if (Take(Instrument.Instrument1, t => t.Kind == "other") == null)
+                Take(Instrument.Instrument1, t => t.Kind == "voice");
+            return result;
+        }
+
+        // ------------------------------------------------------------ the file
+        static readonly JsonSerializerSettings Settings = new JsonSerializerSettings
+        {
+            ContractResolver = new CamelCasePropertyNamesContractResolver(),
+            Formatting = Formatting.Indented,
+            ObjectCreationHandling = ObjectCreationHandling.Replace,
+        };
+
+        /// <summary>The connections file of a song file: <c>x.band.json</c> beside <c>x.song.json</c>; null for none (the demo).</summary>
+        public static string PathFor(string songPath)
+        {
+            if (string.IsNullOrEmpty(songPath))
+                return null;
+            var name = Path.GetFileName(songPath);
+            var stem = name.EndsWith(".song.json", StringComparison.OrdinalIgnoreCase) ? name.Substring(0, name.Length - ".song.json".Length)
+                     : Path.GetFileNameWithoutExtension(name);
+            return Path.Combine(Path.GetDirectoryName(songPath) ?? "", stem + ".band.json");
+        }
+
+        public static string Write(BandConnections connections) => JsonConvert.SerializeObject(connections, Settings);
+
+        public static BandConnections Read(string json)
+        {
+            var connections = JsonConvert.DeserializeObject<BandConnections>(json, Settings) ?? new BandConnections();
+            if (connections.Version > CurrentVersion)
+                throw new InvalidDataException($"band file format {connections.Version} is newer than this version understands ({CurrentVersion})");
+            connections.Chosen = connections.Chosen ?? new Dictionary<string, TrackRef>();
+            return connections;
+        }
+
+        /// <summary>The song's connections: its file's, or none chosen if it has none.</summary>
+        public static BandConnections Load(string songPath)
+        {
+            var path = PathFor(songPath);
+            return path != null && File.Exists(path) ? Read(File.ReadAllText(path)) : new BandConnections();
+        }
+
+        public void Save(string songPath)
+        {
+            var path = PathFor(songPath);
+            if (path != null)
+                File.WriteAllText(path, Write(this));
+        }
+    }
+}

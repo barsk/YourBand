@@ -56,7 +56,8 @@ Each step leaves "Default" playing exactly as today, and is checked before the n
 2. **All tracks imported.** (Done 2026-10-29: `tracks` in the song file.) The song model gets the tracks (notes with pitch, string, fret, velocity and
    technique; tuning, capo, program, kind); identical tracks are merged. Nothing plays them yet.
 3. **TAB panel shortcut.** (Done 2026-10-29.) The first visible result: Tab cycles the TAB panel through the tracks with tab data.
-4. **Connections.** The per-song connection file, the automatic connection (from the track's instrument
+4. **Connections.** (Done 2026-10-29. `BandConnections` in Core; the lead guitar and instrument 1 already play their
+   tracks, as the song's lead parts did before; a lead with no track plays nothing.) The per-song connection file, the automatic connection (from the track's instrument
    number, name, strings, tuning and whether it is drums), the track dropdowns in the control panel, and the
    messages between the game and the engine. The game arranges the band from the connections and sends the
    notes, as today.

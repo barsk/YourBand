@@ -56,6 +56,7 @@ namespace GuitarTutor.Runtime.Desktop
         DesktopScreen screen;
         SongChart chart;
         Arrangement arrangement;
+        BandConnections connections = new BandConnections();  // which track each instrument plays (the song's band file)
         BandStyle bandStyle;
         readonly List<string> songs = new List<string>();  // null: the demo song
         int songIndex, pattern;
@@ -237,6 +238,7 @@ namespace GuitarTutor.Runtime.Desktop
             countInNext = true;
             resumeFrom = null;
             screen.SetSong(chart);
+            connections = LoadConnections(loadedFile ? path : null);
             var styleName = Environment.GetCommandLineArgs().SkipWhile(a => a != "-style").Skip(1).FirstOrDefault();
             Arrange(styleName != null ? BandStyle.Named(styleName) : Arranger.DefaultStyle(song));
             Debug.Log($"GuitarTutor: {song.Info.Artist} - {song.Info.Title}, {chart.Bars.Count} bars ({path ?? "demo"})");
@@ -250,6 +252,44 @@ namespace GuitarTutor.Runtime.Desktop
                 SendSongList();
         }
 
+        /// <summary>A song's track connections (its band file), none chosen for the demo or if the file cannot be read.</summary>
+        static BandConnections LoadConnections(string songFile)
+        {
+            try
+            {
+                return BandConnections.Load(songFile);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"GuitarTutor: could not read the band file of {songFile}, connecting the tracks automatically: {e.Message}");
+                return new BandConnections();
+            }
+        }
+
+        /// <summary>
+        /// An instrument's track as chosen in the control panel (-1: its default part): kept in the song's band file, and
+        /// the band arranged again (which gives the engine the new parts and the tracks).
+        /// </summary>
+        void Connect(string id, int trackIndex)
+        {
+            var instrument = BandConnections.InstrumentOf(id);
+            if (instrument == null)
+                return;
+            var track = trackIndex < 0 ? null : chart.Song.Tracks.FirstOrDefault(t => t.Index == trackIndex);
+            connections.Choose(instrument.Value, TrackRef.Of(track));
+            if (songPath != null)
+                try
+                {
+                    connections.Save(songPath);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning($"GuitarTutor: could not keep the choice in the band file of {songPath}: {e.Message}");
+                }
+            Debug.Log($"GuitarTutor: {BandConnections.Names[instrument.Value]} plays " + (track != null ? $"the track {track.Name}" : "its default part"));
+            Arrange(bandStyle);
+        }
+
         /// <summary>A song file's name without its suffix: what the engine's song list shows ("heart-of-gold-gpx-ug").</summary>
         static string SongName(string path) =>
             path == null ? "Demo song" : Path.GetFileName(path).Replace(".song.json", "").Replace(".json", "");
@@ -261,7 +301,7 @@ namespace GuitarTutor.Runtime.Desktop
         void Arrange(BandStyle style)
         {
             bandStyle = style;
-            arrangement = Arranger.Arrange(chart, style);
+            arrangement = Arranger.Arrange(chart, style, connections);
             var parts = Environment.GetCommandLineArgs().SkipWhile(a => a != "-parts").Skip(1).FirstOrDefault();
             if (parts != null)
                 arrangement.Notes.RemoveAll(n => !parts.Split(',').Contains(n.Part.ToString().ToLowerInvariant()));
@@ -276,6 +316,7 @@ namespace GuitarTutor.Runtime.Desktop
         {
             link.Send(EngineProtocol.Load(chart.Song.Info.Title, chart.Song.Tempo, arrangement, bandStyle.KeysSound, SongOrigin.Describe(chart.Song, songPath)));
             link.Send(EngineProtocol.Mix(BandPart.Keys, bandStyle.KeysGain));
+            link.Send(EngineProtocol.Tracks(chart.Song, connections));
         }
 
         /// <summary>
@@ -361,6 +402,8 @@ namespace GuitarTutor.Runtime.Desktop
             }
             else if (type == "importedSong")
                 OpenImported((string)message["path"]);
+            else if (type == "connect")
+                Connect((string)message["instrument"], (int?)message["track"] ?? -1);
             else if (type == "command" && Enum.TryParse((string)message["command"] switch
                      {
                          "playPause" => "PlayPause",

@@ -79,6 +79,15 @@ build of it, `dotnet build tools/songtool -c Release`) and shows what it prints 
 from their URLs in memory and the URLs go into the song's sources. When the song is written to `songs-local` the engine
 sends the game `importedSong`, which reads its song list again and opens the new song, and the list here follows.
 
+Below, a row per band instrument: **Rhythm guitar**, **Bass**, **Keyboards**, **Drums**, **Lead guitar** and
+**Instrument 1** (docs/instrument-tracks.md). Each row's first list is the song's track the instrument plays, from the
+game (`tracks`): "Default (generated)", the part the band makes up, then a Guitar Pro song's tracks (a doubled track is one
+choice, named with its twin). The game connects them automatically for a new song; choosing one here tells the game
+(`connect`), which keeps the choice in a file next to the song (`<song>.band.json`) and arranges the band again. A song
+from Ultimate Guitar pages has no tracks: the lists only offer the default. Then the row's plugin and its window (the
+keyboards play on Numa Player). So far the lead guitar and instrument 1 play their tracks; the other instruments play
+their default parts whatever is chosen, until the band learns to play tracks on them.
+
 Play from the game (Space) or the footswitch. Playing from the start, or from wherever you moved to, begins
 with a bar of count-in on sticks; after a pause the band plays on from where it stopped.
 
@@ -197,7 +206,11 @@ python tools\switch_session.py <out-folder>
 
 `switch_session.py` plays a made-up song on a silent engine without the game and switches the band's bass
 between its plugins every 3.5 s: the band should play on through every switch. `--snapshot <file.png>`
-makes the engine save a picture of its control panel 3 s after it starts.
+makes the engine save a picture of its control panel 3 s after it starts. `--connect-test <instrument>:<track
+index>` picks a track in an instrument's row 6 s after the start, as you would (`instrument1:0`; -1 for the default part),
+and with `--snapshot` saves `<file>.connect.png` of the panel after it. (Passing several engine options through the game's
+`-engineargs` from Windows PowerShell 5.1: put the whole value in quotes inside the string, `'"--silent --snapshot x.png"'`;
+Start-Process does not quote it.)
 
 Checked this way (2026-10-21):
 - Count-in sticks exactly a beat apart, the band in on the next beat, and every drum hit on the eighth-note

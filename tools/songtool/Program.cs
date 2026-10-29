@@ -218,6 +218,9 @@ namespace GuitarTutor.SongTool
             foreach (var t in song.Tracks)
                 Console.WriteLine($"  track {t.Index}: {t.Name} (" + (t.SameAs != null ? $"same as {t.SameAs}"
                                   : $"{t.Kind}, {t.Notes.Count} notes" + (t.Tuning.Count > 0 ? $", tab in {string.Join(" ", t.Tuning)}" : "")) + ")");
+            if (song.Tracks.Count > 0)
+                Console.WriteLine("  connected automatically: " + string.Join(", ", BandConnections.AutoConnect(song).OrderBy(kv => kv.Key)
+                                                                                         .Select(kv => $"{BandConnections.Names[kv.Key]} = {kv.Value.Name}")));
             string previousSection = null;
             for (int b = first; b <= last; ++b)
             {

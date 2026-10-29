@@ -33,8 +33,17 @@ namespace
 
     juce::String bandTitle (EngineCore::Slot slot)
     {
-        return slot == EngineCore::Slot::bandDrums ? "Band drums" : slot == EngineCore::Slot::bandBass ? "Band bass"
-             : slot == EngineCore::Slot::bandLead1 ? "Lead 1" : slot == EngineCore::Slot::bandLead2 ? "Lead 2" : "Band guitar";
+        return slot == EngineCore::Slot::bandDrums ? "Drums" : slot == EngineCore::Slot::bandBass ? "Bass"
+             : slot == EngineCore::Slot::bandLead1 ? "Lead guitar" : slot == EngineCore::Slot::bandLead2 ? "Instrument 1" : "Rhythm guitar";
+    }
+
+    /** A picture of a component (tests). */
+    void writeSnapshot (juce::Component& c, const juce::File& file)
+    {
+        const auto image = c.createComponentSnapshot (c.getLocalBounds());
+        file.deleteFile();
+        if (juce::FileOutputStream out (file); out.openedOk())
+            juce::PNGImageFormat().writeImageToStream (image, out);
     }
 
     /** The lead channels play the song's other instruments (a harmonica, a lead guitar) on a plugin of your choice, as
@@ -133,6 +142,8 @@ EngineOptions EngineOptions::fromCommandLine (const juce::StringArray& args)
             o.bandLead2 = args[++i].unquoted();
         else if (args[i] == "--import-test" && i + 1 < args.size())
             o.importTest = args[++i].unquoted();
+        else if (args[i] == "--connect-test" && i + 1 < args.size())
+            o.connectTest = args[++i].unquoted();
         else if (args[i] == "--snapshot" && i + 1 < args.size())
             o.snapshot = juce::File::getCurrentWorkingDirectory().getChildFile (args[++i].unquoted());
     }
@@ -215,6 +226,7 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
     setUpBandPart (EngineCore::Slot::bandGuitar);
     setUpBandPart (EngineCore::Slot::bandLead1);  // the song's other instruments: a plugin each, or silent
     setUpBandPart (EngineCore::Slot::bandLead2);
+    setUpInstrumentRows();
     engine.setBandGuitarPlays (settings->getBoolValue ("bandGuitarPlays", false));  // (the game's G switches it)
 
     // the band's keys
@@ -245,8 +257,8 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
     for (size_t i = 0; i < faders.size(); ++i)
     {
         const juce::String part = i == 0 ? "drums" : i == 1 ? "bass" : i == 2 ? "keys" : i == 3 ? "guitar" : i == 4 ? "lead1" : "lead2";
-        faderLabels[i].setText (i >= 4 ? "Lead " + juce::String (i - 3) : part.substring (0, 1).toUpperCase() + part.substring (1),
-                                juce::dontSendNotification);
+        const char* const names[] { "Drums", "Bass", "Keys", "Rhythm", "Lead", "Inst. 1" };
+        faderLabels[i].setText (names[i], juce::dontSendNotification);
         addAndMakeVisible (faderLabels[i]);
         auto& f = faders[i];
         f.setSliderStyle (juce::Slider::LinearHorizontal);
@@ -314,6 +326,7 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
         {
             engine.band().pause();
             songBox.setEnabled (false);  // (its list is the game's)
+            showTracks ({});             // (and so are the tracks)
         }
     };
     game.onMessage = [this] (const juce::var& message) { handle (message); };
@@ -336,7 +349,7 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
             juce::MessageManager::callAsync ([] { juce::JUCEApplication::getInstance()->systemRequestedQuit(); });
     }
 
-    setSize (760, 930);
+    setSize (760, 964);
     startTimerHz (4);
 
     if (options.importTest.isNotEmpty())
@@ -348,23 +361,32 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
             self->importWindow->startTest (self->options.importTest);
         });
 
+    if (options.connectTest.isNotEmpty())
+        juce::Timer::callAfterDelay (6000, [self = juce::Component::SafePointer<MainComponent> (this)]  // (the game has sent the tracks by then)
+        {
+            if (self == nullptr)
+                return;
+            const auto id = self->options.connectTest.upToFirstOccurrenceOf (":", false, false);
+            const auto track = self->options.connectTest.fromFirstOccurrenceOf (":", false, false).getIntValue();
+            for (auto& row : self->instrumentRows)
+                if (row.id == id)
+                    row.track.setSelectedId (track + 2, juce::sendNotificationSync);
+            if (self->options.snapshot != juce::File())
+                juce::Timer::callAfterDelay (2500, [self]
+                {
+                    if (self != nullptr)
+                        writeSnapshot (*self, self->options.snapshot.withFileExtension ("connect.png"));
+                });
+        });
+
     if (options.snapshot != juce::File())
         juce::Timer::callAfterDelay (3000, [self = juce::Component::SafePointer<MainComponent> (this)]
         {
             if (self == nullptr)
                 return;
-            const auto image = self->createComponentSnapshot (self->getLocalBounds());
-            self->options.snapshot.deleteFile();
-            if (juce::FileOutputStream out (self->options.snapshot); out.openedOk())
-                juce::PNGImageFormat().writeImageToStream (image, out);
+            writeSnapshot (*self, self->options.snapshot);
             if (self->importWindow != nullptr)
-            {
-                const auto importImage = self->importWindow->getContentComponent()->createComponentSnapshot (self->importWindow->getContentComponent()->getLocalBounds());
-                const auto importFile = self->options.snapshot.withFileExtension ("import.png");
-                importFile.deleteFile();
-                if (juce::FileOutputStream out (importFile); out.openedOk())
-                    juce::PNGImageFormat().writeImageToStream (importImage, out);
-            }
+                writeSnapshot (*self->importWindow->getContentComponent(), self->options.snapshot.withFileExtension ("import.png"));
         });
 }
 
@@ -461,6 +483,8 @@ void MainComponent::handle (const juce::var& message)
     }
     else if (type == "bandGuitar")
         setBandGuitarPlays ((bool) message["plays"]);
+    else if (type == "tracks")
+        showTracks (message);
     else if (type == "songs")
     {
         songBox.clear (juce::dontSendNotification);
@@ -476,11 +500,11 @@ void MainComponent::handle (const juce::var& message)
         if (which == "guitar")
             showPlugin (EngineCore::Slot::guitar, "Guitar tone");
         else if (which == "drums")
-            showPlugin (EngineCore::Slot::bandDrums, "Band drums");
+            showPlugin (EngineCore::Slot::bandDrums, bandTitle (EngineCore::Slot::bandDrums));
         else if (which == "bandBass")
-            showPlugin (EngineCore::Slot::bandBass, "Band bass");
+            showPlugin (EngineCore::Slot::bandBass, bandTitle (EngineCore::Slot::bandBass));
         else if (which == "bandGuitar")
-            showPlugin (EngineCore::Slot::bandGuitar, "Band guitar");
+            showPlugin (EngineCore::Slot::bandGuitar, bandTitle (EngineCore::Slot::bandGuitar));
         else if (auto* window = getTopLevelComponent())  // "controlPanel": this window
             bringToFront (*window);
     }
@@ -518,6 +542,61 @@ void MainComponent::saveSettings()
     settings->saveIfNeeded();
 }
 
+void MainComponent::setUpInstrumentRows()
+{
+    struct Spec { const char* id; bool hasSlot; EngineCore::Slot slot; };
+    const Spec specs[] { { "rhythm", true, EngineCore::Slot::bandGuitar }, { "bass", true, EngineCore::Slot::bandBass },
+                         { "keys", false, EngineCore::Slot::bandGuitar }, { "drums", true, EngineCore::Slot::bandDrums },
+                         { "lead", true, EngineCore::Slot::bandLead1 }, { "instrument1", true, EngineCore::Slot::bandLead2 } };
+    for (size_t i = 0; i < instrumentRows.size(); ++i)
+    {
+        auto& row = instrumentRows[i];
+        row.id = specs[i].id;
+        row.hasSlot = specs[i].hasSlot;
+        row.slot = specs[i].slot;
+        row.label.setText (row.hasSlot ? bandTitle (row.slot) : juce::String ("Keyboards"), juce::dontSendNotification);
+        row.track.onChange = [this, i]
+        {
+            auto& r = instrumentRows[i];
+            if (! game.isConnected() || r.track.getSelectedId() <= 0)
+                return;
+            auto* message = new juce::DynamicObject();
+            message->setProperty ("type", "connect");
+            message->setProperty ("instrument", r.id);
+            message->setProperty ("track", r.track.getSelectedId() - 2);  // -1: the default part
+            game.send (juce::var (message));
+            log (r.label.getText() + " plays " + (r.track.getSelectedId() == 1 ? juce::String ("its default part") : r.track.getText()));
+        };
+        addAndMakeVisible (row.label);
+        addAndMakeVisible (row.track);
+    }
+    addAndMakeVisible (keysPluginLabel);
+    showTracks ({});
+}
+
+void MainComponent::showTracks (const juce::var& message)
+{
+    const auto* tracks = message["tracks"].getArray();
+    const auto* instruments = message["instruments"].getArray();
+    for (auto& row : instrumentRows)
+    {
+        row.track.clear (juce::dontSendNotification);
+        row.track.addItem ("Default (generated)", 1);
+        if (tracks != nullptr)
+            for (const auto& t : *tracks)
+                row.track.addItem (t["name"].toString(), (int) t["index"] + 2);
+        auto playing = -1;
+        if (instruments != nullptr)
+            for (const auto& i : *instruments)
+                if (i["id"].toString() == row.id)
+                    playing = (int) i["track"];
+        row.track.setSelectedId (playing + 2, juce::dontSendNotification);
+        if (row.track.getSelectedId() == 0)
+            row.track.setSelectedId (1, juce::dontSendNotification);
+        row.track.setEnabled (tracks != nullptr && ! tracks->isEmpty());
+    }
+}
+
 void MainComponent::setUpBandPart (EngineCore::Slot slot)
 {
     auto& part = bandParts[slot];
@@ -546,10 +625,9 @@ void MainComponent::setUpBandPart (EngineCore::Slot slot)
     if (choice < 0 && last != "synthesized" && ! part.choices.empty())
         choice = 0;
 
-    part.label.setText (bandTitle (slot), juce::dontSendNotification);
     part.box.onChange = [this, slot] { bandBoxChanged (slot); };
     part.windowButton.onClick = [this, slot] { showPlugin (slot, bandTitle (slot)); };
-    for (auto* c : std::initializer_list<juce::Component*> { &part.label, &part.box, &part.windowButton })
+    for (auto* c : std::initializer_list<juce::Component*> { &part.box, &part.windowButton })
         addAndMakeVisible (*c);
     chooseBandInstrument (slot, choice, false, false);
 }
@@ -919,15 +997,21 @@ void MainComponent::resized()
     nextButton.setBounds (row.removeFromLeft (140).reduced (6, 0));
     r.removeFromTop (10);
 
-    // the band's instruments
-    for (auto slot : { EngineCore::Slot::bandDrums, EngineCore::Slot::bandBass, EngineCore::Slot::bandGuitar,
-                       EngineCore::Slot::bandLead1, EngineCore::Slot::bandLead2 })
+    // the band's instruments: the track each plays, its plugin, the plugin's window
+    for (auto& instrument : instrumentRows)
     {
-        auto& part = bandParts[slot];
         row = r.removeFromTop (28);
-        part.label.setBounds (row.removeFromLeft (100));
-        part.box.setBounds (row.removeFromLeft (260));
-        part.windowButton.setBounds (row.removeFromLeft (140).reduced (6, 0));
+        instrument.label.setBounds (row.removeFromLeft (100));
+        instrument.track.setBounds (row.removeFromLeft (250));
+        row.removeFromLeft (6);
+        if (instrument.hasSlot)
+        {
+            auto& part = bandParts[instrument.slot];
+            part.box.setBounds (row.removeFromLeft (220));
+            part.windowButton.setBounds (row.removeFromLeft (140).reduced (6, 0));
+        }
+        else
+            keysPluginLabel.setBounds (row.removeFromLeft (220));
         r.removeFromTop (6);
     }
 
