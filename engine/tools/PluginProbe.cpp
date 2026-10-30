@@ -38,6 +38,9 @@ std::vector<int> mapChannels { 10, 1 };
 double g_lagMs = 15.0, g_keyMs = 50.0;  // --lag/--key for the sweep test, in milliseconds
 std::vector<double> g_keyList;  // --keys 40,60,80: per-stroke key lengths, overriding --key
 std::vector<int> g_velList;     // --vels 40,64,96: per-stroke strum keyswitch velocities (else 96)
+std::vector<int> g_voicingList; // --voicing 41,46,51,56,61,66: the chord held, lowest first (else G: E2 B2 G3 B3 D4 G4)
+std::vector<int> g_keysToPress; // --press 79,82,83: the stroke keys, one per stroke (else down/up strums by --dirs)
+std::vector<double> g_atList;   // --at 5,5.02,5.5: per-stroke times in beats, overriding --strum/--gap
 std::string g_dirs;      // --dirs uduu: u = up (A5), d = down (G#5)
 std::vector<double> g_muteList;  // --mutes 0,10,100: C6 hold length per stroke in ms (0 = no mute)
 double g_f5Beat = 3.5, g_chordBeat = 4.0, g_firstStroke = 5.0, g_gapBeats = 1.0;
@@ -622,7 +625,7 @@ void sweepLenTest (juce::AudioPluginInstance& plugin, const juce::File& wav)
 {
     constexpr int channel = 3;
     constexpr double beat = rate * 60.0 / 96.0;
-    const int voicing[] = { 40, 47, 55, 59, 62, 67 };  // G: E2 B2 G3 B3 D4 G4
+    const std::vector<int> voicing = g_voicingList.empty() ? std::vector<int> { 40, 47, 55, 59, 62, 67 } : g_voicingList;  // G: E2 B2 G3 B3 D4 G4
     constexpr int kMode = 78, kUp = 81, kDown = 80, kMute = 84;  // F#5 A5 G#5 C6
 
     struct Event { double sample; int note, velocity; bool off; };
@@ -639,9 +642,10 @@ void sweepLenTest (juce::AudioPluginInstance& plugin, const juce::File& wav)
     }
     for (int i = 0; i < g_numStrokes; ++i)
     {
-        const double b = g_firstStroke + g_gapBeats * i;
+        const double b = g_atList.size() > (size_t) i ? g_atList[(size_t) i] : g_firstStroke + g_gapBeats * i;
         const double hold = (g_keyList.size() > (size_t) i ? g_keyList[(size_t) i] : g_keyMs) / 1000.0 * rate;
-        const int key = (g_dirs.size() > (size_t) i && g_dirs[(size_t) i] == 'd') ? kDown : kUp;
+        const int key = g_keysToPress.size() > (size_t) i ? g_keysToPress[(size_t) i]
+                      : (g_dirs.size() > (size_t) i && g_dirs[(size_t) i] == 'd') ? kDown : kUp;
         const double muteMs = g_muteList.size() > (size_t) i ? g_muteList[(size_t) i] : 0.0;
         if (muteMs > 0.0)
             at (b + lag / beat - 4.0 / beat, kMute);  // a few samples before the strum, as the engine does
@@ -778,6 +782,15 @@ int main (int argc, char* argv[])
         else if (juce::String (argv[i]) == "--keys" && i + 1 < argc)
             for (const auto& s : juce::StringArray::fromTokens (juce::String (argv[++i]), ",", ""))
                 g_keyList.push_back (s.getDoubleValue());
+        else if (juce::String (argv[i]) == "--voicing" && i + 1 < argc)
+            for (const auto& s : juce::StringArray::fromTokens (juce::String (argv[++i]), ",", ""))
+                g_voicingList.push_back (s.getIntValue());
+        else if (juce::String (argv[i]) == "--at" && i + 1 < argc)
+            for (const auto& s : juce::StringArray::fromTokens (juce::String (argv[++i]), ",", ""))
+                g_atList.push_back (s.getDoubleValue());
+        else if (juce::String (argv[i]) == "--press" && i + 1 < argc)
+            for (const auto& s : juce::StringArray::fromTokens (juce::String (argv[++i]), ",", ""))
+                g_keysToPress.push_back (s.getIntValue());
         else if (juce::String (argv[i]) == "--vels" && i + 1 < argc)
             for (const auto& s : juce::StringArray::fromTokens (juce::String (argv[++i]), ",", ""))
                 g_velList.push_back (s.getIntValue());
