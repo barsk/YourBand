@@ -435,6 +435,7 @@ void MainComponent::handle (const juce::var& message)
         log ("Song: " + score->title + ", " + score->style + ", " + juce::String ((int) score->notes.size()) + " notes"
              + ", " + juce::String ((int) score->voicings.size()) + " voicing notes"
              + ", " + juce::String ((int) score->strokes.size()) + " strokes"
+             + (score->picks.empty() ? juce::String() : ", " + juce::String ((int) score->picks.size()) + " picked strings")
              + ", " + juce::String ((int) score->spans.size()) + " single-note stretches"
              + (score->leads[0].isNotEmpty() || score->leads[1].isNotEmpty()
                     ? ", leads: " + (score->leads[0].isNotEmpty() ? score->leads[0] : juce::String ("-"))
@@ -569,12 +570,14 @@ void MainComponent::setUpInstrumentRows()
             if (! game.isConnected() || r.track.getSelectedId() <= 0)
                 return;
             const auto id = r.track.getSelectedId();
-            const auto picked = id >= pickedTrackIds;
+            const auto strings = id >= stringTrackIds;
+            const auto picked = ! strings && id >= pickedTrackIds;
             auto* message = new juce::DynamicObject();
             message->setProperty ("type", "connect");
             message->setProperty ("instrument", r.id);
-            message->setProperty ("track", (picked ? id - pickedTrackIds : id) - 2);  // -1: the default part
+            message->setProperty ("track", (strings ? id - stringTrackIds : picked ? id - pickedTrackIds : id) - 2);  // -1: the default part
             message->setProperty ("picked", picked);
+            message->setProperty ("strings", strings);
             game.send (juce::var (message));
             log (r.label.getText() + " plays " + (r.track.getSelectedId() == 1 ? juce::String ("its default part") : r.track.getText()));
         };
@@ -596,22 +599,28 @@ void MainComponent::showTracks (const juce::var& message)
         if (tracks != nullptr)
             for (const auto& t : *tracks)
                 row.track.addItem (t["name"].toString(), (int) t["index"] + 2);
-        // the rhythm guitar can also play a guitar track picked, note by note (a fingerpicked part), not strummed
+        // the rhythm guitar can also play a guitar track picked, note by note (a fingerpicked part), not strummed, or
+        // string by string on its held chord (an experiment: the strings ring until struck again)
         if (tracks != nullptr && row.id == "rhythm")
             for (const auto& t : *tracks)
                 if (t["kind"].toString() == "guitar")
-                    row.track.addItem (t["name"].toString().upToFirstOccurrenceOf (" (", false, false) + ", picked note by note",
-                                       pickedTrackIds + (int) t["index"] + 2);
+                {
+                    const auto name = t["name"].toString().upToFirstOccurrenceOf (" (", false, false);
+                    row.track.addItem (name + ", picked note by note", pickedTrackIds + (int) t["index"] + 2);
+                    row.track.addItem (name + ", string by string (experiment)", stringTrackIds + (int) t["index"] + 2);
+                }
         auto playing = -1;
-        auto picked = false;
+        auto picked = false, strings = false;
         if (instruments != nullptr)
             for (const auto& i : *instruments)
                 if (i["id"].toString() == row.id)
                 {
                     playing = (int) i["track"];
                     picked = (bool) i["picked"];
+                    strings = (bool) i["strings"];
                 }
-        row.track.setSelectedId ((picked && playing >= 0 ? pickedTrackIds : 0) + playing + 2, juce::dontSendNotification);
+        const auto ids = playing < 0 ? 0 : strings ? stringTrackIds : picked ? pickedTrackIds : 0;
+        row.track.setSelectedId (ids + playing + 2, juce::dontSendNotification);
         if (row.track.getSelectedId() == 0)
             row.track.setSelectedId (1, juce::dontSendNotification);
         row.track.setEnabled (tracks != nullptr && ! tracks->isEmpty());

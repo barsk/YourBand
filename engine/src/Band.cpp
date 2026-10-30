@@ -25,6 +25,12 @@ namespace
     // moving to the new chord would. Muted strokes hold the Mute keyswitch C6 around the strum, which
     // makes the chord a tight chug with its own short decay
     constexpr int strumModeKey = 78, downKey = 80, upKey = 81, muteKey = 84;
+    // the string keys F#6 to B6 (90-95): each picks one string of the held voicing (the manual: lowest string first; if
+    // a string holds no note, another is picked). Measured with plugin_probe on Redbud Tree's ten chords, also after a
+    // chord change: key 90 + k plays the k-th lowest held note (wrapping when fewer are held), so a note's key is its
+    // place in the held chord. A held key keeps its string ringing and letting it go damps it; the key's velocity
+    // hardly changes the level (2-3 dB from 20 to 127)
+    constexpr int firstStringKey = 90;
     constexpr double strokeHoldMinSec = 0.080;  // the shortest key hold: below ~40 ms the sweep is partial
     constexpr double strokeHoldMaxSec = 1.2;    // the longest: a held key sustains the chord at full level,
                                                 // so a longer hold would ring it like a synth
@@ -190,6 +196,13 @@ std::unique_ptr<Score> Score::fromMessage (const juce::var& message, juce::Strin
                                             juce::jlimit (0, 127, (int) s[2]), (int) s[3] != 0 });
     std::stable_sort (score->strokes.begin(), score->strokes.end(),
                       [] (const Stroke& a, const Stroke& b) { return a.at < b.at; });
+    if (auto* picks = message["picks"].getArray())
+        for (const auto& p : *picks)
+            if (p.size() >= 4 && (double) p[1] > 0.0)
+                score->picks.push_back ({ (double) p[0], (double) p[1], juce::jlimit (0, 5, (int) p[2]),
+                                          juce::jlimit (1, 127, (int) p[3]) });
+    std::stable_sort (score->picks.begin(), score->picks.end(),
+                      [] (const Pick& a, const Pick& b) { return a.at < b.at; });
     if (auto* spans = message["spans"].getArray())
         for (const auto& sp : *spans)
             if (sp.size() >= 2 && (double) sp[1] > (double) sp[0])
@@ -293,6 +306,16 @@ size_t BandProcessor::firstStrokeFrom (double q) const
                      - s.begin());
 }
 
+size_t BandProcessor::firstPickFrom (double q) const
+{
+    if (playingScore == nullptr)
+        return 0;
+    const auto& p = playingScore->picks;
+    return (size_t) (std::lower_bound (p.begin(), p.end(), q - 1.0e-9,
+                                       [] (const Score::Pick& x, double at) { return x.at < at; })
+                     - p.begin());
+}
+
 size_t BandProcessor::firstSpanFrom (double q) const
 {
     if (playingScore == nullptr)
@@ -336,6 +359,7 @@ void BandProcessor::apply (const Command& c, juce::MidiBuffer& midi)
             guitarCursor = firstGuitarNoteFrom (c.a);
             voicingCursor = firstVoicingFrom (c.a);
             strokeCursor = firstStrokeFrom (c.a);
+            pickCursor = firstPickFrom (c.a);
             spanCursor = firstSpanFrom (c.a);
             playing = true;
             break;
@@ -353,6 +377,7 @@ void BandProcessor::apply (const Command& c, juce::MidiBuffer& midi)
             guitarCursor = firstGuitarNoteFrom (c.a);
             voicingCursor = firstVoicingFrom (c.a);
             strokeCursor = firstStrokeFrom (c.a);
+            pickCursor = firstPickFrom (c.a);
             spanCursor = firstSpanFrom (c.a);
             break;
         case Command::speed:
@@ -440,6 +465,7 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         guitarCursor = firstGuitarNoteFrom (quarter);
         voicingCursor = firstVoicingFrom (quarter);
         strokeCursor = firstStrokeFrom (quarter);
+        pickCursor = firstPickFrom (quarter);
         spanCursor = firstSpanFrom (quarter);
     }
     {
@@ -524,9 +550,9 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
 
         // the guitar, early by its plugin's lag: its notes go out that much before their time
         const auto early = onPlugin[(size_t) guitar].load() ? guitarAdvance.load() * rate : 0.0;
-        // strumming mode only for a song that has strokes: one from a game that does not send them (or a song without a
-        // strumming pattern) keeps the per-string notes, which the strumming mode would silence
-        const auto strums = strummingMode.load() && onPlugin[(size_t) guitar].load() && ! s->strokes.empty();
+        // strumming mode only for a song that has strokes or picks: one from a game that does not send them (or a song
+        // without a strumming pattern) keeps the per-string notes, which the strumming mode would silence
+        const auto strums = strummingMode.load() && onPlugin[(size_t) guitar].load() && ! (s->strokes.empty() && s->picks.empty());
         if (guitarResync.exchange (false))
         {
             // the guitar's sound changed (a plugin was swapped in or out, or strumming mode turned): drop
@@ -543,6 +569,7 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
             guitarCursor = firstGuitarNoteFrom (quarter);
             voicingCursor = firstVoicingFrom (quarter);
             strokeCursor = firstStrokeFrom (quarter);
+            pickCursor = firstPickFrom (quarter);
             spanCursor = firstSpanFrom (quarter);
         }
         if (strums)
@@ -699,6 +726,23 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
                     else
                         addOff ({ guitar, muteKey, -1, muteEnd });
                 }
+            }
+            // the picks: a string of the held voicing picked on its own, its string key held as long as the string rings
+            // (the game lets it go before the string is struck again, and before its chord ends)
+            while (pickCursor < s->picks.size() && s->picks[pickCursor].at - early < q1)
+            {
+                const auto& p = s->picks[pickCursor++];
+                if (singleActive)
+                    continue;
+                if (p.at < q0 - 1.0e-9 || (countingIn && p.at < countInUntil - 1.0e-9) || ! guitarPlays.load())
+                    continue;
+                const auto key = firstStringKey + p.rank;
+                const double keyEnd = p.at + p.length - early;
+                midi.addEvent (juce::MidiMessage::noteOn (channelOf (guitar), key, (juce::uint8) p.velocity), offsetOf (p.at - early));
+                if (keyEnd < q1)
+                    midi.addEvent (juce::MidiMessage::noteOff (channelOf (guitar), key), offsetOf (keyEnd));
+                else
+                    addOff ({ guitar, key, -1, keyEnd });
             }
         }
 

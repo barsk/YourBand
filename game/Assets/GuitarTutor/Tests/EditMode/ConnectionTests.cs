@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Linq;
 using GuitarTutor.Core.Band;
@@ -189,6 +190,55 @@ namespace GuitarTutor.Core.Tests
             Assert.IsTrue(guitar.All(n => !n.Single));
             var bass = guitar.Where(n => n.Pitch == 45).OrderBy(n => n.AtQuarter).ToList();
             Assert.AreEqual(3.99, bass[0].Quarters, 1e-6);  // let ring: until the next note on its string, a bar on
+        }
+
+        [Test]
+        public void ATrackChosenStringByString_HoldsTheChordAndRingsEachString()
+        {
+            var song = GuitarProSong();
+            song.Chords.Clear();
+            song.Chords.Add(new ChordEvent { Name = "Am", AtQuarter = 0, Quarters = 2.5 });
+            song.Chords.Add(new ChordEvent { Name = "Am", AtQuarter = 2.5, Quarters = 1.5 });  // the same chord again: held on
+            song.Chords.Add(new ChordEvent { Name = "C", AtQuarter = 4, Quarters = 4 });
+            var rhythm = song.Tracks[3];
+            rhythm.Notes.Clear();
+            void Play(double at, params (int str, int fret)[] strings)
+            {
+                foreach (var (s, f) in strings)
+                    rhythm.Notes.Add(new TrackNote { AtQuarter = at, Quarters = 0.25, Pitch = new[] { 40, 45, 50, 55, 59, 64 }[s] + f, StringIndex = s, Fret = f, Velocity = 79 });
+            }
+            // Redbud Tree's way: a bass note under pinches on the top strings
+            Play(0, (1, 0), (3, 0), (4, 0), (5, 0));
+            Play(1, (3, 0), (4, 0), (5, 0));
+            Play(2, (1, 0), (3, 0));
+            Play(3, (4, 0));  // one string
+            Play(4, (1, 3), (3, 0), (4, 0), (5, 0));  // the next chord, C3 in the bass
+            Play(6, (3, 2), (4, 0));  // A3 on the G string: off the chord held, a new one from here
+            var connections = new BandConnections();
+            connections.Choose(Instrument.RhythmGuitar, TrackRef.Of(rhythm, stringKeys: true));
+            Assert.IsTrue(connections.PlaysStringKeys(song, Instrument.RhythmGuitar));
+            Assert.IsFalse(connections.PlaysPicked(song, Instrument.RhythmGuitar));
+            var a = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"), connections);
+
+            Assert.AreEqual(0, a.Strokes.Count);  // no strums: every note is its string picked
+            Assert.AreEqual(0, a.SingleSpans.Count);
+            CollectionAssert.AreEqual(new[] { (0.0, 4.0, "45 55 59 64"), (4.0, 2.0, "48 55 59 64"), (6.0, 2.0, "48 57 59 64") },
+                                      a.Voicings.GroupBy(v => (v.AtQuarter, v.Quarters))
+                                                .Select(g => (g.Key.AtQuarter, g.Key.Quarters, string.Join(" ", g.Select(v => v.Pitch).OrderBy(p => p)))));
+            Assert.AreEqual(16, a.Picks.Count);
+            var perSecond = song.Tempo.BpmAt(0) / 60.0;
+            var bass = a.Picks.Where(p => p.Rank == 0 && p.AtQuarter < 4).ToList();
+            // the bass rings under the pinches until it is struck again, then through the same chord again until a moment
+            // before the chord changes
+            Assert.AreEqual(2 - 0.01 * perSecond, bass[0].Quarters, 1e-6);
+            Assert.AreEqual(2 - 0.07 * perSecond, bass[1].Quarters, 1e-6);
+            // a stroke crosses the strings low to high; each note is its place in the held chord
+            CollectionAssert.AreEqual(new[] { 0, 1, 2, 3 }, a.Picks.Where(p => p.AtQuarter < 0.5).Select(p => p.Rank));
+            Assert.AreEqual(2, a.Picks.Single(p => Math.Abs(p.AtQuarter - 3) < 1e-6).Rank);  // the B string alone: the third lowest
+            Assert.AreEqual(1, a.Picks.First(p => p.AtQuarter >= 6).Rank);  // A3, the second lowest of the new chord
+            // the other guitars play the same notes, ringing as long
+            CollectionAssert.AreEqual(a.Picks.Select(p => (p.AtQuarter, p.Quarters)).OrderBy(x => x),
+                                      a.Part(BandPart.Guitar).Select(n => (n.AtQuarter, n.Quarters)).OrderBy(x => x));
         }
 
         [Test]

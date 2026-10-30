@@ -10,12 +10,13 @@ tools/songtool/bin/Release/net8.0/songtool.exe import-ug <chords-page.html> [--t
 tools/songtool/bin/Release/net8.0/songtool.exe import-gpx <file.gpx> [--track n] [--strum <chords-page.html|strum.json>] -o <song.json>
 tools/songtool/bin/Release/net8.0/songtool.exe export-strum <chords-page.html> -o <strum.json>
 tools/songtool/bin/Release/net8.0/songtool.exe show <song.json> [--bars 1-16]
-tools/songtool/bin/Release/net8.0/songtool.exe band-midi <song.json> [--bars 1-16] [--rhythm default|strummed|picked] [-o <file.mid>]
+tools/songtool/bin/Release/net8.0/songtool.exe band-midi <song.json> [--bars 1-16] [--rhythm default|strummed|picked|strings] [-o <file.mid>]
 ```
 
 `band-midi` writes the band guitarist's part as the engine sends it to Shreddage (channel 3: F#5, the held chords, the
-strum keyswitches, the notes), to look at in a DAW: `--rhythm default` the part the guitarist makes up, `strummed` or
-`picked` a Guitar Pro song's rhythm track played that way (docs/instrument-tracks.md).
+strum keyswitches or string keys, the notes), to look at in a DAW: `--rhythm default` the part the guitarist makes up,
+`strummed`, `picked` or `strings` (string by string on the held chord, an experiment) a Guitar Pro song's rhythm track
+played that way (docs/instrument-tracks.md).
 
 ```
 tools/songtool/bin/Release/net8.0/songtool.exe import --gp <file> [--strum-url <chords-page-url>] [--track n] [--out-dir <folder>]

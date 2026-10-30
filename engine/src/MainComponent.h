@@ -111,6 +111,7 @@ private:
     };
     std::array<InstrumentRow, 6> instrumentRows;
     static constexpr int pickedTrackIds = 1000;  // a track list's ids from here: the track picked note by note (the rhythm guitar)
+    static constexpr int stringTrackIds = 2000;  // and from here: the track string by string on its held chord (an experiment)
     juce::Label keysPluginLabel { {}, "Numa Player" };
     void setUpInstrumentRows();
     /** The game's "tracks": the song's tracks to choose from in each row, and the one each instrument plays; without a

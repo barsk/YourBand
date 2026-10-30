@@ -11,15 +11,16 @@ namespace GuitarTutor.SongTool
     /// <summary>
     /// The band guitarist's part as the engine sends it to Shreddage (strumming mode), written as a standard MIDI
     /// file for checking in a DAW: F#5 held (the strumming mode), the held chord's strings, the strum keyswitches
-    /// (G#5 down, A5 up, C6 for a muted stroke), and the single-string notes with the strumming mode let go around
-    /// them; a part with no strokes (a track played picked) as plain notes, with no strumming mode. The tempo map is
+    /// (G#5 down, A5 up, C6 for a muted stroke) or the string keys (F#6 up: a string of the held chord picked on its
+    /// own), and the single-string notes with the strumming mode let go around them; a part with neither (a track
+    /// played picked) as plain notes, with no strumming mode. The tempo map is
     /// in the file. This repeats the engine's rules (engine/src/Band.cpp) offline, without the latency advance; keep
     /// the two in step.
     /// </summary>
     static class BandMidi
     {
         const int Ppq = 960, Channel = 2;  // MIDI channel 3, where the engine plays the band guitar
-        const int StrumMode = 78, DownKey = 80, UpKey = 81, MuteKey = 84;
+        const int StrumMode = 78, DownKey = 80, UpKey = 81, MuteKey = 84, FirstStringKey = 90;
         const int LowestNote = 39;  // the plugin's lowest note (Shreddage 3 Stratus FREE: D#2): a lower one, a drop D's D2, goes an octave up
         static int Fold(int pitch)
         {
@@ -70,8 +71,8 @@ namespace GuitarTutor.SongTool
                 return next - end < gap ? n.AtQuarter + Math.Max(0.02, next - n.AtQuarter - gap) : end;
             }
 
-            // no strokes (a track played picked): the engine plays every note as a note, with no strumming mode
-            if (a.Strokes.Count == 0)
+            // no strokes or picks (a track played picked): the engine plays every note as a note, with no strumming mode
+            if (a.Strokes.Count == 0 && a.Picks.Count == 0)
             {
                 foreach (var n in a.Notes.Where(n => n.Part == BandPart.Guitar && InRange(n.AtQuarter)))
                 {
@@ -148,6 +149,13 @@ namespace GuitarTutor.SongTool
                 }
                 On(at, key, st.Velocity);
                 Off(end, key);
+            }
+
+            // the strings picked on their own: the string key of the note's place in the held chord, held as long as the string rings
+            foreach (var p in a.Picks.Where(p => InRange(p.AtQuarter)))
+            {
+                On(p.AtQuarter, FirstStringKey + Math.Min(5, p.Rank), p.Velocity);
+                Off(p.AtQuarter + p.Quarters, FirstStringKey + Math.Min(5, p.Rank));
             }
 
             // the single-string notes: as notes, the strumming mode being let go

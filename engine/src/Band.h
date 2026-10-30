@@ -43,6 +43,9 @@ struct Score
     struct Voicing { int pitch; double at, length; };
     /** A stroke of its pick: a strum keyswitch on the held voicing (direction 0 down, 1 up). */
     struct Stroke { double at; int dir; int velocity; bool muted; };
+    /** A string of the held voicing picked on its own (a string key): its place in the voicing (0: the lowest note),
+        and how long it rings (the key held). */
+    struct Pick { double at, length; int rank, velocity; };
     /** A stretch where the guitarist plays single-string notes, not strums (quarter notes, from and to). */
     struct Span { double from, to; };
 
@@ -54,6 +57,7 @@ struct Score
     std::vector<size_t> guitar;  // the indices of the guitar's notes, in time order (the guitar has its own cursor)
     std::vector<Voicing> voicings;  // in time order
     std::vector<Stroke> strokes;  // in time order
+    std::vector<Pick> picks;      // in time order (a song has strokes or picks)
     std::vector<Span> spans;      // in time order
 
     double bpmAt (double quarter) const;
@@ -140,6 +144,7 @@ private:
     size_t firstGuitarNoteFrom (double quarter) const;
     size_t firstVoicingFrom (double quarter) const;
     size_t firstStrokeFrom (double quarter) const;
+    size_t firstPickFrom (double quarter) const;
     size_t firstSpanFrom (double quarter) const;
     void emit (const BandNote&, double dueAt, int sample, juce::MidiBuffer&);
     /** The note a General MIDI drum note plays on the kit in use: itself if the kit has the drum, else the nearest drum
@@ -174,7 +179,7 @@ private:
     const Score* playingScore = nullptr;
     bool playing = false;
     double quarter = 0.0, speed = 1.0, countInUntil = 0.0, countInLength = 0.0;
-    size_t cursor = 0, guitarCursor = 0, voicingCursor = 0, strokeCursor = 0, spanCursor = 0;
+    size_t cursor = 0, guitarCursor = 0, voicingCursor = 0, strokeCursor = 0, pickCursor = 0, spanCursor = 0;
     bool singleActive = false;  // inside a stretch of single-string notes: the strumming mode is let go
     bool strumModeOn = false;  // Shreddage's F#5 strumming-mode keyswitch (note 78), held while the plugin strums
     std::array<Off, 256> offs;

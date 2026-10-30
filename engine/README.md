@@ -154,7 +154,16 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   automatically (let go on pause, seek or a new score). Where the song's tab has single-string notes (an onset
   of one note: the load message's `spans` say where, the notes carry a sixth element, 1) the strumming mode is
   let go for the stretch (the chord's strings and the strum key first, then F#5), the notes play as ordinary
-  notes, and at the stretch's end F#5 goes down again and the chord held then is re-sent. Measured with plugin_probe: the plugin rings the
+  notes, and at the stretch's end F#5 goes down again and the chord held then is re-sent. A rhythm track played
+  string by string (an experiment, 2026-10-30) sends `picks` instead of strokes: each note is a string key, F#6
+  (90) plus the note's place in the held chord (`rank`, 0 its lowest note), held as long as the string rings
+  (until it is struck again, 10 ms before, or until 70 ms before its chord ends). Measured with plugin_probe on
+  Redbud Tree's ten chords, also after a chord change: key 90 + k plays the k-th lowest held note (the manual
+  says the keys pick strings, lowest first, another one where a string holds no note; the plugin's own voicing
+  makes that the k-th note); a held key rings its string, letting it go damps it; a key struck again 2 ms after
+  its release attacks in full; its velocity hardly changes the level (2-3 dB from 20 to 127), but every other
+  press is about 5 dB softer (Shreddage's alternate picking). So the bass rings under the pinches, which a
+  strum cuts. Measured with plugin_probe: the plugin rings the
   strummed chord at full level for as long as the strum keyswitch is held and damps it (a fast release) when
   the key is let go, so the band starts each stroke exactly on its beat and holds its key until the next stroke starts
   (back to back, no gap), or 1.2 s at most; the last stroke of a chord lets go 70 ms before the chord ends, for the
@@ -245,6 +254,9 @@ the pitch it sounds at: a drum kit's note layout, or an instrument's range and o
 `--sweep-test` (with `--state`) strums a G chord in Shreddage's strumming mode, `--n` strokes `--gap` beats apart
 (`--dirs dduu`, `--keys` hold lengths in ms, `--vels` velocities): each stroke's peak, RMS and time to its peak. Measured
 2026-10-30 on the band guitar's sound: down-strums at velocity 40 to 127 differ by under 2 dB, and not steadily.
+`--voicing 50,57,62` holds another chord, `--press 90,91` presses those keys instead of strums (the string keys), and `--at 5,5.02` gives each its own beat;
+with them the string keys were measured (above), and that a Shreddage state short of voices drops the oldest note, the
+ringing bass, when several strings are picked at once (Kontakt's instrument voice limit).
 `--map` plays on MIDI channels 10 and 1; `--channel n` on that one (0: all sixteen), and it reports the loudest
 note, so a silent plugin shows as -120 dB. The state is loaded with the audio running (Kontakt only finishes
 loading an instrument then) for 12 s, or `PROBE_WAIT_MS` milliseconds. A `--state` file holds the plugin's own

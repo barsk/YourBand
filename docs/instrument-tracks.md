@@ -69,6 +69,11 @@ Each step leaves "Default" playing exactly as today, and is checked before the n
    choice; a song
    strummed from an Ultimate Guitar page keeps its guitarist on that strumming unless you choose the track.) The rhythm and lead guitars play their tracks: strummed where the track strums,
    note by note where it picks, through the modes the engine already has.
+   Experiments (2026-10-30, branch `experiment/stroke-chords`): each stroke holds only the strings it strikes; and the
+   rhythm row's "string by string" choice, where every note is its string picked on the held chord with Shreddage's
+   string keys, so the bass rings under Redbud Tree's pinches (the strummed version cuts it 5-20 dB within 1.5 beats).
+   It needs Shreddage set to Strumming Mode off, Keyswitchable on, and voices enough (Rhythm, Polyphonic and the voice
+   limits raised to 32/16 did it).
 7. **Sounds per song.** The plugin and sound per instrument and song, the Band defaults dialog, saving when
    the plugin window closes, loading on song change.
 8. **Mixer.** Mute, solo, volume and pan knobs, pan from the stage, saved per song.
