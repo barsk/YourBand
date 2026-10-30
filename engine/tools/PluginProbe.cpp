@@ -37,6 +37,7 @@ std::vector<int> mapChannels { 10, 1 };
 
 double g_lagMs = 15.0, g_keyMs = 50.0;  // --lag/--key for the sweep test, in milliseconds
 std::vector<double> g_keyList;  // --keys 40,60,80: per-stroke key lengths, overriding --key
+std::vector<int> g_velList;     // --vels 40,64,96: per-stroke strum keyswitch velocities (else 96)
 std::string g_dirs;      // --dirs uduu: u = up (A5), d = down (G#5)
 std::vector<double> g_muteList;  // --mutes 0,10,100: C6 hold length per stroke in ms (0 = no mute)
 double g_f5Beat = 3.5, g_chordBeat = 4.0, g_firstStroke = 5.0, g_gapBeats = 1.0;
@@ -644,8 +645,9 @@ void sweepLenTest (juce::AudioPluginInstance& plugin, const juce::File& wav)
         const double muteMs = g_muteList.size() > (size_t) i ? g_muteList[(size_t) i] : 0.0;
         if (muteMs > 0.0)
             at (b + lag / beat - 4.0 / beat, kMute);  // a few samples before the strum, as the engine does
-        at (b + lag / beat, key, 96);
-        at (b + (lag + hold) / beat, key, 96, true);
+        const int velocity = g_velList.size() > (size_t) i ? g_velList[(size_t) i] : 96;
+        at (b + lag / beat, key, velocity);
+        at (b + (lag + hold) / beat, key, velocity, true);
         if (muteMs > 0.0)
             at (b + lag / beat + muteMs / 1000.0 * rate / beat, kMute, 100, true);  // C6 off strum + muteMs
     }
@@ -711,21 +713,29 @@ void sweepLenTest (juce::AudioPluginInstance& plugin, const juce::File& wav)
     std::cout << "sweep test (96 bpm, ch 3, G voicing, F#5 at " << g_f5Beat << ", chord at " << g_chordBeat
               << ", strokes from " << g_firstStroke << " every " << g_gapBeats << " beats, lag " << g_lagMs
               << " ms, key " << g_keyMs << " ms, n=" << g_numStrokes << "):\n";
-    std::cout << "  stroke             peak    rms\n";
+    std::cout << "  stroke   vel     peak    rms   to peak\n";
     for (int i = 0; i < g_numStrokes; ++i)
     {
         const int a = (int) std::round ((g_firstStroke + g_gapBeats * i) * beat);
         const int b = juce::jmin (total, a + (int) (g_gapBeats * beat));
         float peak = 0;
+        int peakAt = a;
         double sum = 0;
         for (int j = a; j < b; ++j)
         {
-            peak = std::max (peak, std::abs (mono[(size_t) j]));
+            if (std::abs (mono[(size_t) j]) > peak)
+            {
+                peak = std::abs (mono[(size_t) j]);
+                peakAt = j;
+            }
             sum += (double) mono[(size_t) j] * mono[(size_t) j];
         }
-        std::cout << "  " << (g_firstStroke + g_gapBeats * i)
-                  << juce::String (peak, 2).paddedLeft (' ', 7)
-                  << juce::String (10.0 * std::log10 (sum / (b - a) + 1e-12), 1).paddedLeft (' ', 8) << "\n";
+        const int velocity = g_velList.size() > (size_t) i ? g_velList[(size_t) i] : 96;
+        std::cout << "  " << juce::String (g_firstStroke + g_gapBeats * i).paddedRight (' ', 6)
+                  << juce::String (velocity).paddedLeft (' ', 5)
+                  << juce::String (peak, 2).paddedLeft (' ', 8)
+                  << juce::String (10.0 * std::log10 (sum / (b - a) + 1e-12), 1).paddedLeft (' ', 8)
+                  << (juce::String ((peakAt - a) / rate * 1000.0 - g_lagMs, 0) + " ms").paddedLeft (' ', 10) << "\n";
     }
     std::cout << "wav: " << wav.getFullPathName() << "\n";
 }
@@ -768,6 +778,9 @@ int main (int argc, char* argv[])
         else if (juce::String (argv[i]) == "--keys" && i + 1 < argc)
             for (const auto& s : juce::StringArray::fromTokens (juce::String (argv[++i]), ",", ""))
                 g_keyList.push_back (s.getDoubleValue());
+        else if (juce::String (argv[i]) == "--vels" && i + 1 < argc)
+            for (const auto& s : juce::StringArray::fromTokens (juce::String (argv[++i]), ",", ""))
+                g_velList.push_back (s.getIntValue());
         else if (juce::String (argv[i]) == "--dirs" && i + 1 < argc)
             g_dirs = argv[++i];
         else if (juce::String (argv[i]) == "--mutes" && i + 1 < argc)

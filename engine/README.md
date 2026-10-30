@@ -242,6 +242,9 @@ build\Release\plugin_probe_artefacts\Release\plugin_probe.exe <plugin.vst3> out\
 With `--map [--velocity n]` (with a `--state` file per sound, or the plugin's own sound) it plays every note
 from 24 to 96 on its own and lists the ones that sound, how loud, how much of each is low, mid and high, and
 the pitch it sounds at: a drum kit's note layout, or an instrument's range and octave.
+`--sweep-test` (with `--state`) strums a G chord in Shreddage's strumming mode, `--n` strokes `--gap` beats apart
+(`--dirs dduu`, `--keys` hold lengths in ms, `--vels` velocities): each stroke's peak, RMS and time to its peak. Measured
+2026-10-30 on the band guitar's sound: down-strums at velocity 40 to 127 differ by under 2 dB, and not steadily.
 `--map` plays on MIDI channels 10 and 1; `--channel n` on that one (0: all sixteen), and it reports the loudest
 note, so a silent plugin shows as -120 dB. The state is loaded with the audio running (Kontakt only finishes
 loading an instrument then) for 12 s, or `PROBE_WAIT_MS` milliseconds. A `--state` file holds the plugin's own
