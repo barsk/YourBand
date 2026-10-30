@@ -65,8 +65,8 @@ Each step leaves "Default" playing exactly as today, and is checked before the n
    drum a kit lacks on the nearest one it has, MONSTER Drums' layout measured.) General MIDI drum notes (with a note map for kits that are not
    General MIDI), the keyboard's notes as written, the bass line.
 6. **Guitars from tracks.** (Done 2026-10-29: two strings or more at once are strokes on the chart's chord, held as the track strikes it; single
-   strings are picked as notes; a fingerpicked track, seldom five strings at once, is played picked, every note as a
-   note, and the rhythm row offers each guitar track both ways; a song
+   strings are picked as notes; the rhythm row also offers each guitar track picked, every note as a note, as a
+   choice; a song
    strummed from an Ultimate Guitar page keeps its guitarist on that strumming unless you choose the track.) The rhythm and lead guitars play their tracks: strummed where the track strums,
    note by note where it picks, through the modes the engine already has.
 7. **Sounds per song.** The plugin and sound per instrument and song, the Band defaults dialog, saving when

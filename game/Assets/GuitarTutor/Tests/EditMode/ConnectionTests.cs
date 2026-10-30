@@ -143,9 +143,7 @@ namespace GuitarTutor.Core.Tests
                 rhythm.Notes.Add(new TrackNote { AtQuarter = at, Quarters = 0.5, Pitch = 62, StringIndex = 3, Fret = 7, Velocity = 79 });
             Strike(3.5, new[] { 0, 1 });  // two strings: a stroke too (a bass note and a pinch)
             Strike(4, top, "U");  // the file records an upstroke
-            var connections = new BandConnections();  // (strummed as chosen: four strings at most would read as fingerpicked)
-            connections.Choose(Instrument.RhythmGuitar, TrackRef.Of(rhythm, picked: false));
-            var a = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"), connections);
+            var a = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"), new BandConnections());
 
             CollectionAssert.AreEqual(new[] { (0.0, false, false), (0.5, true, false), (1.0, false, false), (1.5, true, true), (3.5, true, false), (4.0, true, false) },
                                       a.Strokes.Select(s => (s.AtQuarter, s.Up, s.Muted)));  // down on the beat, up off it
@@ -166,7 +164,7 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
-        public void AFingerpickedTrack_IsPlayedNoteByNote()
+        public void ATrackChosenPicked_IsPlayedNoteByNote()
         {
             var song = GuitarProSong();
             var rhythm = song.Tracks[3];
@@ -180,8 +178,13 @@ namespace GuitarTutor.Core.Tests
                     rhythm.Notes.Add(new TrackNote { AtQuarter = at + 0.5, Quarters = 0.5, Pitch = 50 + 5 * s, StringIndex = s, Fret = 0, Velocity = 80 });
                 rhythm.Notes.Add(new TrackNote { AtQuarter = at + 1, Quarters = 0.5, Pitch = 40, StringIndex = 0, Fret = 0, Velocity = 80, Technique = "x" });  // dead
             }
-            Assert.IsTrue(BandConnections.FingerPicked(rhythm));
+            // connected automatically it is strummed: a pinch a bar is a stroke, the bass notes single notes
             var connections = new BandConnections();
+            Assert.IsFalse(connections.PlaysPicked(song, Instrument.RhythmGuitar));
+            Assert.AreEqual(8, Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"), connections).Strokes.Count);
+
+            // chosen picked: every note as a note
+            connections.Choose(Instrument.RhythmGuitar, TrackRef.Of(rhythm, picked: true));
             Assert.IsTrue(connections.PlaysPicked(song, Instrument.RhythmGuitar));
             var a = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"), connections);
             Assert.AreEqual(0, a.Strokes.Count);  // no strumming: the guitar stays out of its strumming mode
@@ -192,12 +195,6 @@ namespace GuitarTutor.Core.Tests
             Assert.IsTrue(guitar.All(n => !n.Single));
             var bass = guitar.Where(n => n.Pitch == 45).OrderBy(n => n.AtQuarter).ToList();
             Assert.AreEqual(3.99, bass[0].Quarters, 1e-6);  // let ring: until the next note on its string, a bar on
-
-            // chosen strummed after all: the strokes are back
-            connections.Choose(Instrument.RhythmGuitar, TrackRef.Of(rhythm, picked: false));
-            Assert.IsFalse(connections.PlaysPicked(song, Instrument.RhythmGuitar));
-            Assert.AreEqual(8, Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"), connections).Strokes.Count);  // a pinch a bar
-            Assert.IsFalse(BandConnections.FingerPicked(song.Tracks[2]));  // (no tab: not a fingerpicked guitar)
         }
 
         [Test]
