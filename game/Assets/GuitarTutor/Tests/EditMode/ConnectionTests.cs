@@ -151,16 +151,10 @@ namespace GuitarTutor.Core.Tests
             var guitar = a.Part(BandPart.Guitar).ToList();
             Assert.AreEqual(3, guitar.Count(n => n.Single));
             Assert.AreEqual(18, guitar.Count(n => !n.Single));  // the struck strings (the dead strum sounds none)
-            // one held chord per chord of the chart, on the strings the track strums in it
-            var strums = new[] { 0.0, 0.5, 1.0, 3.5, 4.0 };
-            var chords = song.Chords.Where(c => strums.Any(s => s >= c.AtQuarter && s < c.AtQuarter + c.Quarters)).ToList();
-            CollectionAssert.AreEqual(chords.Select(c => (c.AtQuarter, c.Quarters)), a.Voicings.Select(v => (v.AtQuarter, v.Quarters)).Distinct());
-            foreach (var c in chords)
-            {
-                var strings = rhythm.Notes.Where(n => !n.Technique.Contains("x") && n.AtQuarter >= c.AtQuarter && n.AtQuarter < c.AtQuarter + c.Quarters
-                                                      && strums.Contains(n.AtQuarter)).Select(n => n.StringIndex).Distinct().Count();
-                Assert.AreEqual(strings, a.Voicings.Count(v => v.AtQuarter == c.AtQuarter));
-            }
+            // the chord held is each stroke's strings: the three strokes on the top four strings are one chord (until the muted
+            // stroke), the two-string stroke its own, then the top four again (a bar on)
+            CollectionAssert.AreEqual(new[] { (0.0, 1.5, 4), (3.5, 0.5, 2), (4.0, 4.0, 4) },
+                                      a.Voicings.GroupBy(v => (v.AtQuarter, v.Quarters)).Select(g => (g.Key.AtQuarter, g.Key.Quarters, g.Count())));
         }
 
         [Test]
