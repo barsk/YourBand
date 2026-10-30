@@ -488,7 +488,7 @@ namespace GuitarTutor.Core.Band
                     var n = list[k];
                     var next = k + 1 < list.Count ? list[k + 1].AtQuarter : double.PositiveInfinity;
                     var end = n.Technique.Contains('r') ? Math.Min(next, n.AtQuarter + ringAtMost) : Math.Min(next, n.AtQuarter + n.Quarters);
-                    arrangement.Notes.Add(new BandNote(BandPart.Guitar, n.Pitch, n.AtQuarter, Math.Max(0.05, end - n.AtQuarter - 0.01), n.Velocity));
+                    arrangement.Notes.Add(new BandNote(BandPart.Guitar, n.Pitch, n.AtQuarter, Math.Max(0.05, end - n.AtQuarter - 0.01), GuitarVelocity(n.Velocity)));
                 }
             }
         }
@@ -533,7 +533,7 @@ namespace GuitarTutor.Core.Band
                     return;
                 arrangement.SingleSpans.Add((from.Value, Math.Max(from.Value + 0.05, to)));
                 foreach (var n in picked)
-                    notes.Add(new BandNote(BandPart.Guitar, n.Pitch, n.AtQuarter, Math.Max(0.05, Math.Min(n.Quarters, to - n.AtQuarter)), n.Velocity, single: true));
+                    notes.Add(new BandNote(BandPart.Guitar, n.Pitch, n.AtQuarter, Math.Max(0.05, Math.Min(n.Quarters, to - n.AtQuarter)), GuitarVelocity(n.Velocity), single: true));
                 from = null;
                 picked.Clear();
             }
@@ -586,7 +586,12 @@ namespace GuitarTutor.Core.Band
                     var fast = set.Contains(slot - 1) || set.Contains(slot + 1);
                     down = slot % (fast ? 2 : 4) == 0;
                 }
-                var velocity = strum.Max(n => n.Velocity);
+                // as hard as the made-up part strums (Shreddage takes a strum's velocity as its speed and loudness), shifted a
+                // little by the file's dynamics: the file's own velocities (p 47, mp 63) are slow, faint strums
+                var onBeat = chart.BarOf(at) is ChartBar b && Math.Abs((at - b.AtQuarter) - Math.Round(at - b.AtQuarter)) < 1e-6;
+                var accent = strum.Any(n => n.Technique.Contains('a'));
+                var made = muted ? 64 : accent ? (down ? 116 : 104) : !down ? 72 : onBeat ? 96 : 84;
+                var velocity = Math.Max(1, Math.Min(127, made + (strum.Max(n => n.Velocity) - 79) / 4));
                 arrangement.Strokes.Add(new BandStroke(at, !down, velocity, muted));
                 // the strings one by one, as a hand crosses them (down: low to high; up: high to low)
                 var order = down ? sounding : Enumerable.Reverse(sounding).ToList();
@@ -634,6 +639,12 @@ namespace GuitarTutor.Core.Band
                 }
             }
         }
+
+        /// <summary>
+        /// A guitar note's velocity from the file's (its dynamics: ppp 15 to fff 127), in the range the guitarist's
+        /// made-up part plays in (p 80, mp 88, mf 96, f 104): a plugin guitar is faint and choked at the file's soft ones.
+        /// </summary>
+        static int GuitarVelocity(int fileVelocity) => Math.Max(1, Math.Min(127, 64 + (fileVelocity - 15) / 2));
 
         /// <summary>
         /// The single-string notes of the song's tab (the notes of a riff's onsets that have just one note) and the

@@ -12,8 +12,9 @@ namespace GuitarTutor.SongTool
     /// The band guitarist's part as the engine sends it to Shreddage (strumming mode), written as a standard MIDI
     /// file for checking in a DAW: F#5 held (the strumming mode), the held chord's strings, the strum keyswitches
     /// (G#5 down, A5 up, C6 for a muted stroke), and the single-string notes with the strumming mode let go around
-    /// them. The tempo map is in the file. This repeats the engine's rules (engine/src/Band.cpp) offline, without the
-    /// latency advance; keep the two in step.
+    /// them; a part with no strokes (a track played picked) as plain notes, with no strumming mode. The tempo map is
+    /// in the file. This repeats the engine's rules (engine/src/Band.cpp) offline, without the latency advance; keep
+    /// the two in step.
     /// </summary>
     static class BandMidi
     {
@@ -35,10 +36,17 @@ namespace GuitarTutor.SongTool
             public byte[] Bytes;
         }
 
-        public static void Write(Song song, string path, double fromQuarter, double toQuarter)
+        /// <summary>The engine's gap before a key struck again at once (Band.cpp, retriggerGapSec).</summary>
+        const double RetriggerGap = 0.06;
+
+        /// <summary>
+        /// Writes the guitarist's part: its default part, or (with <paramref name="connections"/>) the part the song's
+        /// tracks give it.
+        /// </summary>
+        public static void Write(Song song, string path, double fromQuarter, double toQuarter, BandConnections connections = null)
         {
             var chart = new SongChart(song);
-            var a = Arranger.Arrange(chart);
+            var a = Arranger.Arrange(chart, null, connections);
             var events = new List<Ev>();
             long Tick(double q) => Math.Max(0, (long)Math.Round((q - fromQuarter) * Ppq));
             void On(double q, int key, int vel, int tickShift = 0) => events.Add(new Ev { Tick = Math.Max(0, Tick(q) + tickShift), Order = 1, Bytes = new byte[] { (byte)(0x90 | Channel), (byte)key, (byte)vel } });
@@ -50,6 +58,29 @@ namespace GuitarTutor.SongTool
                 .Select(g => (At: g.Key.AtQuarter, End: g.Key.AtQuarter + g.Key.Quarters, Pitches: g.Select(v => Fold(v.Pitch)).Distinct().ToList()))
                 .OrderBy(c => c.At).ToList();
             var spans = a.SingleSpans;
+
+            // a note the same key follows at once lets go early, as the engine does it (to the plugin a repeat with no gap
+            // is the same note held on, with no new attack)
+            double EndOf(BandNote n)
+            {
+                var end = n.AtQuarter + n.Quarters;
+                var next = a.Notes.Where(m => m.Part == n.Part && m.Pitch == n.Pitch && m.AtQuarter > n.AtQuarter + 1e-9 && m.AtQuarter <= end + 1.0)
+                                  .Select(m => m.AtQuarter).DefaultIfEmpty(double.PositiveInfinity).Min();
+                var gap = RetriggerGap * song.Tempo.BpmAt(n.AtQuarter) / 60.0;
+                return next - end < gap ? n.AtQuarter + Math.Max(0.02, next - n.AtQuarter - gap) : end;
+            }
+
+            // no strokes (a track played picked): the engine plays every note as a note, with no strumming mode
+            if (a.Strokes.Count == 0)
+            {
+                foreach (var n in a.Notes.Where(n => n.Part == BandPart.Guitar && InRange(n.AtQuarter)))
+                {
+                    On(n.AtQuarter, Fold(n.Pitch), n.Velocity);
+                    Off(RepeatsEarly(n) ? EndOf(n) : n.AtQuarter + n.Quarters, Fold(n.Pitch), -4);
+                }
+                WriteFile(song, path, events, fromQuarter, toQuarter, Tick);
+                return;
+            }
 
             // the strumming mode: F#5 held, let go for each single-string stretch and taken again at its end
             var modeFrom = fromQuarter;
@@ -123,11 +154,14 @@ namespace GuitarTutor.SongTool
             foreach (var n in a.Notes.Where(n => n.Single && InRange(n.AtQuarter)))
             {
                 On(n.AtQuarter, Fold(n.Pitch), n.Velocity);
-                Off(n.AtQuarter + n.Quarters, Fold(n.Pitch), -4);  // (as the chords' offs: before an on of the same key just after it)
+                Off(EndOf(n), Fold(n.Pitch), -4);  // (as the chords' offs: before an on of the same key just after it)
             }
 
             WriteFile(song, path, events, fromQuarter, toQuarter, Tick);
         }
+
+        /// <summary>Whether the engine lets this guitar note go early when its key is struck again at once (Band.cpp).</summary>
+        static bool RepeatsEarly(BandNote n) => n.Part == BandPart.Guitar;
 
         static void WriteFile(Song song, string path, List<Ev> events, double fromQuarter, double toQuarter, Func<double, long> tick)
         {

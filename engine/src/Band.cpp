@@ -157,13 +157,13 @@ std::unique_ptr<Score> Score::fromMessage (const juce::var& message, juce::Strin
     }
     std::stable_sort (score->notes.begin(), score->notes.end(), [] (const BandNote& a, const BandNote& b) { return a.at < b.at; });
 
-    // a lead's note (or the tab's single note) that the same key follows at once is let go early: a plugin takes the repeat for
-    // the same note held on, with no new attack (measured with Numa Player on a D2 played in eighths: back to back, the attack
-    // of each repeat rose 2-5 dB; 25 ms apart 3-7 dB; 60 ms apart 13-16 dB)
+    // a lead's or the guitar's note that the same key follows at once is let go early: a plugin takes the repeat for the same
+    // note held on, with no new attack (measured with Numa Player on a D2 played in eighths: back to back, the attack of each
+    // repeat rose 2-5 dB; 25 ms apart 3-7 dB; 60 ms apart 13-16 dB; Shreddage choked a fingerpicked part's repeats 7 ms apart)
     for (size_t i = 0; i < score->notes.size(); ++i)
     {
         auto& a = score->notes[i];
-        if (! (a.part == BandProcessor::lead1 || a.part == BandProcessor::lead2 || (a.part == BandProcessor::guitar && a.single)))
+        if (! (a.part == BandProcessor::lead1 || a.part == BandProcessor::lead2 || a.part == BandProcessor::guitar))
             continue;
         for (size_t j = i + 1; j < score->notes.size() && score->notes[j].at <= a.at + a.length + 1.0; ++j)
         {

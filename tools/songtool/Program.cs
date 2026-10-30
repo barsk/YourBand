@@ -43,7 +43,7 @@ namespace GuitarTutor.SongTool
                         : args.Length >= 3 && args[2] == "--order" ? GpxInfo.Order(args[1]) : GpxInfo.Print(args[1]);
                 if (args.Length >= 2 && args[0] == "band-midi")
                     return BandMidiFile(args);
-                Console.WriteLine("usage:\n  " + ImportCommand.Usage.Replace("\n", "\n  ") + "\n  songtool import-ug <chords.html> [--tabs <tabs.html>] [--chords-per-bar n|auto] -o <song.json>\n  songtool import-gpx <file.gpx> [--track n] [--strum <chords.html|strum.json>] [--strum-map \"Section=Pattern;…\"] -o <song.json>\n  songtool export-strum <chords.html> -o <strum.json>\n  songtool diag-strum <file.gpx> [--track n]\n  songtool show <song.json> [--bars a-b]\n  songtool gpx-info <file.gpx> [--beats <track> <bars> | --order]");
+                Console.WriteLine("usage:\n  " + ImportCommand.Usage.Replace("\n", "\n  ") + "\n  songtool import-ug <chords.html> [--tabs <tabs.html>] [--chords-per-bar n|auto] -o <song.json>\n  songtool import-gpx <file.gpx> [--track n] [--strum <chords.html|strum.json>] [--strum-map \"Section=Pattern;…\"] -o <song.json>\n  songtool export-strum <chords.html> -o <strum.json>\n  songtool diag-strum <file.gpx> [--track n]\n  songtool show <song.json> [--bars a-b]\n  songtool band-midi <song.json> [--bars a-b] [--rhythm default|strummed|picked] [-o <file.mid>]\n  songtool gpx-info <file.gpx> [--beats <track> <bars> | --order]");
                 return 1;
             }
             catch (Exception e)
@@ -195,8 +195,23 @@ namespace GuitarTutor.SongTool
                 var end = chart.Bars[Math.Min(chart.Bars.Count, last) - 1];
                 to = end.AtQuarter + end.Quarters;
             }
-            BandMidi.Write(song, output, from, to);
-            Console.WriteLine($"Saved {Path.GetFullPath(output)} (quarters {from:0.##}-{to:0.##}, {song.Tempo.BpmAt(from):0.#} BPM, channel 3)");
+            // --rhythm default (the part the guitarist makes up), strummed or picked (the song's rhythm track, played so)
+            var rhythm = Option(args, "--rhythm") ?? "default";
+            BandConnections connections = null;
+            if (rhythm != "default")
+            {
+                connections = new BandConnections();
+                var track = BandConnections.AutoConnect(song).TryGetValue(Instrument.RhythmGuitar, out var auto) ? auto
+                          : song.Tracks.FirstOrDefault(t => song.Riffs.Any(r => r.Name == t.Name));
+                if (track == null)
+                {
+                    Console.WriteLine("The song has no rhythm guitar track: --rhythm " + rhythm + " needs a Guitar Pro song.");
+                    return 1;
+                }
+                connections.Choose(Instrument.RhythmGuitar, TrackRef.Of(track, rhythm == "picked"));
+            }
+            BandMidi.Write(song, output, from, to, connections);
+            Console.WriteLine($"Saved {Path.GetFullPath(output)} (quarters {from:0.##}-{to:0.##}, {song.Tempo.BpmAt(from):0.#} BPM, channel 3, rhythm {rhythm})");
             return 0;
         }
 
