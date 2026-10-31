@@ -41,6 +41,7 @@ std::vector<int> g_velList;     // --vels 40,64,96: per-stroke strum keyswitch v
 std::vector<int> g_voicingList; // --voicing 41,46,51,56,61,66: the chord held, lowest first (else G: E2 B2 G3 B3 D4 G4)
 std::vector<int> g_keysToPress; // --press 79,82,83: the stroke keys, one per stroke (else down/up strums by --dirs)
 std::vector<double> g_atList;   // --at 5,5.02,5.5: per-stroke times in beats, overriding --strum/--gap
+std::vector<std::pair<double, int>> g_bends;  // --bend 5:8192,6:16383: pitch-wheel values (0-16383, 8192 the middle) at beats
 std::string g_dirs;      // --dirs uduu: u = up (A5), d = down (G#5)
 std::vector<double> g_muteList;  // --mutes 0,10,100: C6 hold length per stroke in ms (0 = no mute)
 double g_f5Beat = 3.5, g_chordBeat = 4.0, g_firstStroke = 5.0, g_gapBeats = 1.0;
@@ -628,11 +629,13 @@ void sweepLenTest (juce::AudioPluginInstance& plugin, const juce::File& wav)
     const std::vector<int> voicing = g_voicingList.empty() ? std::vector<int> { 40, 47, 55, 59, 62, 67 } : g_voicingList;  // G: E2 B2 G3 B3 D4 G4
     constexpr int kMode = 78, kUp = 81, kDown = 80, kMute = 84;  // F#5 A5 G#5 C6
 
-    struct Event { double sample; int note, velocity; bool off; };
+    struct Event { double sample; int note, velocity; bool off; int bend = -1; };
     std::vector<Event> events;
     auto at = [&] (double beats, int note, int velocity = 100, bool off = false)
     { events.push_back ({ std::round (beats * beat), note, velocity, off }); };
     const double lag = g_lagMs / 1000.0 * rate;
+    for (const auto& [b, value] : g_bends)
+        events.push_back ({ std::round (b * beat), 0, 0, false, juce::jlimit (0, 16383, value) });
     at (g_f5Beat, kMode);
     for (auto n : voicing) at (g_chordBeat, n, 96);
     if (g_chord2Beat > 0.0)
@@ -672,8 +675,9 @@ void sweepLenTest (juce::AudioPluginInstance& plugin, const juce::File& wav)
         juce::MidiBuffer evs;
         for (const auto& e : events)
             if (e.sample >= start && e.sample < start + n)
-                evs.addEvent (e.off ? juce::MidiMessage::noteOff (channel, e.note)
-                                    : juce::MidiMessage::noteOn (channel, e.note, (juce::uint8) e.velocity),
+                evs.addEvent (e.bend >= 0 ? juce::MidiMessage::pitchWheel (channel, e.bend)
+                              : e.off ? juce::MidiMessage::noteOff (channel, e.note)
+                                      : juce::MidiMessage::noteOn (channel, e.note, (juce::uint8) e.velocity),
                               (int) (e.sample - start));
         buffer.clear();
         plugin.processBlock (buffer, evs);
@@ -785,6 +789,10 @@ int main (int argc, char* argv[])
         else if (juce::String (argv[i]) == "--voicing" && i + 1 < argc)
             for (const auto& s : juce::StringArray::fromTokens (juce::String (argv[++i]), ",", ""))
                 g_voicingList.push_back (s.getIntValue());
+        else if (juce::String (argv[i]) == "--bend" && i + 1 < argc)
+            for (const auto& s : juce::StringArray::fromTokens (juce::String (argv[++i]), ",", ""))
+                g_bends.push_back ({ s.upToFirstOccurrenceOf (":", false, false).getDoubleValue(),
+                                     s.fromFirstOccurrenceOf (":", false, false).getIntValue() });
         else if (juce::String (argv[i]) == "--at" && i + 1 < argc)
             for (const auto& s : juce::StringArray::fromTokens (juce::String (argv[++i]), ",", ""))
                 g_atList.push_back (s.getDoubleValue());
