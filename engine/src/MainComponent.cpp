@@ -52,6 +52,10 @@ namespace
         stand-ins: there is no built-in sound for them. */
     bool isLead (EngineCore::Slot slot) { return slot == EngineCore::Slot::bandLead1 || slot == EngineCore::Slot::bandLead2; }
 
+    /** A MONSTER plugin shows its sound picker only while it has no sound: another sound needs a new instance of it
+        ("Pick another sound in ..."). Kontakt and Numa Player choose theirs in their window at any time. */
+    bool picksSoundOnlyWhenNew (const juce::File& plugin) { return plugin.getFileName().startsWithIgnoreCase ("MONSTER"); }
+
     /** The keys and the leads play only on a plugin: their dropdown's first choice is off, not a built-in sound. */
     bool playsOnlyOnPlugin (EngineCore::Slot slot) { return isLead (slot) || slot == EngineCore::Slot::bandKeys; }
 
@@ -277,6 +281,8 @@ EngineOptions EngineOptions::fromCommandLine (const juce::StringArray& args)
             o.connectTest = args[++i].unquoted();
         else if (args[i] == "--playstyles-test")
             o.playstylesTest = true;
+        else if (args[i] == "--style-test" && i + 1 < args.size())
+            o.styleTest = args[++i].unquoted();
         else if (args[i] == "--snapshot" && i + 1 < args.size())
             o.snapshot = juce::File::getCurrentWorkingDirectory().getChildFile (args[++i].unquoted());
     }
@@ -324,6 +330,21 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
     };
     addAndMakeVisible (importButton);
     importButton.onClick = [this] { showImport(); };
+    // the band's playstyle (the game's): choosing one asks the game to play the song in it
+    addAndMakeVisible (styleLabel);
+    addAndMakeVisible (styleBox);
+    styleBox.setTextWhenNothingSelected ("Waiting for the game");
+    styleBox.setEnabled (false);
+    styleBox.onChange = [this]
+    {
+        if (! game.isConnected() || styleBox.getSelectedId() <= 0)
+            return;
+        auto* message = new juce::DynamicObject();
+        message->setProperty ("type", "style");
+        message->setProperty ("name", styleBox.getText());
+        game.send (juce::var (message));
+        log ("Band style: " + styleBox.getText());
+    };
     addAndMakeVisible (playstylesButton);
     playstylesButton.onClick = [this] { showPlaystyles(); };
 
@@ -454,6 +475,7 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
         {
             engine.band().pause();
             songBox.setEnabled (false);  // (its list is the game's)
+            styleBox.setEnabled (false);  // (and so are the playstyles)
             showTracks ({});             // (and so are the tracks)
         }
     };
@@ -487,6 +509,13 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
                 return;
             self->showImport();
             self->importWindow->startTest (self->options.importTest);
+        });
+
+    if (options.styleTest.isNotEmpty())
+        juce::Timer::callAfterDelay (6000, [self = juce::Component::SafePointer<MainComponent> (this)]  // (the game has sent its song by then)
+        {
+            if (self != nullptr)
+                self->styleBox.setSelectedId (self->styleNames.indexOf (self->options.styleTest) + 1, juce::sendNotificationSync);
         });
 
     if (options.playstylesTest)
@@ -592,6 +621,7 @@ void MainComponent::handle (const juce::var& message)
         band.load (std::move (score));
         // the song's sounds (loading a plugin or a sound can take seconds: the game waits for "loaded")
         applySounds (message["song"].toString(), style);
+        showStyles();
         auto* answer = new juce::DynamicObject();
         answer->setProperty ("type", "loaded");
         answer->setProperty ("notes", notes);
@@ -817,8 +847,7 @@ void MainComponent::refreshBandPart (EngineCore::Slot slot)
     for (size_t i = 0; i < part.choices.size(); ++i)
         part.box.addItem (part.choices[i].name, (int) i + 2);
     part.box.addSeparator();
-    // a MONSTER plugin shows its sound picker only while it has no sound: a new instance of it has none
-    if (current >= 0 && part.choices[(size_t) current].silentUntilChosen)
+    if (current >= 0 && picksSoundOnlyWhenNew (part.choices[(size_t) current].file))
         part.box.addItem ("Pick another sound in " + part.choices[(size_t) current].name + "...", newSoundId);
     part.box.addItem ("Other plugin...", otherPluginId);
     part.box.setSelectedId (current + 2, juce::dontSendNotification);  // the built-in sound when none
@@ -1192,9 +1221,11 @@ void MainComponent::showPlaystyles()
                 for (size_t k = 0; k < part.choices.size(); ++k)
                     cell.box.addItem (part.choices[k].name, (int) k + 2);
                 cell.box.addSeparator();
-                cell.box.addItem ("Other plugin...", otherPluginId);
                 const auto* sound = playstyleSound (row, columns[c]);
                 const auto choice = sound == nullptr || sound->isBuiltIn() ? -1 : choiceFor (row.slot, sound->plugin);
+                if (choice >= 0 && picksSoundOnlyWhenNew (part.choices[(size_t) choice].file))
+                    cell.box.addItem ("Pick another sound in " + part.choices[(size_t) choice].name + "...", newSoundId);
+                cell.box.addItem ("Other plugin...", otherPluginId);
                 cell.box.setSelectedId (choice + 2, juce::dontSendNotification);
                 cell.window.setEnabled (choice >= 0);
             }
@@ -1222,7 +1253,10 @@ void MainComponent::showPlaystyles()
             });
             return;
         }
-        choosePlaystylePlugin (row, style, id - 2);
+        if (id == newSoundId)
+            pickPlaystyleSound (row, style);
+        else
+            choosePlaystylePlugin (row, style, id - 2);
         refreshPlaystyles();
     };
     view->onWindow = [this, members, columns] (int i, int c)
@@ -1265,6 +1299,29 @@ void MainComponent::editPlaystyleSound (const InstrumentRow& row, const juce::St
     applySound (row.slot, copy, style);  // you hear the playstyle's sound while you change it
     editingStyle[row.slot] = style;
     showPlugin (row.slot, bandTitle (row.slot) + " (" + style + ")");
+}
+
+void MainComponent::pickPlaystyleSound (const InstrumentRow& row, const juce::String& style)
+{
+    const auto* sound = playstyleSound (row, style);
+    const auto choice = sound == nullptr || sound->isBuiltIn() ? -1 : choiceFor (row.slot, sound->plugin);
+    if (choice < 0)
+        return;
+    windows.erase (row.slot);
+    if (! chooseBandInstrument (row.slot, choice, true, true))  // a new instance: its sound picker shows
+        return;
+    appliedSounds.erase (row.slot);  // (none of the kept sounds plays now: closed, the one it plays is loaded again)
+    editingStyle[row.slot] = style;
+    showPlugin (row.slot, bandTitle (row.slot) + " (" + style + ")");
+}
+
+void MainComponent::showStyles()
+{
+    styleBox.clear (juce::dontSendNotification);
+    for (int i = 0; i < styleNames.size(); ++i)
+        styleBox.addItem (styleNames[i], i + 1);
+    styleBox.setSelectedId (styleNames.indexOf (currentStyle) + 1, juce::dontSendNotification);
+    styleBox.setEnabled (! styleNames.isEmpty() && game.isConnected());
 }
 
 void MainComponent::savePlaystyleDefaults()
@@ -1494,12 +1551,11 @@ void MainComponent::resized()
     selector->setBounds (r.removeFromTop (300));
     r.removeFromTop (6);
 
-    // the song, and the band's sounds per playstyle
+    // the song
     auto row = r.removeFromTop (28);
     songLabel.setBounds (row.removeFromLeft (100));
     songBox.setBounds (row.removeFromLeft (260));
     importButton.setBounds (row.removeFromLeft (140).reduced (6, 0));
-    playstylesButton.setBounds (row.removeFromLeft (210).reduced (6, 0));
     r.removeFromTop (6);
 
     // your guitar: its input, its tone, the tone's presets
@@ -1509,6 +1565,14 @@ void MainComponent::resized()
     guitarButton.setBounds (row.removeFromLeft (140).reduced (6, 0));
     presetBox.setBounds (row.withTrimmedLeft (6));
     r.removeFromTop (10);
+
+    // the band's playstyle, and its sounds per playstyle (in the columns of the instruments' tracks and plugins)
+    row = r.removeFromTop (28);
+    styleLabel.setBounds (row.removeFromLeft (100));
+    styleBox.setBounds (row.removeFromLeft (300));
+    row.removeFromLeft (6);
+    playstylesButton.setBounds (row.removeFromLeft (220));
+    r.removeFromTop (6);
 
     // the band's instruments: the track each plays, its plugin, the plugin's window ("...")
     for (auto& instrument : instrumentRows)

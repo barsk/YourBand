@@ -219,6 +219,7 @@ void EngineCore::unloadBandInstrument (Slot slot)
         return;
     useBandInstrument (slot, false);
     ++stateChanges[node->getProcessor()];  // a resume still waiting from a state change no longer applies
+    settling.erase (node->getProcessor());
     // The plugin is deleted here, before anything else happens. Left to the graph, it would be deleted later,
     // while the graph holds the lock the audio thread needs to take a newer graph (MONSTER Bass takes 5 s to
     // go), and perhaps while another plugin is being made (MONSTER Bass crashed on that). So: out of the graph;
@@ -292,7 +293,11 @@ juce::MemoryBlock EngineCore::pluginState (Slot slot) const
 {
     juce::MemoryBlock state;
     if (auto* p = plugin (slot))
+    {
+        if (const auto taking = settling.find (p); taking != settling.end())
+            return taking->second;
         p->getStateInformation (state);
+    }
     return state;
 }
 
@@ -309,12 +314,14 @@ void EngineCore::changeState (juce::AudioProcessor& p, const juce::MemoryBlock& 
     p.suspendProcessing (true);
     for (auto slot : bandSlots)
         playBandInstrument (slot);
+    settling[&p] = state;
     p.setStateInformation (state.getData(), (int) state.getSize());
     const auto change = ++stateChanges[&p];
     juce::Timer::callAfterDelay (settleMs, [this, flag = alive, plugin = &p, change]
     {
         if (*flag && stateChanges[plugin] == change)
         {
+            settling.erase (plugin);
             plugin->suspendProcessing (false);
             for (auto slot : bandSlots)
                 playBandInstrument (slot);

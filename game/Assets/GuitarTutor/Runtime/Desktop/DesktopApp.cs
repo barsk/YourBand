@@ -422,6 +422,16 @@ namespace GuitarTutor.Runtime.Desktop
                 OpenImported((string)message["path"]);
             else if (type == "connect")
                 Connect((string)message["instrument"], (int?)message["track"] ?? -1, (bool?)message["picked"] ?? false, (bool?)message["strings"] ?? false);
+            else if (type == "style")
+            {
+                // a band playstyle chosen in the control panel
+                var name = (string)message["name"];
+                if (BandStyle.All.Any(s => s.Name == name) && name != bandStyle.Name)
+                {
+                    Debug.Log($"GuitarTutor: the band plays {name} (chosen in the control panel)");
+                    Arrange(BandStyle.Named(name));
+                }
+            }
             else if (type == "command" && Enum.TryParse((string)message["command"] switch
                      {
                          "playPause" => "PlayPause",

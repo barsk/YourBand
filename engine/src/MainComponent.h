@@ -32,6 +32,7 @@ struct EngineOptions
     juce::File snapshot;       // --snapshot <file.png>: a picture of the control panel 3 s after the start (tests); with --import-test, of the import window too
     juce::String importTest;   // --import-test <UG chords page URL>: opens the import window and imports that page (tests)
     juce::String connectTest;  // --connect-test <instrument>:<track index>: picks that track for the instrument, as you would (tests); -1 its default part
+    juce::String styleTest;  // --style-test <playstyle>: chooses it in the Band style list 6 s after the start, as you would (tests)
     bool playstylesTest = false;  // --playstyles-test: opens the band playstyle window 8 s after the start; with --snapshot, a picture of it
 
     static EngineOptions fromCommandLine (const juce::StringArray& args);
@@ -88,7 +89,8 @@ private:
     std::unique_ptr<ParentWatch> parentWatch;
 
     std::unique_ptr<juce::AudioDeviceSelectorComponent> selector;
-    juce::Label songLabel { {}, "Song" }, inputLabel { {}, "Guitar input" };
+    juce::Label songLabel { {}, "Song" }, inputLabel { {}, "Guitar input" }, styleLabel { {}, "Band style" };
+    juce::ComboBox styleBox;  // the game's band playstyles, the one playing; choosing one asks the game to play it
     juce::ComboBox songBox, inputBox, presetBox;  // songBox: the game's songs, the one open; choosing one asks the game to open it
     juce::TextButton importButton { "Import new..." };  // next to the song list: opens the import window
     std::unique_ptr<ImportWindow> importWindow;
@@ -160,6 +162,11 @@ private:
     void editPlaystyleSound (const InstrumentRow&, const juce::String& style);
     /** The song's playstyle sounds as the ones a song gets the first time it is opened. */
     void savePlaystyleDefaults();
+    /** In the playstyle window: a MONSTER plugin's playstyle sound on a new instance, its window open to pick another
+        sound (a MONSTER plugin shows its sound picker only while it has none); closed, as editPlaystyleSound. */
+    void pickPlaystyleSound (const InstrumentRow&, const juce::String& style);
+    /** The Band style list: the game's playstyles, the one playing selected. */
+    void showStyles();
     /** A plugin file added to a part's choices ("Other plugin..."); its index. */
     int addPluginChoice (EngineCore::Slot, const juce::File& plugin);
     const InstrumentRow* rowFor (EngineCore::Slot) const;

@@ -44,6 +44,7 @@ the message set settles.
 | `bandGuitar` | `plays` | Whether the band guitarist plays the rhythm: after `hello`, and whenever it changes (the game's `bandGuitar`) |
 | `connect` | `instrument`, `track`, `picked`, `strings` | A track chosen in the control panel for an instrument (an `index` from the last `tracks`; -1: its default part; `picked`: the rhythm guitar plays it note by note; `strings`: string by string on its held chord, an experiment): the game keeps it in the song's band file (`<song>.band.json`) and arranges the band again (`load`, `tracks`) |
 | `openSong` | `index` | The song chosen in the control panel's song list: an index into the game's last `songs` |
+| `style` | `name` | The band playstyle chosen in the control panel ("Ballad", one of `load`'s `styles`): the game arranges the band in it (`tracks`, `load`) |
 | `importedSong` | `path` | The control panel's import window has written this song file (in the game's songs-local folder): the game reads its song list again, sends `songs`, and opens it |
 
 ## Clock (shared memory, 64 bytes, little-endian)

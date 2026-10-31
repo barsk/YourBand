@@ -125,7 +125,8 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
     repository.
   - "Other plugin...": any VST3 instrument (a plugin that takes no notes is refused); it stays in the list.
   - "Pick another sound in MONSTER ...": a MONSTER plugin shows its sound picker only while it has no sound,
-    so this starts it anew and opens its window. A MONSTER plugin is silent until you choose a kit or a bass
+    so this starts it anew and opens its window (only for MONSTER plugins: Kontakt and Numa Player choose theirs in
+    their window, "..."; the Band playstyle defaults window's MONSTER cells have it too). A MONSTER plugin is silent until you choose a kit or a bass
     in it (each is one `.mse` file from its library folder); the built-in sound plays until you close its
     window with one chosen.
 
@@ -140,8 +141,8 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   A song opened the first time gets a copy of the saved playstyle defaults (`%APPDATA%\GuitarTutor\band-defaults.sounds`;
   none saved: the built-in sounds, the keyboards on Numa Player with each playstyle's sound); an instrument playing a
   track the first time starts on its playstyle part's sound (a lead on the plugin chosen for it last). Choosing a
-  plugin in a row, or closing its window, keeps it for the song's track. **Band playstyle defaults...** (next to Import
-  new...) shows the song's table, a plugin dropdown and its "..." per playstyle and band member: "..." puts the
+  plugin in a row, or closing its window, keeps it for the song's track. **Band playstyle defaults...** (on the Band
+  style line, after its list of the game's playstyles: choosing one asks the game to play the song in it, `style`) shows the song's table, a plugin dropdown and its "..." per playstyle and band member: "..." puts the
   instrument on that playstyle's sound while its window is open; closed, the sound is kept and the instrument goes back
   to what it plays. The game sends `tracks` before `load`, so the engine knows which instruments play a track. "Save defaults" saves the table as
   the defaults; "Ok" closes it. The game names the song and lists the playstyles in `load`; the engine loads only what

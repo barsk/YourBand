@@ -36,8 +36,9 @@ plays them as it does today.
 
 ## Control panel
 
-The song row has "Band playstyle defaults..." next to "Import new..."; the guitar input row has the tone preset
-dropdown after "Guitar tone...". Then one row per instrument:
+The guitar input row has the tone preset dropdown after "Guitar tone...". A "Band style" line has the playstyle
+list (choosing one asks the game to play the song in it) and "Band playstyle defaults...". Then one row per
+instrument:
 
 | Instrument | Track | Plugin | | | | | |
 |---|---|---|---|---|---|---|---|

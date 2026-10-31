@@ -52,8 +52,11 @@ def main(args):
     engine = subprocess.Popen([ENGINE, "--silent", "--record", os.path.join(out, "band.wav"), "--run-for", seconds]
                               + engine_args)
     time.sleep(7)  # plugins load, Numa Player loads its sound
+    # -engineargs --silent: should this engine stop, the one the game starts in its place is silent too (not one on your
+    # audio interface, keeping its sounds in your settings)
     game = subprocess.Popen([GAME, "-keys", keys, "-keyshots", out, "-screen-width", "1920", "-screen-height", "1080",
-                             "-screen-fullscreen", "0", "-logFile", os.path.join(out, "game.log")] + rest)
+                             "-screen-fullscreen", "0", "-logFile", os.path.join(out, "game.log"),
+                             "-engineargs", "--silent"] + rest)
     # the game quits by its key script; if it does not (a script it could not read), it is stopped
     try:
         game.wait(timeout=float(seconds) + 30)

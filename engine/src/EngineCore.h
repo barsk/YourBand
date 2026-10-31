@@ -90,6 +90,8 @@ public:
     void setBandGuitarStrummingMode (bool on) { bandProcessor->setStrummingMode (on); }
     bool bandGuitarPlays() const { return bandProcessor->guitarIsPlaying(); }
     juce::AudioProcessor* plugin (Slot) const;
+    /** A plugin's state; while it takes a new one (setPluginState: paused until it has settled), that one, without
+        asking the plugin (the engine stopped in MONSTER Drums when asked for its state as it loaded the kit it was given). */
     juce::MemoryBlock pluginState (Slot) const;
     void setPluginState (Slot, const juce::MemoryBlock&);
 
@@ -159,6 +161,7 @@ private:
     Node::Ptr spareNode;  // a connection to it or not: a different graph, for one more rebuild (unloadBandInstrument)
     bool spareLinked = false;
     std::map<juce::AudioProcessor*, int> stateChanges;  // the latest change per plugin: only it resumes the audio
+    std::map<juce::AudioProcessor*, juce::MemoryBlock> settling;  // the state a paused plugin is taking (see pluginState)
     std::shared_ptr<bool> alive = std::make_shared<bool> (true);
 };
 
