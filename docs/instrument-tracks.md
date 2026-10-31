@@ -103,4 +103,49 @@ Each step leaves "Default" playing exactly as today, and is checked before the n
    sends the musicians' places (`stage`; moved in VR, sent again): an instrument pans from its place as the audience
    hears it until its knob is turned; "Pan from stage" puts them all back. Mute and solo never silence your guitar.
 9. **Dynamics and techniques.** Velocities from the file's dynamics; bends, slides and the rest on the
-   plugins that support them.
+   plugins that support them. Plan (2026-10-31, for approval):
+   - **What the free Shreddage can do.** The manual's red text marks what only the full version has; plugin_probe
+     measured the rest. The pitch wheel bends a note ±2 semitones (+198 cents full up, -200 full down, linear and at
+     once), a plain note and a string key's pick alike. The Mute (palm-muted single notes) and Choke articulations are
+     there, but their keyswitches are full-version only. Hammer-ons, pull-offs, slides, harmonics, staccato, tapping
+     and tremolo articulations are full-version only.
+   - **9.1 Import the shapes.** (Done 2026-10-31: the Guitar Pro songs' tracks imported again and copied into the
+     song files, the rest of each song as it was; Redbud Tree's solo has 4 bends, 6 slides and 6 vibratos, Heart of
+     Gold 58 slides and 38 vibratos, Wicked Game 41 slides, Everlong 33.) Per note the importer keeps the bend's points (when in the note, how many semitones:
+     a bend, a release, a pre-bend, a bend and release play as written), the slide's kind (to the next note, out
+     down or up, in from below or above), the vibrato's width (slight or wide), the tremolo picking's speed and a
+     harmonic's sounding pitch. The Guitar Pro songs are imported again.
+   - **9.2 The pitch wheel.** The arrangement gives each part that bends a list of wheel points (when, semitones),
+     and the load message carries them. The engine sends them on the part's MIDI channel, scaled to its plugin's
+     range (±2 for Shreddage; Numa Player, Ample Bass and MONSTER Bass are measured in this step), and puts the
+     wheel back in the middle at stop, seek and a new song.
+   - **9.3 What each technique becomes.** For the lead guitar, instrument 1, the bass, and the rhythm guitar played
+     picked or string by string; strummed chords keep their strokes:
+
+     | Technique | Played as |
+     |---|---|
+     | Bend (b) | The wheel follows the bend's points; past 2 semitones it stops at 2 |
+     | Vibrato (~) | The wheel wobbles about 5.5 times a second, ±25 cents (slight) or ±50 (wide), from about 0.15 s into the note |
+     | Slide to the next note (s) | The wheel glides towards the next note over the end of this one (2 semitones at most, then the next note takes over); the next note starts softer, as a slide picks it no more |
+     | Slide in or out (s) | A 2-semitone glide into the note from below or above, or out of it, over about 0.1 s |
+     | Hammer-on, pull-off (h) | The next note starts softer (it is not picked) |
+     | Palm mute (m), single notes | Short and softer; or the Mute articulation, if it can be mapped in the free Shreddage (see the open points) |
+     | Dead note (x) | A short, very soft note (today it is left out) |
+     | Ghost (g), accent (a) | Softer, louder (already, from the importer) |
+     | Staccato (.) | Half its length |
+     | Let ring (r) | Rings until the next note on its string (already, for a track played picked) |
+     | Harmonic (n) | Its sounding pitch, plainly |
+     | Tremolo picking (z) | Repeated notes at the written speed, every other one a little softer |
+     | Tapping (t), grace note (q) | Plainly (a grace note is already a short note before the main one) |
+
+     The wheel bends everything on a part's channel. The leads play one note at a time, so a bend is theirs alone;
+     the rhythm guitar and the bass bend only where none of their other strings rings.
+   - **9.4 Dynamics.** Velocities from the file's dynamics are in since step 2. This step also reads hairpins
+     (crescendo, diminuendo) and spreads the velocity across them, and measures whether the drum and bass plugins
+     sound faint at the file's soft velocities, as Shreddage did; if so they get a mapping like the guitar's.
+   - **Checked by** unit tests of the wheel points per technique, and a silent recording of a lead with bends,
+     vibrato and slides whose pitch is traced over time (as the probe measurement did).
+   - **Decided (2026-10-31):** a palm mute tries the Mute articulation mapped to a MIDI controller first: checked
+     whether the free edition lets it be mapped in its articulation tab; if not, short and softer. The rhythm guitar
+     and the bass leave a bend out where another of their strings still rings. A bend past 2 semitones stops at a whole
+     step. Hairpins are part of this step.

@@ -82,6 +82,29 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
+        public void Json_KeepsATrackNotesTechniqueShapes()
+        {
+            var song = Example();
+            var track = new SongTrack { Index = 0, Name = "Lead", Kind = "guitar" };
+            track.Notes.Add(new TrackNote
+            {
+                AtQuarter = 1, Quarters = 2, Pitch = 67, StringIndex = 3, Fret = 2, Technique = "b~s", Bend = 2,
+                BendPoints = new System.Collections.Generic.List<double[]> { new[] { 0.0, 0.0 }, new[] { 0.25, 2.0 }, new[] { 0.5, 0.0 } },
+                Vibrato = "wide", SlideOut = "legato", SlideIn = "below", TremoloQuarters = 0.25,
+            });
+            track.Notes.Add(new TrackNote { AtQuarter = 3, Quarters = 1, Pitch = 69, StringIndex = 3, Fret = 4 });  // plainly
+            song.Tracks.Add(track);
+            var json = SongJson.Write(song);
+            var back = SongJson.Read(json).Tracks[0].Notes;
+            CollectionAssert.AreEqual(new[] { 0.0, 0.0, 0.25, 2.0, 0.5, 0.0 }, back[0].BendPoints.SelectMany(p => p));
+            Assert.AreEqual(("wide", "legato", "below", 0.25), (back[0].Vibrato, back[0].SlideOut, back[0].SlideIn, back[0].TremoloQuarters));
+            // a plain note writes none of them
+            Assert.IsNull(back[1].BendPoints);
+            Assert.AreEqual(("", "", "", 0.0), (back[1].Vibrato, back[1].SlideOut, back[1].SlideIn, back[1].TremoloQuarters));
+            StringAssert.DoesNotContain("\"vibrato\": \"\"", json);
+        }
+
+        [Test]
         public void Json_RefusesANewerFormat()
         {
             var json = SongJson.Write(Example()).Replace("\"version\": 1", "\"version\": 99");

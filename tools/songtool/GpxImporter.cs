@@ -575,6 +575,12 @@ namespace GuitarTutor.SongTool
                                         Velocity = Velocity(n),
                                         Technique = Techniques(n),
                                         Bend = n.HasBend && n.MaxBendPoint != null ? n.MaxBendPoint.Value / 2.0 : 0,
+                                        BendPoints = BendShape(n),
+                                        SlideOut = SlideOut(n.SlideOutType),
+                                        SlideIn = n.SlideInType == SlideInType.IntoFromBelow ? "below" : n.SlideInType == SlideInType.IntoFromAbove ? "above" : "",
+                                        Vibrato = n.Vibrato == VibratoType.Wide || n.Beat.Vibrato == VibratoType.Wide ? "wide"
+                                                : n.Vibrato != VibratoType.None || n.Beat.Vibrato != VibratoType.None ? "slight" : "",
+                                        TremoloQuarters = n.Beat.IsTremolo && n.Beat.TremoloPicking != null ? Math.Pow(2, -n.Beat.TremoloPicking.Marks) : 0,
                                     };
                                     sounding[(pitch, stringIndex)] = note;
                                     songTrack.Notes.Add(note);
@@ -627,7 +633,13 @@ namespace GuitarTutor.SongTool
             if (n.IsStringed)
             {
                 var pitch = Pitch(staff, n);
-                return pitch >= 0 ? pitch + (int)staff.Capo : -1;
+                if (pitch < 0)
+                    return -1;
+                // a harmonic sounds its harmonic's pitch (alphaTab's, as TuxGuitar plays it): a natural one above the open
+                // string, the others above the fretted note
+                if (n.HarmonicType != HarmonicType.None && n.HarmonicPitch > 0)
+                    pitch = (n.HarmonicType == HarmonicType.Natural ? pitch - (int)n.Fret : pitch) + (int)n.HarmonicPitch;
+                return pitch + (int)staff.Capo;
             }
             return (int)n.RealValue;
         }
@@ -669,6 +681,22 @@ namespace GuitarTutor.SongTool
                 v -= 16;
             return Math.Max(1, Math.Min(127, v));
         }
+
+        /// <summary>A bend's points as [where in the note 0-1, semitones] (alphaTab: offset 0-60, quarter tones); null if none.</summary>
+        static List<double[]> BendShape(Note n) =>
+            n.HasBend && n.BendPoints != null && n.BendPoints.Count > 0
+                ? n.BendPoints.Select(p => new[] { Math.Round(p.Offset / 60.0, 3), p.Value / 2.0 }).ToList()
+                : null;
+
+        /// <summary>A slide out of a note (see <see cref="TrackNote.SlideOut"/>); a pick slide is a scrape, not a slide of pitch.</summary>
+        static string SlideOut(SlideOutType type) => type switch
+        {
+            SlideOutType.Shift => "shift",
+            SlideOutType.Legato => "legato",
+            SlideOutType.OutDown => "down",
+            SlideOutType.OutUp => "up",
+            _ => "",
+        };
 
         /// <summary>The note's techniques, a letter each (see <see cref="TrackNote.Technique"/>).</summary>
         static string Techniques(Note n)

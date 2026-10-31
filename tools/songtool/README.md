@@ -59,7 +59,11 @@ track written as tab on one staff its tuning and capo. Each note has its soundin
 note, as alphaTab's percussion mapper gives it), its string and fret where the track is tab, a velocity from the
 written dynamics and accents (as alphaTab's player: ppp 15 to fff 127), its techniques as letters (b bend, s slide,
 h hammer-on or pull-off, ~ vibrato, m palm mute, x dead, g ghost, a accent, . staccato, r let ring, n harmonic,
-t tapped, z tremolo, q grace; D or U the beat's recorded pick stroke) and a bend's height in semitones. A track with the same notes as an earlier one (a
+t tapped, z tremolo, q grace; D or U the beat's recorded pick stroke), and the techniques' shapes: a bend's height in
+semitones and its points (`bendPoints`: [where in the note 0-1, semitones], so a release or a pre-bend is as written),
+a slide out (`slideOut`: shift, legato, down, up) and in (`slideIn`: below, above), the vibrato's width (`vibrato`:
+slight, wide) and tremolo picking's note length (`tremoloQuarters`). A harmonic has its sounding pitch (alphaTab's,
+as TuxGuitar plays it: a natural one above the open string). A track with the same notes as an earlier one (a
 doubled rhythm guitar) keeps only `sameAs`. Drum notes the file gives no drum are left out (the report says how
 many). Nothing plays the tracks yet: they are what the band's instruments will choose from
 ([../../docs/instrument-tracks.md](../../docs/instrument-tracks.md)); `show` lists them.
@@ -89,8 +93,7 @@ It imports what the current song model holds:
 
 `--track n` picks the track to read the tab from (by index). By default it is the busiest six-string guitar track
 (the most notes): the rhythm guitar strums full chords, so it carries the chords, while a lead line is sparser.
-The richer Guitar Pro data — the other tracks (bass, drums, second guitar, vocals) and full technique detail
-(bend points, slide targets, dynamics) — is not imported yet; that needs a later song-model extension.
+The other tracks (bass, drums, second guitar, vocals) and the techniques' shapes are in `tracks` (above).
 
 ### Strumming (`--strum`)
 

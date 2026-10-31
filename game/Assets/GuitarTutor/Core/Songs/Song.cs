@@ -247,6 +247,27 @@ namespace GuitarTutor.Core.Songs
         /// <summary>A bend's highest point, in semitones (1: a half step, 2: a whole step); 0 if none.</summary>
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
         public double Bend { get; set; }
+        /// <summary>
+        /// A bend's shape as the file draws it: points of [where in the note, 0 its start to 1 its end; semitones above
+        /// the note], so a bend, a release, a pre-bend or a bend and release plays as written; null if none.
+        /// </summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public List<double[]> BendPoints { get; set; }
+        /// <summary>
+        /// A slide out of the note: "shift" (to the next note, picked again), "legato" (to the next note, not picked),
+        /// "down" or "up" (out and away); "" none.
+        /// </summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore), System.ComponentModel.DefaultValue("")]
+        public string SlideOut { get; set; } = "";
+        /// <summary>A slide into the note: "below" or "above" (from a few frets away); "" none.</summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore), System.ComponentModel.DefaultValue("")]
+        public string SlideIn { get; set; } = "";
+        /// <summary>Vibrato: "slight" or "wide"; "" none.</summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore), System.ComponentModel.DefaultValue("")]
+        public string Vibrato { get; set; } = "";
+        /// <summary>Tremolo picking: each repeated note's length in quarter notes (0.25: sixteenths); 0 if none.</summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public double TremoloQuarters { get; set; }
     }
 
     /// <summary>Another source's chords for a stretch of the song (as names, in order).</summary>
