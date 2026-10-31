@@ -5,10 +5,11 @@
 //   instrument input --> TONE3000 (guitar) ------------------------------------+
 //   band: drums ---------------------------------------> volume --+            +--> outputs
 //         bass ----------------------------------------> volume --+            |
-//         keys MIDI ---> Numa Player ------------------> volume --+--> band bus --+
+//         keys MIDI ---> keys plugin (Numa Player) ----> volume --+--> band bus --+
 //         guitar ----------------------------------------> volume --+    (limiter)
 //
-// The drums, bass and guitar play synthesized, or on instrument plugins (MIDI) chosen in the control panel. A
+// The drums, bass and guitar play synthesized, or on instrument plugins (MIDI) chosen in the control panel; the keys and
+// the two leads only on a plugin (they have no built-in sound). A
 // guitar plugin (Kontakt with Shreddage) has an amp of its own: it goes straight to the mixer, as the built-in guitar
 // does (a DI sound).
 //
@@ -50,7 +51,9 @@ class EngineCore final : private juce::ChangeListener
 {
 public:
     /** The plugins: your guitar's amp, and the band's instruments (drums, bass, guitar and the two lead channels). */
-    enum class Slot { guitar, bandDrums, bandBass, bandGuitar, bandLead1, bandLead2 };
+    enum class Slot { guitar, bandDrums, bandBass, bandGuitar, bandLead1, bandLead2, bandKeys };
+    /** The band's instrument slots. */
+    static constexpr Slot bandSlots[] { Slot::bandDrums, Slot::bandBass, Slot::bandGuitar, Slot::bandLead1, Slot::bandLead2, Slot::bandKeys };
 
     EngineCore();
     ~EngineCore() override;
@@ -67,10 +70,8 @@ public:
 
     /** Loads the amp plugin (TONE3000) for your guitar. Returns an error, or empty. */
     juce::String loadPlugins (const juce::File& pluginFile);
-    /** Loads the keyboard plugin (Numa Player) for the band's keys. Returns an error message, or empty. */
-    juce::String loadKeys (const juce::File& pluginFile);
-    /** Loads an instrument plugin for the band's drums, bass or guitar (MONSTER Drums, MONSTER Bass, Ample Bass,
-        MONSTER Guitar, Kontakt), in place of the one there before. The band plays it once told to (see
+    /** Loads an instrument plugin for one of the band's parts (MONSTER Drums, MONSTER Bass, Ample Bass, MONSTER Guitar,
+        Kontakt, Numa Player), in place of the one there before. The band plays it once told to (see
         useBandInstrument). Returns an error, or empty. */
     juce::String loadBandInstrument (Slot, const juce::File& pluginFile);
     /** Takes a band instrument plugin out (the band plays that part synthesized). Close its window first. */
@@ -88,9 +89,6 @@ public:
         keyswitches on its held voicing, instead of its per-string notes. */
     void setBandGuitarStrummingMode (bool on) { bandProcessor->setStrummingMode (on); }
     bool bandGuitarPlays() const { return bandProcessor->guitarIsPlaying(); }
-    /** Gives the keyboard plugin a sound ("2 - E_PIANO/1 - EP-Mark I"). Returns an error message, or empty. */
-    juce::String setKeysSound (const juce::String& sound);
-    juce::String keysSound() const { return currentKeysSound; }
     juce::AudioProcessor* plugin (Slot) const;
     juce::MemoryBlock pluginState (Slot) const;
     void setPluginState (Slot, const juce::MemoryBlock&);
@@ -147,11 +145,10 @@ private:
     juce::AudioProcessorPlayer player;
 
     SharedClock clock;
-    Node::Ptr input, output, guitarTone, bandNode, keysNode, drumsMix, bassMix, keysMix, guitarMix, bandBus;
+    Node::Ptr input, output, guitarTone, bandNode, keysPlugin, drumsMix, bassMix, keysMix, guitarMix, bandBus;
     Node::Ptr drumsPlugin, bassPlugin, guitarPlugin, keysChannel, drumsChannel, bassChannel, guitarChannel;
     Node::Ptr lead1Plugin, lead2Plugin, lead1Mix, lead2Mix, lead1Channel, lead2Channel;  // the two lead channels
     BandProcessor* bandProcessor = nullptr;
-    juce::String currentKeysSound;
     // drums, bass, keys, guitar: the built-in bass a DI sound (as loud as the bass plugins at 1.75, measured), the
     // built-in guitar a DI sound too (at the bass's level, not measured)
     std::array<float, 6> soundLevels { 0.8f, 1.75f, 1.3f, 1.75f, 0.8f, 0.8f }, faderLevels { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };

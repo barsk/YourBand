@@ -315,6 +315,12 @@ namespace GuitarTutor.Core.Tests
             var (guitarType, guitar) = EngineProtocol.Read(EngineProtocol.BandGuitar(true));
             Assert.AreEqual("bandGuitar", guitarType);
             Assert.IsTrue((bool)guitar["plays"]);
+            // the song by its file name: the engine keeps its sounds under it
+            Assert.AreEqual("", (string)message["song"]);
+            var (_, named) = EngineProtocol.Read(EngineProtocol.Load(song.Info.Title, song.Tempo, a, "", "", "redbud-tree-gpx"));
+            Assert.AreEqual("redbud-tree-gpx", (string)named["song"]);
+            CollectionAssert.AreEqual(new[] { "Ballad", "Rock", "Pop" }, named["styles"].Select(s => (string)s["name"]));
+            Assert.AreEqual("5 - ORGANS/4 - ROCK B3", (string)named["styles"][1]["keys"]);
         }
 
         [Test]

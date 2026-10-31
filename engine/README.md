@@ -81,11 +81,14 @@ sends the game `importedSong`, which reads its song list again and opens the new
 
 Below, a row per band instrument: **Rhythm guitar**, **Bass**, **Keyboards**, **Drums**, **Lead guitar** and
 **Instrument 1** (docs/instrument-tracks.md). Each row's first list is the song's track the instrument plays, from the
-game (`tracks`): "Default (generated)", the part the band makes up, then a Guitar Pro song's tracks (a doubled track is one
-choice, named with its twin). The game connects them automatically for a new song; choosing one here tells the game
-(`connect`), which keeps the choice in a file next to the song (`<song>.band.json`) and arranges the band again. A song
-from Ultimate Guitar pages has no tracks: the lists only offer the default. Then the row's plugin and its window (the
-keyboards play on Numa Player). Every instrument plays its track as the file has it (its velocities, no made-up fills).
+game (`tracks`): "Band playstyle", the part the band makes up in its playstyle (the lead guitar and instrument 1 have
+none: "None", they play no track), then a Guitar Pro song's tracks (a doubled track is one choice, named with its twin).
+The game connects them automatically for a new song; choosing one here tells the game (`connect`), which keeps the
+choice in a file next to the song (`<song>.band.json`) and arranges the band again. A song from Ultimate Guitar pages
+has no tracks: the lists only offer the first. Then, for an instrument playing a track (the leads always), the row's
+plugin and its window ("..."): the sound it plays the track on in this song. On "Band playstyle" they are hidden: the
+playstyle's sound plays, set in the Band playstyle defaults window. The keyboards and the leads have no built-in sound,
+so their first choice is "Off". Every instrument plays its track as the file has it (its velocities, no made-up fills).
 The rhythm guitar plays its track through the guitar's two ways of playing: where two strings or more are struck at
 once it strums (a stroke each time, down or up as the file records it, else down on the beat and up off it, muted on dead
 or palm-muted strings; the chord held is the chart's chord on the strings the track strikes in it, one per chord), and
@@ -126,10 +129,25 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
     in it (each is one `.mse` file from its library folder); the built-in sound plays until you close its
     window with one chosen.
 
-  "Plugin window..." opens the plugin's own window. The engine remembers your choice and each plugin's sound
+  "..." opens the plugin's own window. The engine remembers your choice and each plugin's sound
   (`bandBass.<plugin file>` in the settings). MONSTER Bass takes about 7 s to load and 5 s to let go of its
   samples; the control panel waits meanwhile, while the band plays on. The band sends each part on its own
   MIDI channel (keys 1, bass 2, drums 10) and each plugin hears only its own.
+
+  **Sounds per song** (docs/instrument-tracks.md, step 7). Each song keeps, per band playstyle (Ballad, Rock, Pop),
+  the plugin and its state the rhythm guitar, bass, keyboards and drums play their playstyle part on, and per
+  instrument the one it plays a track on (the leads only play tracks) (`%APPDATA%\GuitarTutor\songs\<song>.sounds`).
+  A song opened the first time gets a copy of the saved playstyle defaults (`%APPDATA%\GuitarTutor\band-defaults.sounds`;
+  none saved: the built-in sounds, the keyboards on Numa Player with each playstyle's sound); an instrument playing a
+  track the first time starts on its playstyle part's sound (a lead on the plugin chosen for it last). Choosing a
+  plugin in a row, or closing its window, keeps it for the song's track. **Band playstyle defaults...** (next to Import
+  new...) shows the song's table, a plugin dropdown and its "..." per playstyle and band member: "..." puts the
+  instrument on that playstyle's sound while its window is open; closed, the sound is kept and the instrument goes back
+  to what it plays. The game sends `tracks` before `load`, so the engine knows which instruments play a track. "Save defaults" saves the table as
+  the defaults; "Ok" closes it. The game names the song and lists the playstyles in `load`; the engine loads only what
+  differs from what plays, then answers `loaded` (the game shows its loading ring if that takes a moment). A silent
+  engine reads the kept sounds but writes none (`src/SoundStore.*`). `--playstyles-test` opens the table 8 s after
+  the start (with `--snapshot`, a picture of it).
 
   Drum notes are General MIDI. A drum the kit in use does not have is played on the nearest one it has (`Band.cpp`,
   `drumStandIns`: an acoustic bass drum 35 on the kick 36, a floor tom on another tom, a china or splash on a crash,
@@ -294,6 +312,7 @@ CPU at 64 samples, peaks 6-18 %. A new sound plays at full level 100 ms after th
 | `src/GameLink.*` | The connection to the game (TCP on 127.0.0.1:47800, JSON lines) |
 | `src/SharedClock.*` | The clock in shared memory |
 | `src/SilentDevice.*` | The pretend audio interface for `--silent` |
+| `src/SoundStore.*` | The band's sounds kept per song and per band style (JSON files under `%APPDATA%\GuitarTutor`) |
 | `src/Processors.*` | Small processors: the mixer's volume controls and the limiter |
 | `src/Footswitch.*` | HID joystick reader (Windows joystick API, 500 Hz polling) |
 | `src/ParentWatch.*` | Started by the game: closes the engine when the game is gone |

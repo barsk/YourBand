@@ -68,7 +68,9 @@ namespace GuitarTutor.Runtime.Desktop
         bool engineConnected;  // as last reported on the main thread
         System.Diagnostics.Process startedEngine;  // the engine this game started, if it did
         bool startingEngine;   // started, not connected yet
-        bool loading;          // the window is covered, and the keys ignored, until the engine has taken the first song
+        bool loading;          // the window is covered, and the keys ignored, until the engine has taken the song
+        bool switching;        // the loading is of another song or style (its sounds): the ring shows only if it takes a moment
+        const float SwitchGrace = 0.4f;  // seconds a switch waits before showing the ring
         bool noEngine;         // there is none to wait for: none found to start, or it did not start
         float loadingSince;
         const float LoadingTimeout = 90f;  // seconds: a plugin that takes longer than this does not keep the window shut
@@ -315,15 +317,25 @@ namespace GuitarTutor.Runtime.Desktop
 
         void SendSong()
         {
-            link.Send(EngineProtocol.Load(chart.Song.Info.Title, chart.Song.Tempo, arrangement, bandStyle.KeysSound, SongOrigin.Describe(chart.Song, songPath)));
-            link.Send(EngineProtocol.Mix(BandPart.Keys, bandStyle.KeysGain));
+            // the engine loads the song's sounds before it answers: the window waits for it as at the start
+            if (!loading)
+            {
+                loading = true;
+                switching = true;
+                loadingSince = Time.realtimeSinceStartup;
+            }
+            // the tracks first: the engine puts an instrument playing a track on its sound for that, else on its playstyle's
             link.Send(EngineProtocol.Tracks(chart.Song, connections));
+            link.Send(EngineProtocol.Load(chart.Song.Info.Title, chart.Song.Tempo, arrangement, bandStyle.KeysSound,
+                                          SongOrigin.Describe(chart.Song, songPath), SongName(songPath)));
+            link.Send(EngineProtocol.Mix(BandPart.Keys, bandStyle.KeysGain));
         }
 
         /// <summary>
         /// While the audio engine starts: the window is covered with a circling ring and the keys are ignored (Esc still
         /// leaves), until the band has its first song. It also ends when there is no engine to wait for, when the engine
-        /// the game started has exited, and after <see cref="LoadingTimeout"/>.
+        /// the game started has exited, and after <see cref="LoadingTimeout"/>. The same while the engine loads another
+        /// song's sounds (or another style's), the ring once that takes longer than <see cref="SwitchGrace"/>.
         /// </summary>
         void UpdateLoading()
         {
@@ -342,10 +354,15 @@ namespace GuitarTutor.Runtime.Desktop
             {
                 loading = false;
                 screen.SetLoading(null);
-                Debug.Log($"GuitarTutor: window open after {Time.realtimeSinceStartup - loadingSince:0.0} s ({done})");
+                if (!switching || Time.realtimeSinceStartup - loadingSince > SwitchGrace)
+                    Debug.Log($"GuitarTutor: window open after {Time.realtimeSinceStartup - loadingSince:0.0} s ({done})");
+                switching = false;
                 return;
             }
-            screen.SetLoading(engineConnected ? "Loading the song into the band..." : startingEngine ? "Starting the audio engine..." : "Waiting for the audio engine...");
+            if (switching)
+                screen.SetLoading(Time.realtimeSinceStartup - loadingSince > SwitchGrace ? "Loading the band's sounds for the song..." : null);
+            else
+                screen.SetLoading(engineConnected ? "Loading the song into the band..." : startingEngine ? "Starting the audio engine..." : "Waiting for the audio engine...");
         }
 
         void OnEngineConnection(bool connected)

@@ -19,12 +19,12 @@ plays them as it does today.
 |---|---|
 | Instruments | Six, as today: rhythm guitar, bass, keyboards, drums, lead guitar, instrument 1 (was Lead 2). More later |
 | Tracks | A Guitar Pro import keeps every track: notes with pitch, string and fret, ties, dynamics and techniques |
-| Connection | Each instrument has a track dropdown in the control panel. The first choice, "Default (generated)", is today's playing. A new song is connected automatically (best effort); you fine-tune it. A drums, bass or keys track that plays in under a third of the song's bars is not connected automatically (a piano in a few bars): the band's own part plays |
+| Connection | Each instrument has a track dropdown in the control panel. The first choice, "Band playstyle", is today's playing (the lead guitar and instrument 1: "None", they have no part of their own). A new song is connected automatically (best effort); you fine-tune it. A drums, bass or keys track that plays in under a third of the song's bars is not connected automatically (a piano in a few bars): the band's own part plays |
 | Duplicate tracks | Tracks with identical notes (Wicked Game's left and right rhythm guitars) are one choice |
 | Vocals | A vocal track is a choice like any other, for instance instrument 1 on Numa Player's synth voice |
 | Where choices live | In a file of its own next to the song (`<song>.band.json`), so a reimport keeps them |
-| Sounds | Per song, each instrument keeps its plugin and that plugin's sound. The sound is saved when the plugin window closes |
-| Defaults | A song nobody has changed follows the band style's default sound for each instrument, else the Default set. A "Band defaults..." dialog holds them (instrument x Default, Ballad, Rock, Pop) |
+| Sounds | Per song and band playstyle (Ballad, Rock, Pop), the rhythm guitar, bass, keyboards and drums each keep a plugin and its sound; the lead guitar and instrument 1 one per song. A sound is saved when its plugin window closes |
+| Defaults | A song opened the first time gets a copy of the saved playstyle defaults (none saved: the built-in sounds; the keyboards, which have none, Numa Player with the playstyle's sound). The "Band playstyle defaults..." window shows the song's table and saves it as the defaults (revised 2026-10-31: the first try, a Default set and per-style sets the song followed, did not work in practice) |
 | Sound files | The saved plugin states (a Kontakt state is about 450 KB) go in a file per song under `%APPDATA%\GuitarTutor\songs\`, not in the song file or the engine settings |
 | Mixer | Per instrument: mute and solo toggles, a volume knob and a pan knob, in place of today's faders. Solo silences the other band parts, never your guitar |
 | Per song | Volume, pan and mute are saved with the song; solo is not (a practice tool) |
@@ -36,15 +36,16 @@ plays them as it does today.
 
 ## Control panel
 
-Below the song and the band style (with its "Band defaults..." button), one row per instrument:
+The song row has "Band playstyle defaults..." next to "Import new..."; the guitar input row has the tone preset
+dropdown after "Guitar tone...". Then one row per instrument:
 
-| Instrument | Track | Plugin | | | | | | |
-|---|---|---|---|---|---|---|---|---|
-| Rhythm guitar | Default (generated), or a track | its plugin | plugin window | ... menu | M | S | volume | pan |
+| Instrument | Track | Plugin | | | | | |
+|---|---|---|---|---|---|---|---|
+| Rhythm guitar | Band playstyle, or a track | its plugin | ... (its window) | M | S | volume | pan |
 
-The ... menu: reset to the style's sound, save as the style's default, save as Default. Switching to a song
-with other plugins or sounds loads them; the game shows its loading ring meanwhile. The band guitar tone and
-"plays rhythm" controls move onto the rhythm guitar row.
+Switching to a song or playstyle with other plugins or sounds loads them; the game shows its loading ring meanwhile.
+The "Band playstyle defaults..." window: a row per band member (rhythm guitar, bass, keyboards, drums), a column per
+playstyle, each cell a plugin dropdown and its "..."; "Save defaults" and "Ok".
 
 ## Steps
 
@@ -74,8 +75,27 @@ Each step leaves "Default" playing exactly as today, and is checked before the n
    string keys, so the bass rings under Redbud Tree's pinches (the strummed version cuts it 5-20 dB within 1.5 beats).
    It needs Shreddage set to Strumming Mode off, Keyswitchable on, and voices enough (Rhythm, Polyphonic and the voice
    limits raised to 32/16 did it).
-7. **Sounds per song.** The plugin and sound per instrument and song, the Band defaults dialog, saving when
-   the plugin window closes, loading on song change.
+7. **Sounds per song.** The plugin and sound per instrument, playstyle and song, the Band playstyle defaults window,
+   saving when the plugin window closes, loading on song and playstyle change. In detail (done 2026-10-31, after a
+   redesign the same day):
+   - A *sound* is an instrument's plugin (or its built-in sound) and the plugin's state. The engine keeps a song's
+     sounds in `%APPDATA%\GuitarTutor\songs\<song>.sounds`: per playstyle the band members', and the leads' (JSON).
+   - A song opened the first time (an import too) gets a copy of `%APPDATA%\GuitarTutor\band-defaults.sounds`
+     ("Save defaults"); with none saved, the built-in sounds (the keyboards: Numa Player with each playstyle's sound).
+     The leads start on the plugins chosen for them last. (Your defaults were made once from the sounds you had,
+     2026-10-31.)
+   - The game names the song and lists the playstyles (with their keyboard sounds) in `load`; the engine puts the band
+     on the playing playstyle's sounds, loading only what differs, and answers `loaded` once they are in. The game
+     shows its loading ring meanwhile.
+   - An instrument playing one of the song's tracks (the leads always do) has its own sound for that in the song:
+     the control panel row's plugin dropdown and its "..." window, shown only then. It starts as its playstyle part's
+     sound (a lead: the plugin chosen for it last) and does not change with the playstyle. On "Band playstyle" the
+     row's plugin is hidden: the playstyle's sound plays (revised 2026-10-31). The keyboards have a plugin dropdown and
+     window too.
+   - "Band playstyle defaults...": the song's table (band members x playstyles), a plugin dropdown and "..." per cell.
+     A cell's "..." puts the band instrument on that sound while its window is open; closed, the sound is kept and the
+     instrument goes back to what it plays. "Save defaults" saves the table as the defaults; "Ok" closes.
+   - A silent engine (tests) writes none of these files.
 8. **Mixer.** Mute, solo, volume and pan knobs, pan from the stage, saved per song.
 9. **Dynamics and techniques.** Velocities from the file's dynamics; bends, slides and the rest on the
    plugins that support them.

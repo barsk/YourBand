@@ -11,6 +11,7 @@
 #include "GameLink.h"
 #include "ImportWindow.h"
 #include "ParentWatch.h"
+#include "SoundStore.h"
 
 #include <array>
 #include <map>
@@ -31,6 +32,7 @@ struct EngineOptions
     juce::File snapshot;       // --snapshot <file.png>: a picture of the control panel 3 s after the start (tests); with --import-test, of the import window too
     juce::String importTest;   // --import-test <UG chords page URL>: opens the import window and imports that page (tests)
     juce::String connectTest;  // --connect-test <instrument>:<track index>: picks that track for the instrument, as you would (tests); -1 its default part
+    bool playstylesTest = false;  // --playstyles-test: opens the band playstyle window 8 s after the start; with --snapshot, a picture of it
 
     static EngineOptions fromCommandLine (const juce::StringArray& args);
 };
@@ -86,7 +88,7 @@ private:
     std::unique_ptr<ParentWatch> parentWatch;
 
     std::unique_ptr<juce::AudioDeviceSelectorComponent> selector;
-    juce::Label songLabel { {}, "Song" }, inputLabel { {}, "Guitar input" }, presetLabel { {}, "Tone preset" };
+    juce::Label songLabel { {}, "Song" }, inputLabel { {}, "Guitar input" };
     juce::ComboBox songBox, inputBox, presetBox;  // songBox: the game's songs, the one open; choosing one asks the game to open it
     juce::TextButton importButton { "Import new..." };  // next to the song list: opens the import window
     std::unique_ptr<ImportWindow> importWindow;
@@ -95,28 +97,74 @@ private:
     struct BandPart  // a band part's plugin, and its window
     {
         juce::ComboBox box;
-        juce::TextButton windowButton { "Plugin window..." };
+        juce::TextButton windowButton { "..." };  // the plugin's window
         std::vector<BandChoice> choices;  // the plugins it can play on
     };
     std::map<EngineCore::Slot, BandPart> bandParts;
     /** The band's instruments (docs/instrument-tracks.md), a row each: the song's track it plays (chosen here, kept by
-        the game), then its plugin and the plugin's window (the keyboards play on Numa Player, not chosen here). */
+        the game), then its plugin and the plugin's window. */
     struct InstrumentRow
     {
         juce::String id;  // as the game knows it: "rhythm", "bass", "keys", "drums", "lead", "instrument1"
-        bool hasSlot = false;
         EngineCore::Slot slot = EngineCore::Slot::bandGuitar;
+        bool lead = false;  // the lead guitar and instrument 1: no part of their own, only ever a track
+        bool playsTrack = false;  // a band member playing one of the song's tracks (else its playstyle part)
         juce::Label label;
         juce::ComboBox track;
     };
     std::array<InstrumentRow, 6> instrumentRows;
     static constexpr int pickedTrackIds = 1000;  // a track list's ids from here: the track picked note by note (the rhythm guitar)
     static constexpr int stringTrackIds = 2000;  // and from here: the track string by string on its held chord (an experiment)
-    juce::Label keysPluginLabel { {}, "Numa Player" };
     void setUpInstrumentRows();
     /** The game's "tracks": the song's tracks to choose from in each row, and the one each instrument plays; without a
-        game, or for a song with no tracks, only the default part (and no choosing). */
+        game, or for a song with no tracks, only the band's playstyle part (a lead: none) and no choosing. */
     void showTracks (const juce::var& message);
+
+    // the band's sounds per song (docs/instrument-tracks.md, step 7): per playstyle the band members', and the leads'
+    std::unique_ptr<SoundStore> sounds;
+    juce::String currentSong, currentStyle;  // the song the game has open (its file name) and its playstyle
+    SongSounds songSounds;  // the open song's (the saved defaults, copied in the first time it is opened)
+    /** The sound an instrument plays in the song: on its track the song's sound for that (a lead's always), else its
+        playstyle's; null if none. */
+    juce::StringArray styleNames;  // the game's playstyles ("Ballad", "Rock", "Pop")
+    std::map<juce::String, juce::String> styleKeys;  // and each one's keyboard sound in Numa Player
+    std::map<EngineCore::Slot, Sound> appliedSounds;  // per slot: the kept sound put on it last (only what differs is loaded)
+    std::map<EngineCore::Slot, juce::MemoryBlock> appliedStates;  // and its plugin's state then (a window closed with another: changed)
+    std::map<EngineCore::Slot, juce::String> editingStyle;  // a plugin window opened from the playstyle window: for that playstyle
+    juce::TextButton playstylesButton { "Band playstyle defaults..." };
+    std::unique_ptr<juce::DocumentWindow> playstyleWindow;
+    std::function<void()> refreshPlaystyles;  // the playstyle window shows the song's sounds again
+    Sound* keptSound (const InstrumentRow&, const juce::String& style);
+    /** A band member's sound for its part in a playstyle (the playstyle window's), or null. */
+    Sound* playstyleSound (const InstrumentRow&, const juce::String& style);
+    /** The sound an instrument plays now: its plugin, and the plugin's state once it plays for the band. */
+    Sound currentSound (EngineCore::Slot) const;
+    /** The game's "load": the song's sounds (the saved defaults the first time it is opened), and the band on its
+        playstyle's. */
+    void applySounds (const juce::String& song, const juce::String& style);
+    /** Puts an instrument on a kept sound, loading only what differs from what plays (a playstyle's keys on Numa Player
+        with no state of their own: that playstyle's keyboard sound). */
+    void applySound (EngineCore::Slot, const Sound&, const juce::String& style);
+    /** Keeps what an instrument plays now as the open song's sound for what it plays (its track, or its part in the
+        playstyle playing). */
+    void keepSongSound (const InstrumentRow&);
+    /** Keeps it as the sound of a band member's part in a playstyle. */
+    void keepPlaystyleSound (const InstrumentRow&, const juce::String& style);
+    void saveSongSounds();
+    void showPlaystyles();
+    /** In the playstyle window: a playstyle's plugin for an instrument (an index into its choices; -1 built-in or off).
+        The band changes at once if it plays that part. */
+    void choosePlaystylePlugin (const InstrumentRow&, const juce::String& style, int choice);
+    /** In the playstyle window: the band instrument on a playstyle's sound, and its plugin window; closed, the sound is
+        the playstyle's and the instrument is back on what it plays. */
+    void editPlaystyleSound (const InstrumentRow&, const juce::String& style);
+    /** The song's playstyle sounds as the ones a song gets the first time it is opened. */
+    void savePlaystyleDefaults();
+    /** A plugin file added to a part's choices ("Other plugin..."); its index. */
+    int addPluginChoice (EngineCore::Slot, const juce::File& plugin);
+    const InstrumentRow* rowFor (EngineCore::Slot) const;
+    /** Whether the command line chose the slot's plugin (tests): kept sounds leave it alone. */
+    bool chosenByOptions (EngineCore::Slot) const;
     std::unique_ptr<juce::FileChooser> pluginChooser;
     std::map<EngineCore::Slot, juce::File> bandPlugins;  // the band instrument plugins loaded
     std::map<EngineCore::Slot, juce::MemoryBlock> blankStates;  // an instrument plugin's state before a sound is chosen

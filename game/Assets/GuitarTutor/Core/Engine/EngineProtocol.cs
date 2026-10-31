@@ -30,8 +30,9 @@ namespace GuitarTutor.Core.Engine
 
         /// <summary>The song's tempo map and the band's notes, as [part, pitch, at, length, velocity]; the
         /// guitarist's held voicings as [pitch, at, length], its strokes as [at, direction, velocity, muted] and its
-        /// strings picked on their own as [at, length, place in the held chord, velocity].</summary>
-        public static string Load(string title, TempoMap tempo, Arrangement arrangement, string keysSound, string origin = "")
+        /// strings picked on their own as [at, length, place in the held chord, velocity]. <paramref name="song"/> names the
+        /// song (its file name) for the sounds the engine keeps per song.</summary>
+        public static string Load(string title, TempoMap tempo, Arrangement arrangement, string keysSound, string origin = "", string song = "")
         {
             var notes = new JArray();
             foreach (var n in arrangement.Notes)
@@ -68,6 +69,9 @@ namespace GuitarTutor.Core.Engine
                 ["leads"] = new JArray(arrangement.LeadNames),
                 ["keys"] = keysSound ?? "",
                 ["origin"] = origin ?? "",
+                ["song"] = song ?? "",
+                // the playstyles, each with its keyboard sound: the engine keeps a song's sounds per playstyle
+                ["styles"] = new JArray(BandStyle.All.Select(s => new JObject { ["name"] = s.Name, ["keys"] = s.KeysSound })),
             });
         }
 

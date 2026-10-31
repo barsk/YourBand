@@ -21,6 +21,7 @@ target_sources(gt_engine
         src/ImportWindow.cpp
         src/EngineCore.cpp
         src/Footswitch.cpp
+        src/SoundStore.cpp
         src/Band.cpp
         src/Instruments.cpp
         src/NumaKeys.cpp

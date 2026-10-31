@@ -1,6 +1,5 @@
 #include "EngineCore.h"
 
-#include "NumaKeys.h"
 #include "SilentDevice.h"
 
 namespace gt
@@ -139,29 +138,6 @@ juce::String EngineCore::loadPlugins (const juce::File& pluginFile)
     return {};
 }
 
-juce::String EngineCore::loadKeys (const juce::File& pluginFile)
-{
-    if (! pluginFile.exists())
-        return "Keyboard plugin not found: " + pluginFile.getFullPathName();
-    juce::OwnedArray<juce::PluginDescription> types;
-    for (auto* format : formats.getFormats())
-        if (format->fileMightContainThisPluginType (pluginFile.getFullPathName()))
-            format->findAllTypesForFile (types, pluginFile.getFullPathName());
-    if (types.isEmpty())
-        return "No plugin found in " + pluginFile.getFullPathName();
-
-    auto* d = deviceManager.getCurrentAudioDevice();
-    juce::String error;
-    auto instance = formats.createPluginInstance (*types[0], d != nullptr ? d->getCurrentSampleRate() : 48000.0,
-                                                  d != nullptr ? d->getCurrentBufferSizeSamples() : 64, error);
-    if (instance == nullptr)
-        return "Could not load " + types[0]->name + ": " + error;
-    instance->enableAllBuses();
-    keysNode = graph->addNode (std::move (instance));
-    connect();
-    return {};
-}
-
 int EngineCore::partIndex (const juce::String& part)
 {
     return part == "drums" ? 0 : part == "bass" ? 1 : part == "keys" ? 2 : part == "guitar" ? 3 : part == "lead1" ? 4 : part == "lead2" ? 5 : -1;
@@ -170,7 +146,8 @@ int EngineCore::partIndex (const juce::String& part)
 int EngineCore::partOf (Slot slot)
 {
     return slot == Slot::bandDrums ? BandProcessor::drums : slot == Slot::bandBass ? BandProcessor::bass
-         : slot == Slot::bandLead1 ? BandProcessor::lead1 : slot == Slot::bandLead2 ? BandProcessor::lead2 : BandProcessor::guitar;
+         : slot == Slot::bandLead1 ? BandProcessor::lead1 : slot == Slot::bandLead2 ? BandProcessor::lead2
+         : slot == Slot::bandKeys ? BandProcessor::keys : BandProcessor::guitar;
 }
 
 void EngineCore::applyMix (int part)
@@ -284,23 +261,6 @@ bool EngineCore::usesBandInstrument (Slot slot) const
     return bandWants[(size_t) partOf (slot)] && slotNode (slot) != nullptr;
 }
 
-juce::String EngineCore::setKeysSound (const juce::String& sound)
-{
-    if (keysNode == nullptr)
-        return "no keyboard plugin";
-    if (sound == currentKeysSound)
-        return {};
-    juce::String error;
-    const auto state = numa::stateFor (sound, error);
-    if (state.isEmpty())
-        return error;
-    // the keys are silent while Numa Player loads the sound: it takes up to a quarter of a second
-    // (measured with plugin_probe --load-time), so half a second
-    changeState (*keysNode->getProcessor(), state, 500);
-    currentKeysSound = sound;
-    return {};
-}
-
 EngineCore::Node::Ptr EngineCore::slotNode (Slot slot) const
 {
     switch (slot)
@@ -311,6 +271,7 @@ EngineCore::Node::Ptr EngineCore::slotNode (Slot slot) const
         case Slot::bandGuitar: return guitarPlugin;
         case Slot::bandLead1:  return lead1Plugin;
         case Slot::bandLead2:  return lead2Plugin;
+        case Slot::bandKeys:   return keysPlugin;
     }
     return nullptr;
 }
@@ -318,7 +279,7 @@ EngineCore::Node::Ptr EngineCore::slotNode (Slot slot) const
 EngineCore::Node::Ptr& EngineCore::instrumentNode (Slot slot)
 {
     return slot == Slot::bandDrums ? drumsPlugin : slot == Slot::bandBass ? bassPlugin : slot == Slot::bandLead1 ? lead1Plugin
-         : slot == Slot::bandLead2 ? lead2Plugin : guitarPlugin;
+         : slot == Slot::bandLead2 ? lead2Plugin : slot == Slot::bandKeys ? keysPlugin : guitarPlugin;
 }
 
 juce::AudioProcessor* EngineCore::plugin (Slot slot) const
@@ -337,15 +298,16 @@ juce::MemoryBlock EngineCore::pluginState (Slot slot) const
 
 void EngineCore::setPluginState (Slot slot, const juce::MemoryBlock& state)
 {
+    // (Numa Player loads a sound in up to a quarter of a second, measured with plugin_probe --load-time: half a second)
     if (auto* p = plugin (slot); p != nullptr && state.getSize() > 0)
-        changeState (*p, state, 2000);
+        changeState (*p, state, slot == Slot::bandKeys ? 500 : 2000);
 }
 
 void EngineCore::changeState (juce::AudioProcessor& p, const juce::MemoryBlock& state, int settleMs)
 {
     // waits for the block being played to finish; from then on the graph plays silence for this plugin
     p.suspendProcessing (true);
-    for (auto slot : { Slot::bandDrums, Slot::bandBass, Slot::bandGuitar, Slot::bandLead1, Slot::bandLead2 })
+    for (auto slot : bandSlots)
         playBandInstrument (slot);
     p.setStateInformation (state.getData(), (int) state.getSize());
     const auto change = ++stateChanges[&p];
@@ -354,7 +316,7 @@ void EngineCore::changeState (juce::AudioProcessor& p, const juce::MemoryBlock& 
         if (*flag && stateChanges[plugin] == change)
         {
             plugin->suspendProcessing (false);
-            for (auto slot : { Slot::bandDrums, Slot::bandBass, Slot::bandGuitar, Slot::bandLead1, Slot::bandLead2 })
+            for (auto slot : bandSlots)
                 playBandInstrument (slot);
         }
     });
@@ -444,7 +406,7 @@ void EngineCore::connect()
             graph->addConnection ({ { from->nodeID, juce::AudioProcessorGraph::midiChannelIndex },
                                     { to->nodeID, juce::AudioProcessorGraph::midiChannelIndex } }, UpdateKind::none);
     };
-    for (auto [channel, instrument] : { std::pair { keysChannel, keysNode }, std::pair { drumsChannel, drumsPlugin },
+    for (auto [channel, instrument] : { std::pair { keysChannel, keysPlugin }, std::pair { drumsChannel, drumsPlugin },
                                         std::pair { bassChannel, bassPlugin }, std::pair { guitarChannel, guitarPlugin },
                                         std::pair { lead1Channel, lead1Plugin }, std::pair { lead2Channel, lead2Plugin } })
         if (instrument != nullptr)
@@ -468,8 +430,8 @@ void EngineCore::connect()
     link (bandNode, 3, guitarMix, 1);
     allOutputs (guitarPlugin, guitarMix);
     stereo (guitarMix, bandBus, 0, 2);
-    // keys
-    stereo (keysNode, keysMix, 0, 2);
+    // keys: a plugin only
+    allOutputs (keysPlugin, keysMix);
     stereo (keysMix, bandBus, 0, 2);
     // the two lead channels: a plugin each (a stand-in for the harmonica, the lead guitar...), no built-in sound
     allOutputs (lead1Plugin, lead1Mix);
@@ -514,7 +476,7 @@ void EngineCore::shutdown()
     deviceManager.removeAudioCallback (&player);
     player.setProcessor (nullptr);
     deviceManager.closeAudioDevice();
-    guitarTone = bandNode = keysNode = drumsMix = bassMix = keysMix = guitarMix = bandBus = input = output = nullptr;
+    guitarTone = bandNode = keysPlugin = drumsMix = bassMix = keysMix = guitarMix = bandBus = input = output = nullptr;
     drumsPlugin = bassPlugin = guitarPlugin = keysChannel = drumsChannel = bassChannel = guitarChannel = spareNode = nullptr;
     lead1Plugin = lead2Plugin = lead1Mix = lead2Mix = lead1Channel = lead2Channel = nullptr;
     bandProcessor = nullptr;
