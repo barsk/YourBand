@@ -154,10 +154,18 @@ void EngineCore::applyMix (int part)
 {
     const auto onPlugin = part != BandProcessor::keys && bandProcessor->usesPluginFor ((BandProcessor::Part) part);
     const auto sound = onPlugin ? pluginLevels[(size_t) part] : soundLevels[(size_t) part];
-    const auto gain = sound * faderLevels[(size_t) part];
+    const auto gain = mutedParts[(size_t) part] ? 0.0f : sound * faderLevels[(size_t) part];
     const Node::Ptr mixes[] { drumsMix, bassMix, keysMix, guitarMix, lead1Mix, lead2Mix };
     if (const auto& node = mixes[part]; node != nullptr)  // none after shutdown
-        static_cast<GainProcessor*> (node->getProcessor())->setGain (gain);
+    {
+        auto* channel = static_cast<GainProcessor*> (node->getProcessor());
+        channel->setGain (gain);
+        channel->setPan (pans[(size_t) part]);
+    }
+    // a silent part (muted, or its level all the way down) plays no notes either: a lead that is off does not take the
+    // tab's single notes (the guitar plays them)
+    if (bandNode != nullptr)  // (none after shutdown)
+        bandProcessor->setPartMuted ((BandProcessor::Part) part, mutedParts[(size_t) part] || faderLevels[(size_t) part] <= 0.0f);
 }
 
 bool EngineCore::setSoundLevel (const juce::String& part, float gain)
@@ -176,7 +184,26 @@ bool EngineCore::setFader (const juce::String& part, float level)
     if (i < 0)
         return false;
     faderLevels[(size_t) i] = juce::jlimit (0.0f, 2.0f, level);
-    bandProcessor->setPartMuted ((BandProcessor::Part) i, faderLevels[(size_t) i] <= 0.0f);
+    applyMix (i);
+    return true;
+}
+
+bool EngineCore::setPan (const juce::String& part, float pan)
+{
+    const auto i = partIndex (part);
+    if (i < 0)
+        return false;
+    pans[(size_t) i] = juce::jlimit (-1.0f, 1.0f, pan);
+    applyMix (i);
+    return true;
+}
+
+bool EngineCore::setMuted (const juce::String& part, bool muted)
+{
+    const auto i = partIndex (part);
+    if (i < 0)
+        return false;
+    mutedParts[(size_t) i] = muted;
     applyMix (i);
     return true;
 }

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using GuitarTutor.Core.Band;
 using GuitarTutor.Core.Chart;
@@ -320,6 +321,10 @@ namespace GuitarTutor.Core.Tests
             var (_, named) = EngineProtocol.Read(EngineProtocol.Load(song.Info.Title, song.Tempo, a, "", "", "redbud-tree-gpx"));
             Assert.AreEqual("redbud-tree-gpx", (string)named["song"]);
             CollectionAssert.AreEqual(new[] { "Ballad", "Rock", "Pop" }, named["styles"].Select(s => (string)s["name"]));
+            // the musicians' places on stage, as the instruments' pans
+            var (stageType, stage) = EngineProtocol.Read(EngineProtocol.Stage(new Dictionary<string, double> { ["rhythm"] = -0.4321, ["drums"] = 0 }));
+            Assert.AreEqual("stage", stageType);
+            Assert.AreEqual(-0.432, (double)stage["pans"]["rhythm"], 1e-9);
             Assert.AreEqual("5 - ORGANS/4 - ROCK B3", (string)named["styles"][1]["keys"]);
         }
 

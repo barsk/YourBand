@@ -113,6 +113,9 @@ public:
         False if there is no such part. */
     bool setSoundLevel (const juce::String& part, float gain);
     bool setFader (const juce::String& part, float level);
+    /** A part's place, -1 all left to 1 all right, and whether it is silent (mute, or another part's solo). */
+    bool setPan (const juce::String& part, float pan);
+    bool setMuted (const juce::String& part, bool muted);
     float fader (const juce::String& part) const;
 
     Latency latency() const;
@@ -154,6 +157,8 @@ private:
     // drums, bass, keys, guitar: the built-in bass a DI sound (as loud as the bass plugins at 1.75, measured), the
     // built-in guitar a DI sound too (at the bass's level, not measured)
     std::array<float, 6> soundLevels { 0.8f, 1.75f, 1.3f, 1.75f, 0.8f, 0.8f }, faderLevels { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
+    std::array<float, 6> pans {};
+    std::array<bool, 6> mutedParts {};
     std::array<float, 6> pluginLevels { 0.8f, 0.8f, 0.8f, 0.8f, 0.8f, 0.8f };  // on their plugins (the keys always are)
     int inputChannel = 1;
     bool silent = false;

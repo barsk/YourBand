@@ -75,6 +75,18 @@ namespace GuitarTutor.Core.Engine
             });
         }
 
+        /// <summary>
+        /// Where the band's musicians stand, as each instrument's pan (by instrument id, -1 all left to 1 all right, as
+        /// the audience hears them): the engine pans an instrument from its place on stage until you turn its pan knob.
+        /// </summary>
+        public static string Stage(IReadOnlyDictionary<string, double> pans)
+        {
+            var values = new JObject();
+            foreach (var kv in pans)
+                values[kv.Key] = Math.Round(kv.Value, 3);
+            return Line(new JObject { ["type"] = "stage", ["pans"] = values });
+        }
+
         public static string Play(double fromQuarter, double countInQuarters) =>
             Line(new JObject { ["type"] = "play", ["from"] = fromQuarter, ["countIn"] = countInQuarters });
 

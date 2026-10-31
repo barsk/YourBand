@@ -103,6 +103,7 @@ private:
         std::vector<BandChoice> choices;  // the plugins it can play on
     };
     std::map<EngineCore::Slot, BandPart> bandParts;
+    std::unique_ptr<juce::LookAndFeel> knobLook;  // the mixer's knobs (before the rows: it outlives them)
     /** The band's instruments (docs/instrument-tracks.md), a row each: the song's track it plays (chosen here, kept by
         the game), then its plugin and the plugin's window. */
     struct InstrumentRow
@@ -111,8 +112,11 @@ private:
         EngineCore::Slot slot = EngineCore::Slot::bandGuitar;
         bool lead = false;  // the lead guitar and instrument 1: no part of their own, only ever a track
         bool playsTrack = false;  // a band member playing one of the song's tracks (else its playstyle part)
+        juce::String part;  // its part in the engine's mixer ("guitar", "lead1"...)
         juce::Label label;
         juce::ComboBox track;
+        juce::TextButton mute { "M" }, solo { "S" };  // its mixer channel (step 8): kept with the song, but solo
+        juce::Slider volume, pan;
     };
     std::array<InstrumentRow, 6> instrumentRows;
     static constexpr int pickedTrackIds = 1000;  // a track list's ids from here: the track picked note by note (the rhythm guitar)
@@ -176,9 +180,22 @@ private:
     std::map<EngineCore::Slot, juce::File> bandPlugins;  // the band instrument plugins loaded
     std::map<EngineCore::Slot, juce::MemoryBlock> blankStates;  // an instrument plugin's state before a sound is chosen
     juce::Label latencyLabel, cpuLabel, footLabel, gameLabel, bandLabel;
-    // the band's mixer: drums, bass, keys, guitar, lead 1, lead 2
-    std::array<juce::Slider, 6> faders;
-    std::array<juce::Label, 6> faderLabels;
+    // the band's mixer (docs/instrument-tracks.md, step 8): a channel per instrument row, kept with the song
+    std::map<juce::String, float> stagePans;  // per instrument: the pan of its musician's place on stage (the game's)
+    juce::TextButton stagePanButton { "Pan from stage" };
+    std::array<juce::Label, 4> mixHeads;  // above the rows' mute, solo, volume and pan
+    bool mixChanged = false;  // the song's mix to keep (from the timer: not at every step of a knob)
+    void setUpMixer (InstrumentRow&);
+    /** An instrument's mix in the open song (a song not mixed yet: at the level its fader had before, from stage). */
+    Mix& songMix (const InstrumentRow&);
+    /** The open song's mix on the rows' controls and in the engine. */
+    void showMix();
+    /** An instrument's volume and pan in the engine (its pan from its place on stage, unless set). */
+    void applyMix (const InstrumentRow&);
+    /** Mute and solo: an instrument is silent when muted, or while another is soloed and it is not. */
+    void applyMutes();
+    /** The pan knob's text: "L 40", "Centre", "R 25", and "(stage)" while it follows its place on stage. */
+    juce::String panText (const InstrumentRow&, double pan) const;
     juce::TextEditor logView;
 
     std::map<EngineCore::Slot, std::unique_ptr<juce::DocumentWindow>> windows;

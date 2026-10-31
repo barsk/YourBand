@@ -69,17 +69,24 @@ public:
     GainProcessor (const juce::String& channelName, float initialGain, bool limit = false)
         : SimpleProcessor (BusesProperties().withInput ("In", juce::AudioChannelSet::stereo(), true)
                                             .withOutput ("Out", juce::AudioChannelSet::stereo(), true)),
-          name (channelName), gain (initialGain), applied (initialGain), limiting (limit)
+          name (channelName), gain (initialGain), applied { initialGain, initialGain }, limiting (limit)
     {
     }
 
     const juce::String getName() const override { return name; }
-    void prepareToPlay (double, int) override { applied = gain.load(); }
+    void prepareToPlay (double, int) override
+    {
+        for (int ch = 0; ch < 2; ++ch)
+            applied[ch] = gain.load() * side (ch);
+    }
     void processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override
     {
-        const auto target = gain.load();
-        buffer.applyGainRamp (0, buffer.getNumSamples(), applied, target);
-        applied = target;
+        for (int ch = 0; ch < juce::jmin (2, buffer.getNumChannels()); ++ch)
+        {
+            const auto target = gain.load() * side (ch);
+            buffer.applyGainRamp (ch, 0, buffer.getNumSamples(), applied[ch], target);
+            applied[ch] = target;
+        }
         if (! limiting)
             return;
         for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
@@ -93,12 +100,20 @@ public:
 
     void setGain (float g) { gain.store (juce::jlimit (0.0f, 4.0f, g)); }
     float getGain() const { return gain.load(); }
+    /** Where the channel sits, -1 all left to 1 all right: equal power, at its level in the middle (a side up to +3 dB). */
+    void setPan (float p) { pan.store (juce::jlimit (-1.0f, 1.0f, p)); }
 
 private:
+    float side (int channel) const
+    {
+        const auto angle = (pan.load() + 1.0f) * juce::MathConstants<float>::pi / 4.0f;
+        return (channel == 0 ? std::cos (angle) : std::sin (angle)) * juce::MathConstants<float>::sqrt2;
+    }
+
     static constexpr float knee = 0.7f;
     juce::String name;
-    std::atomic<float> gain;
-    float applied;
+    std::atomic<float> gain, pan { 0.0f };
+    float applied[2];
     bool limiting;
 };
 

@@ -56,6 +56,16 @@ SongSounds SoundStore::read (const juce::File& file)
         for (const auto& style : styles->getProperties())
             sounds.styles[style.name.toString()] = setFrom (style.value);
     sounds.tracks = setFrom (json["tracks"]);
+    if (auto* mix = json["mix"].getDynamicObject())
+        for (const auto& entry : mix->getProperties())
+        {
+            Mix m;
+            m.volume = juce::jlimit (0.0f, 2.0f, (float) (double) entry.value.getProperty ("volume", 1.0));
+            if (entry.value.hasProperty ("pan"))
+                m.pan = juce::jlimit (-1.0f, 1.0f, (float) (double) entry.value["pan"]);
+            m.muted = (bool) entry.value.getProperty ("mute", false);
+            sounds.mix[entry.name.toString()] = m;
+        }
     return sounds;
 }
 
@@ -69,6 +79,21 @@ bool SoundStore::write (const juce::File& file, const SongSounds& sounds)
     top->setProperty ("styles", juce::var (styles));
     if (! sounds.tracks.empty())
         top->setProperty ("tracks", jsonOf (sounds.tracks));
+    if (! sounds.mix.empty())
+    {
+        auto* mix = new juce::DynamicObject();
+        for (const auto& [id, m] : sounds.mix)
+        {
+            auto* entry = new juce::DynamicObject();
+            entry->setProperty ("volume", m.volume);
+            if (m.pan)
+                entry->setProperty ("pan", *m.pan);
+            if (m.muted)
+                entry->setProperty ("mute", true);
+            mix->setProperty (id, juce::var (entry));
+        }
+        top->setProperty ("mix", juce::var (mix));
+    }
     return file.getParentDirectory().createDirectory() && file.replaceWithText (juce::JSON::toString (juce::var (top)));
 }
 

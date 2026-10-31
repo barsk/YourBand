@@ -106,13 +106,13 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   file's harmonica, lead guitar...) as stand-ins on a plugin of your choice: Numa Player or Kontakt (any of its
   instruments; each lead is its own instance), or "Other plugin...". They have no built-in sound and are off
   until you choose a plugin; a lead on Numa Player starts with the keys' sound (change it in its window). The
-  load message carries their notes as parts 4 and 5 and `leads`, their names, which the log shows. Faders
+  load message carries their notes as parts 4 and 5 and `leads`, their names, which the log shows. In the mixer
   "lead1" and "lead2". `tools/lead_session.py` records a silent test of them (`--lead1`, `--lead2` on the
   engine's command line choose the plugins).
   The tab's single-string notes (a riff the guitarist plays as notes, not strums) go to Lead 1 when it has a plugin
   and the song gives that channel no part of its own (a UG song with a tab, not the GPX Heart of Gold, whose Lead 1
   is the harmonica): the guitar plugin then only strums and keeps quiet while the tab plays, so the two do not
-  compete for its voices. Without a Lead 1 plugin, or with Lead 1's fader all the way down (off), the guitar plays them as
+  compete for its voices. Without a Lead 1 plugin, or with Lead 1 muted or its volume all the way down, the guitar plays them as
   before. `lead_session.py --tab` tests it. A lead's or the guitar's note that the same key follows at once is let go 60 ms
   early: a plugin takes the repeat for the same note held on, with no new attack (Numa Player, a D2 in eighths: back to
   back the repeats rose 2-5 dB, 60 ms apart 13-16 dB; Shreddage choked a fingerpicked part's repeats 10 ms apart).
@@ -217,8 +217,17 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   pauses a plugin's audio whenever it gives it a new state.
 - Mixer: each part's sound has a level (drums 0.8, the built-in bass 1.75 or the bass plugin's own, keys set
   by the game per style, the built-in guitar 1.75 (a DI sound, not measured) or the guitar plugin's own),
-  then your fader in the control panel (0 dB is the balanced mix; double-click for 0 dB again; remembered
-  between runs), then a soft limiter on the band's sum (peaks above 0.7 bend towards 1).
+  then the instrument row's mixer channel (docs/instrument-tracks.md, step 8): M (mute), S (solo: only the soloed
+  band instruments play; your guitar always does), a volume knob (0 dB is the balanced mix, up to +6 dB;
+  double-click for 0 dB again) and a pan knob, then a soft limiter on the band's sum (peaks above 0.7 bend towards
+  1). Volume, pan and mute are kept with the song (its `.sounds` file, `mix`), solo is not; a song not mixed yet
+  starts at the levels the faders had before (`fader.<part>` in the settings). Pan is equal power with the middle
+  at the part's level (a side up to +3 dB). An instrument pans from its musician's place on stage as the audience
+  hears it (the game's `stage`: 45 degrees off the middle is all to one side; the rhythm guitar about -0.43, the
+  bass +0.38, the keys +0.56, the drums the middle; the leads have no musician: the middle) until you turn its knob;
+  turning it back to that place (double-click) follows the stage again, and "Pan from stage" puts them all back.
+  Measured (silent, the rhythm guitar alone, Kontakt): from its place on stage, 6.3 dB louder left than right (the
+  pan law gives 6.4).
 
 Measured with the band playing (silent mode, 48 kHz, 64 samples): audio CPU 2-4 %; the mix at about -21 dB
 RMS, peak 0.8.

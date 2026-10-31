@@ -111,6 +111,45 @@ namespace
     // a band part's dropdown: its built-in sound, then its plugins (ids from 2), then these
     constexpr int builtInId = 1, newSoundId = 900, otherPluginId = 901;
 
+    constexpr int mixerWidth = 28 + 4 + 28 + 4 + 40 + 4 + 40;  // an instrument row's mixer channel: mute, solo, volume, pan
+
+    /** The mixer's knobs: a ring with the setting as an arc (from the left for a volume, from the middle for a pan, the
+        slider's "bipolar" property), and the knob with its pointer. */
+    class KnobLook final : public juce::LookAndFeel_V4
+    {
+    public:
+        void drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height, float position,
+                               float startAngle, float endAngle, juce::Slider& slider) override
+        {
+            const auto bounds = juce::Rectangle<int> (x, y, width, height).toFloat().reduced (1.0f);
+            const auto radius = juce::jmin (bounds.getWidth(), bounds.getHeight()) / 2.0f;
+            const auto centre = bounds.getCentre();
+            const auto angle = startAngle + position * (endAngle - startAngle);
+            const auto from = (bool) slider.getProperties()["bipolar"] ? (startAngle + endAngle) / 2.0f : startAngle;
+            const auto ring = radius - 2.0f;
+            const juce::PathStrokeType stroke (3.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
+            juce::Path track, value;
+            track.addCentredArc (centre.x, centre.y, ring, ring, 0.0f, startAngle, endAngle, true);
+            g.setColour (juce::Colour (0xff4a5560));
+            g.strokePath (track, stroke);
+            if (std::abs (angle - from) > 0.01f)
+            {
+                value.addCentredArc (centre.x, centre.y, ring, ring, 0.0f, juce::jmin (from, angle), juce::jmax (from, angle), true);
+                g.setColour (slider.isEnabled() ? juce::Colour (0xff42a2c8) : juce::Colour (0xff4a5560));
+                g.strokePath (value, stroke);
+            }
+            const auto knob = ring - 4.5f;
+            g.setColour (juce::Colour (0xff2b3238));
+            g.fillEllipse (centre.x - knob, centre.y - knob, knob * 2.0f, knob * 2.0f);
+            g.setColour (juce::Colour (0xff8a96a0));
+            g.drawEllipse (centre.x - knob, centre.y - knob, knob * 2.0f, knob * 2.0f, 1.0f);
+            juce::Path pointer;
+            pointer.addRoundedRectangle (-1.25f, -knob + 1.5f, 2.5f, knob * 0.7f, 1.0f);
+            g.setColour (juce::Colours::white);
+            g.fillPath (pointer, juce::AffineTransform::rotation (angle).translated (centre.x, centre.y));
+        }
+    };
+
     /** An instrument plugin for the band: the path in the settings, the VST3 folder, or the folder you
         downloaded it to next to the repository (monster_plugins), found by looking upwards from the engine. */
     juce::File findInstrument (const juce::String& setting, const juce::String& pattern)
@@ -402,40 +441,26 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
     }
     footLabel.setText ("Footswitch: none found (any HID game controller works)", juce::dontSendNotification);
 
-    // the band's mixer: your faders, on top of the level the game gives each sound; remembered between runs
-    for (size_t i = 0; i < faders.size(); ++i)
+    // the band's mixer, on the instrument rows (setUpMixer): on top of the level the game gives each sound, kept with the
+    // song; "Pan from stage" puts every instrument back where its musician stands
+    const char* const heads[] { "", "", "Vol", "Pan" };  // (the mute and solo buttons say what they are)
+    for (size_t i = 0; i < mixHeads.size(); ++i)
     {
-        const juce::String part = i == 0 ? "drums" : i == 1 ? "bass" : i == 2 ? "keys" : i == 3 ? "guitar" : i == 4 ? "lead1" : "lead2";
-        const char* const names[] { "Drums", "Bass", "Keys", "Rhythm", "Lead", "Inst. 1" };
-        faderLabels[i].setText (names[i], juce::dontSendNotification);
-        addAndMakeVisible (faderLabels[i]);
-        auto& f = faders[i];
-        f.setSliderStyle (juce::Slider::LinearHorizontal);
-        f.setTextBoxStyle (juce::Slider::TextBoxRight, false, 64, 20);
-        f.setRange (0.0, 2.0, 0.01);
-        f.setDoubleClickReturnValue (true, 1.0);  // back to the balanced mix
-        f.textFromValueFunction = [] (double v)
-        {
-            return v < 0.001 ? juce::String ("off") : juce::String (juce::Decibels::gainToDecibels (v), 1) + " dB";
-        };
-        f.valueFromTextFunction = [] (const juce::String& text)
-        {
-            return text.trim() == "off" ? 0.0 : juce::Decibels::decibelsToGain (text.getDoubleValue());
-        };
-        const auto level = (float) settings->getDoubleValue ("fader." + part, 1.0);
-        engine.setFader (part, level);
-        f.setValue (level, juce::dontSendNotification);
-        f.updateText();
-        f.onValueChange = [this, &f, part]
-        {
-            engine.setFader (part, (float) f.getValue());
-            if (! engine.isSilent())  // a test run leaves your settings as they are
-                settings->setValue ("fader." + part, f.getValue());
-        };
-        addAndMakeVisible (f);
+        mixHeads[i].setText (heads[i], juce::dontSendNotification);
+        mixHeads[i].setJustificationType (juce::Justification::centredBottom);
+        addAndMakeVisible (mixHeads[i]);
     }
-    log ("Faders: drums " + faders[0].getTextFromValue (faders[0].getValue()) + ", bass " + faders[1].getTextFromValue (faders[1].getValue())
-         + ", keys " + faders[2].getTextFromValue (faders[2].getValue()) + ", guitar " + faders[3].getTextFromValue (faders[3].getValue()));
+    stagePanButton.setTooltip ("Every instrument's pan back to where its musician stands on stage");
+    stagePanButton.onClick = [this]
+    {
+        for (const auto& row : instrumentRows)
+            songMix (row).pan.reset();
+        mixChanged = true;
+        showMix();
+        log ("Mix: every instrument panned from its place on stage");
+    };
+    addAndMakeVisible (stagePanButton);
+    showMix();
 
     // footswitch: buttons 1 and 2 step through the tone presets here; the others are the game's to act on
     footswitch.onDevice = [this] (const juce::String& name)
@@ -499,7 +524,7 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
             juce::MessageManager::callAsync ([] { juce::JUCEApplication::getInstance()->systemRequestedQuit(); });
     }
 
-    setSize (760, 964);
+    setSize (900, 920);
     startTimerHz (4);
 
     if (options.importTest.isNotEmpty())
@@ -560,6 +585,9 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
 MainComponent::~MainComponent()
 {
     stopTimer();
+    for (auto& row : instrumentRows)
+        for (auto* knob : { &row.volume, &row.pan })
+            knob->setLookAndFeel (nullptr);
     saveSettings();
     importWindow.reset();  // (stops a running import)
     windows.clear();  // editors go before their plugins
@@ -622,6 +650,7 @@ void MainComponent::handle (const juce::var& message)
         // the song's sounds (loading a plugin or a sound can take seconds: the game waits for "loaded")
         applySounds (message["song"].toString(), style);
         showStyles();
+        showMix();
         auto* answer = new juce::DynamicObject();
         answer->setProperty ("type", "loaded");
         answer->setProperty ("notes", notes);
@@ -661,6 +690,14 @@ void MainComponent::handle (const juce::var& message)
     }
     else if (type == "bandGuitar")
         setBandGuitarPlays ((bool) message["plays"]);
+    else if (type == "stage")
+    {
+        // where the musicians stand: the instruments not panned by hand follow them
+        if (auto* pans = message["pans"].getDynamicObject())
+            for (const auto& p : pans->getProperties())
+                stagePans[p.name.toString()] = juce::jlimit (-1.0f, 1.0f, (float) (double) p.value);
+        showMix();
+    }
     else if (type == "tracks")
         showTracks (message);
     else if (type == "songs")
@@ -731,7 +768,11 @@ void MainComponent::setUpInstrumentRows()
         row.id = specs[i].id;
         row.slot = specs[i].slot;
         row.lead = isLead (row.slot);
+        row.part = row.slot == EngineCore::Slot::bandDrums ? "drums" : row.slot == EngineCore::Slot::bandBass ? "bass"
+                 : row.slot == EngineCore::Slot::bandKeys ? "keys" : row.slot == EngineCore::Slot::bandLead1 ? "lead1"
+                 : row.slot == EngineCore::Slot::bandLead2 ? "lead2" : "guitar";
         row.label.setText (bandTitle (row.slot), juce::dontSendNotification);
+        setUpMixer (row);
         row.track.onChange = [this, i]
         {
             auto& r = instrumentRows[i];
@@ -1368,6 +1409,119 @@ bool MainComponent::chosenByOptions (EngineCore::Slot slot) const
         || (slot == EngineCore::Slot::bandLead2 && options.bandLead2.isNotEmpty());
 }
 
+void MainComponent::setUpMixer (InstrumentRow& row)
+{
+    auto* r = &row;
+    row.mute.setClickingTogglesState (true);
+    row.mute.setColour (juce::TextButton::buttonOnColourId, juce::Colours::orangered);
+    row.mute.setTooltip ("Mute: kept with the song");
+    row.mute.onClick = [this, r]
+    {
+        songMix (*r).muted = r->mute.getToggleState();
+        mixChanged = true;
+        applyMutes();
+    };
+    row.solo.setClickingTogglesState (true);
+    row.solo.setColour (juce::TextButton::buttonOnColourId, juce::Colours::gold.darker (0.2f));
+    row.solo.setTooltip ("Solo: only the soloed instruments of the band play (and your guitar); not kept");
+    row.solo.onClick = [this] { applyMutes(); };
+
+    if (knobLook == nullptr)
+        knobLook = std::make_unique<KnobLook>();
+    row.pan.getProperties().set ("bipolar", true);
+    for (auto* knob : { &row.volume, &row.pan })
+    {
+        knob->setLookAndFeel (knobLook.get());
+        knob->setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+        knob->setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+        knob->setPopupDisplayEnabled (true, true, this);
+    }
+    row.volume.setRange (0.0, 2.0, 0.01);
+    row.volume.setDoubleClickReturnValue (true, 1.0);  // back to the level the band plays it at (0 dB)
+    row.volume.textFromValueFunction = [] (double v)
+    {
+        return v < 0.001 ? juce::String ("off") : juce::String (juce::Decibels::gainToDecibels (v), 1) + " dB";
+    };
+    row.volume.onValueChange = [this, r]
+    {
+        songMix (*r).volume = (float) r->volume.getValue();
+        mixChanged = true;
+        applyMix (*r);
+        r->volume.setTooltip ("Volume: " + r->volume.getTextFromValue (r->volume.getValue()));
+    };
+    row.pan.setRange (-1.0, 1.0, 0.01);
+    row.pan.textFromValueFunction = [this, r] (double v) { return panText (*r, v); };
+    row.pan.onValueChange = [this, r]
+    {
+        // turned by hand, it stays there; turned to its place on stage (a double-click), it follows the stage again
+        const auto stage = stagePans.count (r->id) > 0 ? stagePans[r->id] : 0.0f;
+        const auto value = (float) r->pan.getValue();
+        if (std::abs (value - stage) < 0.005f)
+            songMix (*r).pan.reset();
+        else
+            songMix (*r).pan = value;
+        mixChanged = true;
+        applyMix (*r);
+        r->pan.setTooltip ("Pan: " + panText (*r, value));
+    };
+    for (auto* c : std::initializer_list<juce::Component*> { &row.mute, &row.solo, &row.volume, &row.pan })
+        addAndMakeVisible (*c);
+}
+
+Mix& MainComponent::songMix (const InstrumentRow& row)
+{
+    auto it = songSounds.mix.find (row.id);
+    if (it == songSounds.mix.end())
+    {
+        Mix mix;  // (the faders the control panel had before step 8, in the settings: a song not mixed yet sounds as before)
+        mix.volume = juce::jlimit (0.0f, 2.0f, (float) settings->getDoubleValue ("fader." + row.part, 1.0));
+        it = songSounds.mix.emplace (row.id, mix).first;
+    }
+    return it->second;
+}
+
+juce::String MainComponent::panText (const InstrumentRow& row, double pan) const
+{
+    const auto percent = juce::roundToInt (std::abs (pan) * 100.0);
+    const auto where = percent == 0 ? juce::String ("Centre") : juce::String (pan < 0.0 ? "L " : "R ") + juce::String (percent);
+    const auto it = songSounds.mix.find (row.id);
+    return where + (it == songSounds.mix.end() || ! it->second.pan ? " (stage)" : "");
+}
+
+void MainComponent::applyMix (const InstrumentRow& row)
+{
+    const auto& mix = songMix (row);
+    const auto stage = stagePans.count (row.id) > 0 ? stagePans[row.id] : 0.0f;
+    engine.setFader (row.part, mix.volume);
+    engine.setPan (row.part, mix.pan ? *mix.pan : stage);
+}
+
+void MainComponent::applyMutes()
+{
+    auto anySolo = false;
+    for (const auto& row : instrumentRows)
+        anySolo = anySolo || row.solo.getToggleState();
+    for (const auto& row : instrumentRows)
+        engine.setMuted (row.part, songMix (row).muted || (anySolo && ! row.solo.getToggleState()));
+}
+
+void MainComponent::showMix()
+{
+    for (auto& row : instrumentRows)
+    {
+        const auto& mix = songMix (row);
+        const auto stage = stagePans.count (row.id) > 0 ? stagePans[row.id] : 0.0f;
+        row.volume.setValue (mix.volume, juce::dontSendNotification);
+        row.pan.setValue (mix.pan ? *mix.pan : stage, juce::dontSendNotification);
+        row.pan.setDoubleClickReturnValue (true, stage);  // back to its place on stage
+        row.mute.setToggleState (mix.muted, juce::dontSendNotification);
+        row.volume.setTooltip ("Volume: " + row.volume.getTextFromValue (row.volume.getValue()));
+        row.pan.setTooltip ("Pan: " + panText (row, row.pan.getValue()));
+        applyMix (row);
+    }
+    applyMutes();
+}
+
 void MainComponent::refreshInputs()
 {
     inputBox.clear (juce::dontSendNotification);
@@ -1530,6 +1684,12 @@ void MainComponent::timerCallback()
     // into the log file too: two seconds after start, then every ten seconds while the band plays
     if (++ticks == 8 || (band.isPlaying() && ticks % 40 == 0))
         log (latency + ", " + cpu);
+    // the song's mix, once no knob is being turned
+    if (mixChanged && ! juce::ModifierKeys::currentModifiers.isAnyMouseButtonDown())
+    {
+        mixChanged = false;
+        saveSongSounds();
+    }
 }
 
 void MainComponent::log (const juce::String& line)
@@ -1572,20 +1732,40 @@ void MainComponent::resized()
     styleBox.setBounds (row.removeFromLeft (300));
     row.removeFromLeft (6);
     playstylesButton.setBounds (row.removeFromLeft (220));
+    // the mixer's heads, above the rows' channels
+    auto heads = row.removeFromRight (mixerWidth);
+    for (size_t i = 0; i < mixHeads.size(); ++i)
+    {
+        if (i > 0)
+            heads.removeFromLeft (4);
+        mixHeads[i].setBounds (heads.removeFromLeft (i < 2 ? 28 : 40));
+    }
     r.removeFromTop (6);
 
     // the band's instruments: the track each plays, its plugin, the plugin's window ("...")
     for (auto& instrument : instrumentRows)
     {
-        row = r.removeFromTop (28);
+        row = r.removeFromTop (32);
         instrument.label.setBounds (row.removeFromLeft (100));
-        instrument.track.setBounds (row.removeFromLeft (300));
+        instrument.track.setBounds (row.removeFromLeft (300).withSizeKeepingCentre (300, 28));
         row.removeFromLeft (6);
+        // its mixer channel at the right: mute, solo, volume, pan
+        auto channel = row.removeFromRight (mixerWidth);
+        instrument.mute.setBounds (channel.removeFromLeft (28).withSizeKeepingCentre (28, 26));
+        channel.removeFromLeft (4);
+        instrument.solo.setBounds (channel.removeFromLeft (28).withSizeKeepingCentre (28, 26));
+        channel.removeFromLeft (4);
+        instrument.volume.setBounds (channel.removeFromLeft (40));
+        channel.removeFromLeft (4);
+        instrument.pan.setBounds (channel.removeFromLeft (40));
+        row.removeFromRight (12);
         auto& part = bandParts[instrument.slot];
-        part.windowButton.setBounds (row.removeFromRight (40));
-        part.box.setBounds (row.withTrimmedRight (6));
-        r.removeFromTop (6);
+        part.windowButton.setBounds (row.removeFromRight (40).withSizeKeepingCentre (40, 28));
+        part.box.setBounds (row.withTrimmedRight (6).withSizeKeepingCentre (row.getWidth() - 6, 28));
+        r.removeFromTop (2);
     }
+    row = r.removeFromTop (28);
+    stagePanButton.setBounds (row.removeFromRight (140));
 
     r.removeFromTop (4);
 
@@ -1595,19 +1775,6 @@ void MainComponent::resized()
     gameLabel.setBounds (r.removeFromTop (24));
     bandLabel.setBounds (r.removeFromTop (24));
     r.removeFromTop (4);
-    // the faders: drums, bass, keys in a row, then guitar and the two leads
-    for (size_t first = 0; first < faders.size(); first += 3)
-    {
-        row = r.removeFromTop (26);
-        const auto third = row.getWidth() / 3;
-        for (size_t i = first; i < first + 3 && i < faders.size(); ++i)
-        {
-            auto cell = row.removeFromLeft (third);
-            faderLabels[i].setBounds (cell.removeFromLeft (50));
-            faders[i].setBounds (cell.reduced (2, 0));
-        }
-        r.removeFromTop (2);
-    }
     r.removeFromTop (6);
     logView.setBounds (r);
 }

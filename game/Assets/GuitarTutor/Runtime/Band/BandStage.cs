@@ -77,6 +77,27 @@ namespace GuitarTutor.Runtime.Band
 
         static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0, v.z);
 
+        /// <summary>
+        /// Each musician's pan as the audience hears them, -1 all left to 1 all right: the angle from the audience's
+        /// place (<see cref="ViewFrom"/>), 45 degrees off the middle all to one side. Where they stand now if the band is
+        /// shown (in VR you can move them), else where the layout puts them.
+        /// </summary>
+        public static Dictionary<BandRole, float> Pans(BandStage stage)
+        {
+            var pans = new Dictionary<BandRole, float>();
+            foreach (var (role, at, _) in Layout)
+            {
+                var where = at;
+                if (stage != null)
+                    foreach (var m in stage.musicians)
+                        if (m.role == role)
+                            where = m.transform.localPosition;
+                var angle = Mathf.Atan2(where.x - ViewFrom.x, where.z - ViewFrom.z) * Mathf.Rad2Deg;
+                pans[role] = Mathf.Clamp(angle / 45f, -1f, 1f);
+            }
+            return pans;
+        }
+
         /// <summary>The band, or null (and why) if its assets have not been made (tools/band_assets).</summary>
         public static BandStage Create(out string missing)
         {

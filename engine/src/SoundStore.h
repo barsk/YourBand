@@ -10,6 +10,7 @@
 #include <juce_core/juce_core.h>
 
 #include <map>
+#include <optional>
 
 namespace gt
 {
@@ -27,13 +28,23 @@ struct Sound
 
 using SoundSet = std::map<juce::String, Sound>;  // by instrument id
 
-/** A song's sounds: per playstyle the band members', and each instrument's for playing a track. */
+/** An instrument's place in a song's mix: its volume (1: as the band plays it, 0 dB), its pan (-1 left to 1 right;
+    none: from its musician's place on stage), and whether it is muted. */
+struct Mix
+{
+    float volume = 1.0f;
+    std::optional<float> pan;
+    bool muted = false;
+};
+
+/** A song's sounds: per playstyle the band members', and each instrument's for playing a track; and its mix. */
 struct SongSounds
 {
     std::map<juce::String, SoundSet> styles;  // by playstyle ("Ballad")
     SoundSet tracks;
+    std::map<juce::String, Mix> mix;  // by instrument id
 
-    bool empty() const { return styles.empty() && tracks.empty(); }
+    bool empty() const { return styles.empty() && tracks.empty() && mix.empty(); }
 };
 
 class SoundStore

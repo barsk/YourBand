@@ -326,10 +326,35 @@ namespace GuitarTutor.Runtime.Desktop
             }
             // the tracks first: the engine puts an instrument playing a track on its sound for that, else on its playstyle's
             link.Send(EngineProtocol.Tracks(chart.Song, connections));
+            SendStage(true);
             link.Send(EngineProtocol.Load(chart.Song.Info.Title, chart.Song.Tempo, arrangement, bandStyle.KeysSound,
                                           SongOrigin.Describe(chart.Song, songPath), SongName(songPath)));
             link.Send(EngineProtocol.Mix(BandPart.Keys, bandStyle.KeysGain));
         }
+
+        /// <summary>
+        /// The musicians' places on stage as the band instruments' pans (the leads have no musician: the middle), when they
+        /// have moved since they were last sent (in VR you can move them), or always.
+        /// </summary>
+        void SendStage(bool always)
+        {
+            var pans = new Dictionary<string, double> { ["lead"] = 0, ["instrument1"] = 0 };
+            foreach (var kv in BandStage.Pans(band))
+                pans[kv.Key switch
+                {
+                    BandRole.Drummer => "drums",
+                    BandRole.Bassist => "bass",
+                    BandRole.Guitarist => "rhythm",
+                    _ => "keys",
+                }] = kv.Value;
+            if (!always && sentStage != null && pans.All(kv => sentStage.TryGetValue(kv.Key, out var was) && Math.Abs(was - kv.Value) < 0.02))
+                return;
+            sentStage = pans;
+            link.Send(EngineProtocol.Stage(pans));
+        }
+
+        Dictionary<string, double> sentStage;  // the pans the engine has
+        float nextStageLook;  // when to look whether the musicians have moved
 
         /// <summary>
         /// While the audio engine starts: the window is covered with a circling ring and the keys are ignored (Esc still
@@ -450,6 +475,11 @@ namespace GuitarTutor.Runtime.Desktop
             link?.Poll();
             if (engineReady)
                 engine.Refresh();
+            if (engineConnected && Time.realtimeSinceStartup >= nextStageLook)
+            {
+                nextStageLook = Time.realtimeSinceStartup + 1f;
+                SendStage(false);
+            }
             UpdateLoading();
             HandleKeys();
             if (hold != null && !transport.Playing)

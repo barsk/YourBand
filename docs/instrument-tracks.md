@@ -97,6 +97,10 @@ Each step leaves "Default" playing exactly as today, and is checked before the n
      A cell's "..." puts the band instrument on that sound while its window is open; closed, the sound is kept and the
      instrument goes back to what it plays. "Save defaults" saves the table as the defaults; "Ok" closes.
    - A silent engine (tests) writes none of these files.
-8. **Mixer.** Mute, solo, volume and pan knobs, pan from the stage, saved per song.
+8. **Mixer.** Mute, solo, volume and pan knobs, pan from the stage, saved per song. (Done 2026-10-31.) Each
+   instrument row ends with M, S, a volume knob and a pan knob, in place of the six faders; volume, pan and mute are
+   kept in the song's sounds file, solo is not, and a song not mixed yet starts at the old faders' levels. The game
+   sends the musicians' places (`stage`; moved in VR, sent again): an instrument pans from its place as the audience
+   hears it until its knob is turned; "Pan from stage" puts them all back. Mute and solo never silence your guitar.
 9. **Dynamics and techniques.** Velocities from the file's dynamics; bends, slides and the rest on the
    plugins that support them.
