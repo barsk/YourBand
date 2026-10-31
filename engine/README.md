@@ -215,6 +215,13 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   Player installed, the band plays without keys. A new sound mutes the keys for half a second: Numa Player
   loads it in the background and once crashed the engine when it played during the load, so the engine
   pauses a plugin's audio whenever it gives it a new state.
+- Pitch wheel (docs/instrument-tracks.md, step 9): the load message's `wheel` gives a part's bends as points in
+  semitones; the band sends the part's plugin the wheel at each point and, while it moves between two, once a
+  block (only when its value changes), before the block's notes so a bend at a note's start is there as it starts;
+  the guitar's are early by its plugin's lag, as its notes. Stop, seek and a new song put the wheels back in the
+  middle. Measured with plugin_probe `--bend` (2026-10-31): Shreddage, MONSTER Bass and Numa Player all bend 2
+  semitones each way (linear, at once; a string key's pick too), so the engine scales 2 semitones to the wheel's
+  end and a bend past it stops there; Ample Bass P Lite does not bend at all.
 - Mixer: each part's sound has a level (drums 0.8, the built-in bass 1.75 or the bass plugin's own, keys set
   by the game per style, the built-in guitar 1.75 (a DI sound, not measured) or the guitar plugin's own),
   then the instrument row's mixer channel (docs/instrument-tracks.md, step 8): M (mute), S (solo: only the soloed

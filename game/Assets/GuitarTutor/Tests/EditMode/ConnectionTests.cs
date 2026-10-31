@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using GuitarTutor.Core.Band;
@@ -104,6 +105,33 @@ namespace GuitarTutor.Core.Tests
             var none = Arranger.Arrange(chart, BandStyle.Named("Ballad"), connections);
             Assert.AreEqual(0, none.Part(BandPart.Lead1).Count());  // the band makes up no lead part
             Assert.AreEqual("", none.LeadNames[0]);
+        }
+
+        [Test]
+        public void ALeadsBends_AreItsPitchWheel()
+        {
+            var song = GuitarProSong();
+            var lead = song.Tracks[2];  // Guitar 1, the lead guitar
+            lead.Notes.Clear();
+            List<double[]> Points(params double[] values) =>
+                Enumerable.Range(0, values.Length / 2).Select(i => new[] { values[2 * i], values[2 * i + 1] }).ToList();
+            // a whole-step bend and release over the first half of a note, a plain note, a pre-bend held a whole step,
+            // then a half-step bend that stays up to the next note
+            lead.Notes.Add(new TrackNote { AtQuarter = 4, Quarters = 2, Pitch = 67, Technique = "b", Bend = 2, BendPoints = Points(0, 0, 0.25, 2, 0.5, 0) });
+            lead.Notes.Add(new TrackNote { AtQuarter = 6, Quarters = 0.5, Pitch = 69 });  // (ends before the pre-bend's lead)
+            lead.Notes.Add(new TrackNote { AtQuarter = 7, Quarters = 1, Pitch = 67, Technique = "b", Bend = 2, BendPoints = Points(0, 2, 1, 2) });
+            lead.Notes.Add(new TrackNote { AtQuarter = 8, Quarters = 1, Pitch = 67, Technique = "b", Bend = 1, BendPoints = Points(0, 0, 0.5, 1) });
+            lead.Notes.Add(new TrackNote { AtQuarter = 9, Quarters = 1, Pitch = 65 });
+            var a = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"), new BandConnections());
+
+            var wheel = a.Wheel.Where(w => w.Part == BandPart.Lead1).Select(w => (Math.Round(w.AtQuarter, 3), w.Semitones)).ToList();
+            CollectionAssert.AreEqual(new[]
+            {
+                (4.0, 0.0), (4.5, 2.0), (5.0, 0.0), (5.999, 0.0),  // up and back, then nothing to the note's end
+                (6.98, 2.0), (7.0, 2.0), (7.999, 2.0), (8.0, 0.0),  // a pre-bend: up before the note (after the one before)
+                (8.0, 0.0), (8.5, 1.0), (8.999, 1.0), (9.0, 0.0),  // up to its end; the next note starts unbent
+            }, wheel);
+            Assert.IsFalse(a.Wheel.Any(w => w.Part != BandPart.Lead1));  // the harmonica on instrument 1 bends nothing
         }
 
         [Test]

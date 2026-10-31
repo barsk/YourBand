@@ -115,7 +115,10 @@ Each step leaves "Default" playing exactly as today, and is checked before the n
      a bend, a release, a pre-bend, a bend and release play as written), the slide's kind (to the next note, out
      down or up, in from below or above), the vibrato's width (slight or wide), the tremolo picking's speed and a
      harmonic's sounding pitch. The Guitar Pro songs are imported again.
-   - **9.2 The pitch wheel.** The arrangement gives each part that bends a list of wheel points (when, semitones),
+   - **9.2 The pitch wheel.** (Done 2026-10-31, with the leads' bends from the file's points as its first use;
+     measured: Shreddage, MONSTER Bass and Numa Player bend 2 semitones each way, Ample Bass P Lite not at all, so the
+     engine uses 2 for every plugin. The importer now also keeps a bend through a tied note: the points move as the
+     note grows, and a release drawn on the tied note is kept.) The arrangement gives each part that bends a list of wheel points (when, semitones),
      and the load message carries them. The engine sends them on the part's MIDI channel, scaled to its plugin's
      range (±2 for Shreddage; Numa Player, Ample Bass and MONSTER Bass are measured in this step), and puts the
      wheel back in the middle at stop, seek and a new song.

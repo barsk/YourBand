@@ -562,6 +562,8 @@ namespace GuitarTutor.SongTool
                                     if (n.IsTieDestination && sounding.TryGetValue((pitch, stringIndex), out var held)
                                         && Math.Abs(held.AtQuarter + held.Quarters - at) < 1e-6)
                                     {
+                                        held.BendPoints = TiedBend(held.BendPoints, held.Quarters, BendShape(n), length);
+                                        held.Bend = held.BendPoints == null ? held.Bend : Math.Max(held.Bend, held.BendPoints.Max(p => p[1]));
                                         held.Quarters += length;
                                         continue;
                                     }
@@ -687,6 +689,21 @@ namespace GuitarTutor.SongTool
             n.HasBend && n.BendPoints != null && n.BendPoints.Count > 0
                 ? n.BendPoints.Select(p => new[] { Math.Round(p.Offset / 60.0, 3), p.Value / 2.0 }).ToList()
                 : null;
+
+        /// <summary>
+        /// A note's bend with a tied note's merged into it (its points are where in the note: they move as it grows): the
+        /// tied note's own points after the note's (a release drawn on it), else a bend that holds through the tie.
+        /// </summary>
+        static List<double[]> TiedBend(List<double[]> points, double quarters, List<double[]> tied, double tiedQuarters)
+        {
+            var total = quarters + tiedQuarters;
+            var merged = points?.Select(p => new[] { Math.Round(p[0] * quarters / total, 3), p[1] }).ToList() ?? new List<double[]>();
+            if (tied != null)
+                merged.AddRange(tied.Select(p => new[] { Math.Round((quarters + p[0] * tiedQuarters) / total, 3), p[1] }));
+            else if (merged.Count > 0)
+                merged.Add(new[] { 1.0, merged[merged.Count - 1][1] });
+            return merged.Count > 0 ? merged : null;
+        }
 
         /// <summary>A slide out of a note (see <see cref="TrackNote.SlideOut"/>); a pick slide is a scrape, not a slide of pitch.</summary>
         static string SlideOut(SlideOutType type) => type switch

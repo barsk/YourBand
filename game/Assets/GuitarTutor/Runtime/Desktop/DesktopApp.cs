@@ -307,7 +307,19 @@ namespace GuitarTutor.Runtime.Desktop
             arrangement = Arranger.Arrange(chart, style, connections);
             var parts = Environment.GetCommandLineArgs().SkipWhile(a => a != "-parts").Skip(1).FirstOrDefault();
             if (parts != null)
-                arrangement.Notes.RemoveAll(n => !parts.Split(',').Contains(n.Part.ToString().ToLowerInvariant()));
+            {
+                bool Kept(BandPart part) => parts.Split(',').Contains(part.ToString().ToLowerInvariant());
+                arrangement.Notes.RemoveAll(n => !Kept(n.Part));
+                arrangement.Wheel.RemoveAll(w => !Kept(w.Part));
+                if (!Kept(BandPart.Guitar))
+                {
+                    // the guitarist's strumming and string-by-string playing too (its held chords, strokes and picks)
+                    arrangement.Strokes.Clear();
+                    arrangement.Picks.Clear();
+                    arrangement.Voicings.Clear();
+                    arrangement.SingleSpans.Clear();
+                }
+            }
             band?.SetSong(chart, arrangement);
             engineReady = false;
             transport = local;

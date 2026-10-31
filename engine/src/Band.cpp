@@ -31,6 +31,11 @@ namespace
     // place in the held chord. A held key keeps its string ringing and letting it go damps it; the key's velocity
     // hardly changes the level (2-3 dB from 20 to 127)
     constexpr int firstStringKey = 90;
+
+    // the pitch wheel's range, in semitones each way: measured with plugin_probe --bend (2026-10-31), Shreddage (Kontakt),
+    // MONSTER Bass and Numa Player all bend 2 (+198 to +201 cents at the top, -200 to -202 at the bottom, linear and at
+    // once); Ample Bass P Lite does not bend at all. A bend past it stops there
+    constexpr float wheelRange = 2.0f;
     constexpr double strokeHoldMinSec = 0.080;  // the shortest key hold: below ~40 ms the sweep is partial
     constexpr double strokeHoldMaxSec = 1.2;    // the longest: a held key sustains the chord at full level,
                                                 // so a longer hold would ring it like a synth
@@ -203,6 +208,13 @@ std::unique_ptr<Score> Score::fromMessage (const juce::var& message, juce::Strin
                                           juce::jlimit (1, 127, (int) p[3]) });
     std::stable_sort (score->picks.begin(), score->picks.end(),
                       [] (const Pick& a, const Pick& b) { return a.at < b.at; });
+    static_assert (std::tuple_size<decltype (score->wheels)>::value == BandProcessor::numParts);
+    if (auto* wheel = message["wheel"].getArray())
+        for (const auto& w : *wheel)
+            if (w.size() >= 3 && (int) w[0] >= 0 && (int) w[0] < BandProcessor::numParts)
+                score->wheels[(size_t) (int) w[0]].push_back ({ (double) w[1], (float) (double) w[2] });
+    for (auto& points : score->wheels)  // (stable: a part's points at one moment keep the game's order)
+        std::stable_sort (points.begin(), points.end(), [] (const WheelPoint& a, const WheelPoint& b) { return a.at < b.at; });
     if (auto* spans = message["spans"].getArray())
         for (const auto& sp : *spans)
             if (sp.size() >= 2 && (double) sp[1] > (double) sp[0])
@@ -220,6 +232,7 @@ BandProcessor::BandProcessor (SharedClock& sharedClock)
       clock (sharedClock)
 {
     countInUntil = none;
+    wheelSent.fill (8192);
 }
 
 void BandProcessor::prepareToPlay (double newSampleRate, int)
@@ -316,6 +329,30 @@ size_t BandProcessor::firstPickFrom (double q) const
                      - p.begin());
 }
 
+void BandProcessor::restartWheels (double q)
+{
+    for (int part = 0; part < numParts; ++part)
+    {
+        wheelCursor[(size_t) part] = 0;
+        if (playingScore != nullptr)
+        {
+            const auto& points = playingScore->wheels[(size_t) part];
+            wheelCursor[(size_t) part] = (size_t) (std::lower_bound (points.begin(), points.end(), q - 1.0e-9,
+                                                                     [] (const Score::WheelPoint& w, double at) { return w.at < at; })
+                                                   - points.begin());
+        }
+    }
+}
+
+void BandProcessor::sendWheel (int part, float semitones, int sample, juce::MidiBuffer& midi)
+{
+    const auto value = juce::jlimit (0, 16383, 8192 + juce::roundToInt (juce::jlimit (-1.0f, 1.0f, semitones / wheelRange) * 8191.0f));
+    if (value == wheelSent[(size_t) part])
+        return;
+    midi.addEvent (juce::MidiMessage::pitchWheel (channelOf ((Part) part), value), sample);
+    wheelSent[(size_t) part] = value;
+}
+
 size_t BandProcessor::firstSpanFrom (double q) const
 {
     if (playingScore == nullptr)
@@ -339,6 +376,12 @@ void BandProcessor::releaseAll (juce::MidiBuffer& midi)
         midi.addEvent (juce::MidiMessage::noteOff (channelOf (offs[(size_t) i].part), offs[(size_t) i].pitch), 0);
     for (auto part : { keys, bass, guitar, drums, lead1, lead2 })
         midi.addEvent (juce::MidiMessage::allNotesOff (channelOf (part)), 0);
+    for (int part = 0; part < numParts; ++part)  // a bend let go of (stop, seek, a new song)
+        if (wheelSent[(size_t) part] != 8192)
+        {
+            midi.addEvent (juce::MidiMessage::pitchWheel (channelOf ((Part) part), 8192), 0);
+            wheelSent[(size_t) part] = 8192;
+        }
     numOffs = 0;
     strumModeOn = false;  // allNotesOff let go of the strumming-mode keyswitch
     singleActive = false;
@@ -360,6 +403,7 @@ void BandProcessor::apply (const Command& c, juce::MidiBuffer& midi)
             voicingCursor = firstVoicingFrom (c.a);
             strokeCursor = firstStrokeFrom (c.a);
             pickCursor = firstPickFrom (c.a);
+            restartWheels (c.a);
             spanCursor = firstSpanFrom (c.a);
             playing = true;
             break;
@@ -378,6 +422,7 @@ void BandProcessor::apply (const Command& c, juce::MidiBuffer& midi)
             voicingCursor = firstVoicingFrom (c.a);
             strokeCursor = firstStrokeFrom (c.a);
             pickCursor = firstPickFrom (c.a);
+            restartWheels (c.a);
             spanCursor = firstSpanFrom (c.a);
             break;
         case Command::speed:
@@ -467,6 +512,7 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         strokeCursor = firstStrokeFrom (quarter);
         pickCursor = firstPickFrom (quarter);
         spanCursor = firstSpanFrom (quarter);
+        restartWheels (quarter);
     }
     {
         const auto scope = fifo.read (fifo.getNumReady());
@@ -514,6 +560,32 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         }
 
         const auto countingIn = ! std::isnan (countInUntil);
+        // the parts' pitch wheels (bends), on their plugins: where the wheel is between two points at the block's start,
+        // then each point inside the block at its moment; before the notes, so a bend at a note's start is there as the
+        // note starts. The guitar's are early by its plugin's lag, as its notes are
+        for (int part = 0; part < numParts; ++part)
+        {
+            const auto& points = s->wheels[(size_t) part];
+            if (points.empty() || ! onPlugin[(size_t) part].load())
+                continue;
+            const auto ahead = part == guitar ? guitarAdvance.load() * rate : 0.0;
+            auto& next = wheelCursor[(size_t) part];
+            while (next < points.size() && points[next].at - ahead <= q0)
+                ++next;
+            if (countingIn && q0 < countInUntil - 1.0e-9)
+                continue;
+            if (next > 0 && next < points.size())
+            {
+                const auto& a = points[next - 1];
+                const auto& b = points[next];
+                const auto along = b.at - a.at > 1.0e-9 ? (q0 + ahead - a.at) / (b.at - a.at) : 1.0;
+                sendWheel (part, a.semitones + (float) juce::jlimit (0.0, 1.0, along) * (b.semitones - a.semitones), 0, midi);
+            }
+            else if (next > 0)
+                sendWheel (part, points.back().semitones, 0, midi);
+            for (; next < points.size() && points[next].at - ahead < q1; ++next)
+                sendWheel (part, points[next].semitones, offsetOf (points[next].at - ahead), midi);
+        }
         // the tab's single-string notes go to the lead 1 plugin, where it has one (and its fader is up) and the song
         // gives that channel no part of its own: the guitar plugin then only strums (and keeps quiet while the tab plays), so the two do not
         // compete for its voices and its strumming mode
@@ -571,6 +643,7 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
             strokeCursor = firstStrokeFrom (quarter);
             pickCursor = firstPickFrom (quarter);
             spanCursor = firstSpanFrom (quarter);
+            wheelSent[(size_t) guitar] = -1;  // (another sound: its wheel is sent anew)
         }
         if (strums)
         {

@@ -58,6 +58,9 @@ struct Score
     std::vector<Voicing> voicings;  // in time order
     std::vector<Stroke> strokes;  // in time order
     std::vector<Pick> picks;      // in time order (a song has strokes or picks)
+    /** A point of a part's pitch wheel: semitones above (below) its notes; between two points the wheel moves evenly. */
+    struct WheelPoint { double at; float semitones; };
+    std::array<std::vector<WheelPoint>, 6> wheels;  // per part (BandProcessor::Part), in time order
     std::vector<Span> spans;      // in time order
 
     double bpmAt (double quarter) const;
@@ -146,6 +149,11 @@ private:
     size_t firstStrokeFrom (double quarter) const;
     size_t firstPickFrom (double quarter) const;
     size_t firstSpanFrom (double quarter) const;
+    /** Every part's pitch wheel from a position on (its next point); the wheels themselves go back to the middle in
+        releaseAll. */
+    void restartWheels (double quarter);
+    /** A part's pitch wheel to a bend (semitones), if it is not there already. */
+    void sendWheel (int part, float semitones, int sample, juce::MidiBuffer&);
     void emit (const BandNote&, double dueAt, int sample, juce::MidiBuffer&);
     /** The note a General MIDI drum note plays on the kit in use: itself if the kit has the drum, else the nearest drum
         it has (a floor tom for a missing low tom, the crash for a china), or -1 (hand percussion with no stand-in). */
@@ -180,6 +188,8 @@ private:
     bool playing = false;
     double quarter = 0.0, speed = 1.0, countInUntil = 0.0, countInLength = 0.0;
     size_t cursor = 0, guitarCursor = 0, voicingCursor = 0, strokeCursor = 0, pickCursor = 0, spanCursor = 0;
+    std::array<size_t, numParts> wheelCursor {};  // per part: its next wheel point
+    std::array<int, numParts> wheelSent {};  // per part: the wheel's value last sent (8192: the middle)
     bool singleActive = false;  // inside a stretch of single-string notes: the strumming mode is let go
     bool strumModeOn = false;  // Shreddage's F#5 strumming-mode keyswitch (note 78), held while the plugin strums
     std::array<Off, 256> offs;

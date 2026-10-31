@@ -109,6 +109,27 @@ namespace GuitarTutor.Core.Band
         public override string ToString() => $"string {Rank} at {AtQuarter} for {Quarters} ({Velocity})";
     }
 
+    /// <summary>
+    /// A point of a part's pitch wheel (docs/instrument-tracks.md, step 9): how far the part sounds above (or below) its
+    /// notes at a moment, in semitones; between two points the wheel moves evenly from one to the other. The plugin's
+    /// range limits it (Shreddage: 2 semitones).
+    /// </summary>
+    public readonly struct WheelPoint
+    {
+        public BandPart Part { get; }
+        public double AtQuarter { get; }
+        public double Semitones { get; }
+
+        public WheelPoint(BandPart part, double atQuarter, double semitones)
+        {
+            Part = part;
+            AtQuarter = atQuarter;
+            Semitones = semitones;
+        }
+
+        public override string ToString() => $"{Part} {Semitones:+0.##;-0.##;0} at {AtQuarter}";
+    }
+
     /// <summary>The band's parts for a whole song.</summary>
     public sealed class Arrangement
     {
@@ -124,6 +145,8 @@ namespace GuitarTutor.Core.Band
         public List<(double From, double To)> SingleSpans { get; } = new List<(double, double)>();
         /// <summary>The guitarist's strings picked one by one on the held chord, instead of strokes, in time order.</summary>
         public List<BandPick> Picks { get; } = new List<BandPick>();
+        /// <summary>The parts' pitch wheels (bends), in time order.</summary>
+        public List<WheelPoint> Wheel { get; } = new List<WheelPoint>();
         public IEnumerable<BandNote> Part(BandPart part) => Notes.Where(n => n.Part == part);
     }
 
@@ -345,9 +368,49 @@ namespace GuitarTutor.Core.Band
                     foreach (var n in track.Notes)
                         if (!n.Technique.Contains('x'))  // (a dead note's pitch is its open string's: it is not one to play)
                             notes.Add(new BandNote(part, n.Pitch, n.AtQuarter, Math.Max(0.05, n.Quarters), n.Velocity));
+                    LeadBends(track, part, arrangement.Wheel);
                 }
             notes.Sort((a, b) => a.AtQuarter != b.AtQuarter ? a.AtQuarter.CompareTo(b.AtQuarter) : a.Part.CompareTo(b.Part));
+            var wheel = arrangement.Wheel.OrderBy(w => w.AtQuarter).ToList();  // (a stable sort: a part's points at one moment keep their order)
+            arrangement.Wheel.Clear();
+            arrangement.Wheel.AddRange(wheel);
             return arrangement;
+        }
+
+        /// <summary>How long before its note a pre-bend's wheel is up (quarter notes): bent before the string is picked.</summary>
+        const double PreBendLead = 0.02;
+
+        /// <summary>
+        /// A lead's bends on its pitch wheel: each bent note's points as the file draws them (a pre-bend up just before the
+        /// note, after the one before has ended), back in the middle where the note ends or the next one starts. A lead
+        /// plays one note at a time, so the wheel's bend is the note's.
+        /// </summary>
+        static void LeadBends(SongTrack track, BandPart part, List<WheelPoint> wheel)
+        {
+            var notes = track.Notes.Where(n => !n.Technique.Contains('x')).OrderBy(n => n.AtQuarter).ToList();
+            var previousEnd = double.NegativeInfinity;
+            for (int i = 0; i < notes.Count; ++i)
+            {
+                var n = notes[i];
+                var end = n.AtQuarter + n.Quarters;
+                var next = notes.Skip(i + 1).FirstOrDefault(m => m.AtQuarter > n.AtQuarter + 1e-6);
+                if (next != null)
+                    end = Math.Min(end, next.AtQuarter);
+                if (n.BendPoints != null && n.BendPoints.Count > 0)
+                {
+                    var first = n.BendPoints[0][1];
+                    if (Math.Abs(first) > 1e-6)
+                        wheel.Add(new WheelPoint(part, Math.Max(previousEnd, n.AtQuarter - PreBendLead), first));
+                    foreach (var p in n.BendPoints)
+                        if (n.AtQuarter + p[0] * (end - n.AtQuarter) < end - 0.001)
+                            wheel.Add(new WheelPoint(part, n.AtQuarter + p[0] * (end - n.AtQuarter), p[1]));
+                    var last = n.BendPoints[n.BendPoints.Count - 1][1];
+                    wheel.Add(new WheelPoint(part, end - 0.001, last));  // as the note ends
+                    if (Math.Abs(last) > 1e-6)
+                        wheel.Add(new WheelPoint(part, end, 0));  // the next note starts unbent
+                }
+                previousEnd = Math.Max(previousEnd, end);
+            }
         }
 
         /// <summary>No hits: a part that plays a track makes up none.</summary>

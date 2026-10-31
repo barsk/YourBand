@@ -30,7 +30,8 @@ namespace GuitarTutor.Core.Engine
 
         /// <summary>The song's tempo map and the band's notes, as [part, pitch, at, length, velocity]; the
         /// guitarist's held voicings as [pitch, at, length], its strokes as [at, direction, velocity, muted] and its
-        /// strings picked on their own as [at, length, place in the held chord, velocity]. <paramref name="song"/> names the
+        /// strings picked on their own as [at, length, place in the held chord, velocity], and its parts' pitch wheels as
+        /// [part, at, semitones] (the wheel moves evenly between a part's points). <paramref name="song"/> names the
         /// song (its file name) for the sounds the engine keeps per song.</summary>
         public static string Load(string title, TempoMap tempo, Arrangement arrangement, string keysSound, string origin = "", string song = "")
         {
@@ -54,6 +55,9 @@ namespace GuitarTutor.Core.Engine
             var picks = new JArray();
             foreach (var p in arrangement.Picks)
                 picks.Add(new JArray(Math.Round(p.AtQuarter, 6), Math.Round(p.Quarters, 6), p.Rank, p.Velocity));
+            var wheel = new JArray();
+            foreach (var w in arrangement.Wheel)
+                wheel.Add(new JArray(Array.IndexOf(Parts, w.Part), Math.Round(w.AtQuarter, 6), Math.Round(w.Semitones, 3)));
             return Line(new JObject
             {
                 ["type"] = "load",
@@ -65,6 +69,7 @@ namespace GuitarTutor.Core.Engine
                 ["voicings"] = voicings,
                 ["strokes"] = strokes,
                 ["picks"] = picks,
+                ["wheel"] = wheel,
                 ["spans"] = spans,
                 ["leads"] = new JArray(arrangement.LeadNames),
                 ["keys"] = keysSound ?? "",
