@@ -57,7 +57,8 @@ Every track with notes is also kept as written, in `tracks` (the strummed guitar
 program, a kind guessed from its name, program and strings (guitar, bass, keys, drums, voice, other), and for a
 track written as tab on one staff its tuning and capo. Each note has its sounding pitch (a drum's General MIDI
 note, as alphaTab's percussion mapper gives it), its string and fret where the track is tab, a velocity from the
-written dynamics and accents (as alphaTab's player: ppp 15 to fff 127), its techniques as letters (b bend, s slide,
+written dynamics and accents (as alphaTab's player: ppp 15 to fff 127; under a crescendo or a diminuendo spread evenly
+from the dynamic it starts at to the one after it, a level louder or softer where the file marks none), its techniques as letters (b bend, s slide,
 h hammer-on or pull-off, ~ vibrato, m palm mute, x dead, g ghost, a accent, . staccato, r let ring, n harmonic,
 t tapped, z tremolo, q grace; D or U the beat's recorded pick stroke), and the techniques' shapes: a bend's height in
 semitones and its points (`bendPoints`: [where in the note 0-1, semitones], so a release or a pre-bend is as written),

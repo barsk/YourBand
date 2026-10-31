@@ -515,6 +515,7 @@ namespace GuitarTutor.SongTool
         static void Tracks(Score score, List<PlayedBar> timeline, Song song, double tpq, ImportReport report)
         {
             var noDrum = 0;  // notes on a drum track that name no drum (alphaTab would play them as MIDI note 0, silent)
+            var hairpins = 0;  // crescendos and diminuendos spread over their notes
             foreach (var track in score.Tracks)
             {
                 if (track.Staves.Count == 0)
@@ -533,6 +534,7 @@ namespace GuitarTutor.SongTool
                     Tuning = tab ? Tuning(first) : new List<string>(),
                     Capo = tab ? (int)first.Capo : 0,
                 };
+                var hairpin = new Dictionary<TrackNote, CrescendoType>();  // the notes under a crescendo or a diminuendo
                 foreach (var staff in track.Staves)
                 {
                     // a note sounding on, to be held on by a tied note: the latest one per pitch and string
@@ -586,6 +588,8 @@ namespace GuitarTutor.SongTool
                                     };
                                     sounding[(pitch, stringIndex)] = note;
                                     songTrack.Notes.Add(note);
+                                    if (beat.Crescendo != CrescendoType.None)
+                                        hairpin[note] = beat.Crescendo;
                                 }
                             }
                     }
@@ -593,6 +597,7 @@ namespace GuitarTutor.SongTool
                 if (songTrack.Notes.Count == 0)
                     continue;
                 songTrack.Notes.Sort((a, b) => a.AtQuarter != b.AtQuarter ? a.AtQuarter.CompareTo(b.AtQuarter) : a.Pitch.CompareTo(b.Pitch));
+                hairpins += Hairpins(songTrack.Notes, hairpin);
                 var twin = song.Tracks.FirstOrDefault(t => t.SameAs == null && SameNotes(t, songTrack));
                 if (twin != null)
                 {
@@ -606,6 +611,8 @@ namespace GuitarTutor.SongTool
                     + (t.SameAs != null ? $"same as {t.SameAs}" : $"{t.Kind}, {t.Notes.Count} notes") + ")")) + ".");
             if (noDrum > 0)
                 report.Add($"{noDrum} notes on a drum track name no drum (no articulation in the file): left out.");
+            if (hairpins > 0)
+                report.Add($"{hairpins} crescendos and diminuendos: their notes' velocities spread across them.");
         }
 
         /// <summary>What a track seems to be, from its name, General MIDI program and strings.</summary>
@@ -682,6 +689,49 @@ namespace GuitarTutor.SongTool
             if (n.IsGhost)
                 v -= 16;
             return Math.Max(1, Math.Min(127, v));
+        }
+
+        /// <summary>
+        /// Crescendos and diminuendos: the velocity of the notes under one spreads evenly, by when they start, from the
+        /// dynamic it starts at to the one after it (a level, 16, louder or softer where the file marks none in its
+        /// direction there); a note's accent stays on top. The number of them.
+        /// </summary>
+        static int Hairpins(List<TrackNote> notes, Dictionary<TrackNote, CrescendoType> hairpin)
+        {
+            var onsets = notes.GroupBy(n => n.AtQuarter).OrderBy(g => g.Key).Select(g => g.ToList()).ToList();
+            CrescendoType TypeOf(List<TrackNote> onset) =>
+                onset.Select(n => hairpin.TryGetValue(n, out var type) ? type : CrescendoType.None).FirstOrDefault(type => type != CrescendoType.None);
+            int Level(List<TrackNote> onset) => onset.GroupBy(n => n.Velocity).OrderByDescending(g => g.Count()).ThenBy(g => g.Key).First().Key;
+            var count = 0;
+            for (int i = 0; i < onsets.Count;)
+            {
+                var type = TypeOf(onsets[i]);
+                if (type == CrescendoType.None)
+                {
+                    ++i;
+                    continue;
+                }
+                var j = i;
+                while (j < onsets.Count && TypeOf(onsets[j]) == type)
+                    ++j;
+                var from = onsets[i][0].AtQuarter;
+                var to = j < onsets.Count ? onsets[j][0].AtQuarter : onsets[j - 1].Max(n => n.AtQuarter + n.Quarters);
+                var start = Level(onsets[i]);
+                var end = j < onsets.Count ? Level(onsets[j]) : start;
+                if (type == CrescendoType.Crescendo && end <= start)
+                    end = start + 16;
+                else if (type == CrescendoType.Decrescendo && end >= start)
+                    end = start - 16;
+                for (var k = i; k < j; ++k)
+                {
+                    var delta = (int)Math.Round((end - start) * (onsets[k][0].AtQuarter - from) / Math.Max(1e-6, to - from));
+                    foreach (var n in onsets[k])
+                        n.Velocity = Math.Max(1, Math.Min(127, n.Velocity + delta));
+                }
+                ++count;
+                i = j;
+            }
+            return count;
         }
 
         /// <summary>A bend's points as [where in the note 0-1, semitones] (alphaTab: offset 0-60, quarter tones); null if none.</summary>

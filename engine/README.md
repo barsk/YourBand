@@ -222,6 +222,11 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   middle. Measured with plugin_probe `--bend` (2026-10-31): Shreddage, MONSTER Bass and Numa Player all bend 2
   semitones each way (linear, at once; a string key's pick too), so the engine scales 2 semitones to the wheel's
   end and a bend past it stops there; Ample Bass P Lite does not bend at all.
+- Velocities (step 9.4): the drums, the bass and the keyboards play a track's velocities as the file has them (its
+  dynamics, accents and hairpins). Measured with plugin_probe `--vels` (2026-10-31, RMS of each hit): MONSTER Drums'
+  kick is 15 dB quieter at p (47) than at f (95), its snare 23 and its hi-hat 14; Ample Bass P Lite 6, MONSTER Bass 10.
+  Louder only, not choked or faint as Shreddage was at soft velocities (the rhythm guitar has a mapping for that), so
+  they get none.
 - Techniques (step 9.3): the lead guitar, instrument 1, the bass and the rhythm guitar played picked bend as the file
   draws it, wobble on a vibrato (about 5.5 times a second, a quarter semitone, half one wide), glide on a slide (2
   semitones at most), and play a hammer-on's, pull-off's or legato slide's next note softer, a palm mute shorter and

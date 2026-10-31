@@ -102,7 +102,7 @@ Each step leaves "Default" playing exactly as today, and is checked before the n
    kept in the song's sounds file, solo is not, and a song not mixed yet starts at the old faders' levels. The game
    sends the musicians' places (`stage`; moved in VR, sent again): an instrument pans from its place as the audience
    hears it until its knob is turned; "Pan from stage" puts them all back. Mute and solo never silence your guitar.
-9. **Dynamics and techniques.** Velocities from the file's dynamics; bends, slides and the rest on the
+9. **Dynamics and techniques.** (Done 2026-10-31.) Velocities from the file's dynamics; bends, slides and the rest on the
    plugins that support them. Plan (2026-10-31, for approval):
    - **What the free Shreddage can do.** The manual's red text marks what only the full version has; plugin_probe
      measured the rest. The pitch wheel bends a note ±2 semitones (+198 cents full up, -200 full down, linear and at
@@ -144,7 +144,11 @@ Each step leaves "Default" playing exactly as today, and is checked before the n
 
      The wheel bends everything on a part's channel. The leads play one note at a time, so a bend is theirs alone;
      the rhythm guitar and the bass bend only where none of their other strings rings.
-   - **9.4 Dynamics.** Velocities from the file's dynamics are in since step 2. This step also reads hairpins
+   - **9.4 Dynamics.** (Done 2026-10-31. Hairpins: only Redbud Tree has them, a diminuendo at 108.5 and a crescendo at
+     177.5 on the steel guitar. The plugins, measured with plugin_probe at velocities 47 to 127: MONSTER Drums' kick
+     spreads 15 dB from p to f, its snare 23 and its hi-hat 14, Ample Bass 6 and MONSTER Bass 10; none goes faint and
+     choked as Shreddage did, only quieter, and Wicked Game's soft drums are written so (its ride mezzo-piano, its soft
+     snare hits ghost notes): no mapping.) Velocities from the file's dynamics are in since step 2. This step also reads hairpins
      (crescendo, diminuendo) and spreads the velocity across them, and measures whether the drum and bass plugins
      sound faint at the file's soft velocities, as Shreddage did; if so they get a mapping like the guitar's.
    - **Checked by** unit tests of the wheel points per technique, and a silent recording of a lead with bends,
