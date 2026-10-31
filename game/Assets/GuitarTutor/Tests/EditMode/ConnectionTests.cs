@@ -94,12 +94,14 @@ namespace GuitarTutor.Core.Tests
         public void Leads_PlayTheirConnectedTracks()
         {
             var song = GuitarProSong();
-            song.Tracks[1].Notes[0].Technique = "x";  // a dead note on the harmonica: not played
+            song.Tracks[1].Notes[0].Technique = "x";  // a dead note on the harmonica: a click
             var chart = new SongChart(song);
             var connections = new BandConnections();
             var a = Arranger.Arrange(chart, BandStyle.Named("Ballad"), connections);
             Assert.AreEqual(25, a.Part(BandPart.Lead1).Count());  // Guitar 1
-            Assert.AreEqual(19, a.Part(BandPart.Lead2).Count());  // the harmonica, but its dead note
+            Assert.AreEqual(20, a.Part(BandPart.Lead2).Count());  // the harmonica
+            var dead = a.Part(BandPart.Lead2).OrderBy(n => n.AtQuarter).First();
+            Assert.IsTrue(dead.Velocity <= 30 && dead.Quarters < 0.2);  // its dead note very short and very soft
             CollectionAssert.AreEqual(new[] { "Guitar 1", "Harmonica" }, a.LeadNames);
             connections.Choose(Instrument.LeadGuitar, TrackRef.Default);
             var none = Arranger.Arrange(chart, BandStyle.Named("Ballad"), connections);
@@ -124,28 +126,110 @@ namespace GuitarTutor.Core.Tests
             lead.Notes.Add(new TrackNote { AtQuarter = 9, Quarters = 1, Pitch = 65 });
             var a = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"), new BandConnections());
 
-            var wheel = a.Wheel.Where(w => w.Part == BandPart.Lead1).Select(w => (Math.Round(w.AtQuarter, 3), w.Semitones)).ToList();
-            CollectionAssert.AreEqual(new[]
-            {
-                (4.0, 0.0), (4.5, 2.0), (5.0, 0.0), (5.999, 0.0),  // up and back, then nothing to the note's end
-                (6.98, 2.0), (7.0, 2.0), (7.999, 2.0), (8.0, 0.0),  // a pre-bend: up before the note (after the one before)
-                (8.0, 0.0), (8.5, 1.0), (8.999, 1.0), (9.0, 0.0),  // up to its end; the next note starts unbent
-            }, wheel);
+            var wheel = a.Wheel.Where(w => w.Part == BandPart.Lead1).ToList();
+            // up and back, then nothing to the note's end
+            Assert.AreEqual(0, WheelAt(wheel, 4.0), 1e-6);
+            Assert.AreEqual(2, WheelAt(wheel, 4.5), 1e-6);
+            Assert.AreEqual(1, WheelAt(wheel, 4.75), 0.05);
+            Assert.AreEqual(0, WheelAt(wheel, 5.5), 1e-6);
+            // a pre-bend: up before the note (after the one before), held, back in the middle as the next note starts
+            Assert.AreEqual(0, WheelAt(wheel, 6.9), 1e-6);
+            Assert.AreEqual(2, WheelAt(wheel, 6.99), 1e-6);
+            Assert.AreEqual(2, WheelAt(wheel, 7.9), 1e-6);
+            Assert.AreEqual(0, WheelAt(wheel, 8.0), 1e-6);
+            // up to its end; the next note starts unbent
+            Assert.AreEqual(1, WheelAt(wheel, 8.5), 1e-6);
+            Assert.AreEqual(1, WheelAt(wheel, 8.99), 1e-6);
+            Assert.AreEqual(0, WheelAt(wheel, 9.2), 1e-6);
             Assert.IsFalse(a.Wheel.Any(w => w.Part != BandPart.Lead1));  // the harmonica on instrument 1 bends nothing
+        }
+
+        /// <summary>Where a part's wheel is at a moment, as the engine moves it: evenly between its points (the last of
+        /// several at one moment counts).</summary>
+        static double WheelAt(List<WheelPoint> wheel, double at)
+        {
+            var before = wheel.LastOrDefault(w => w.AtQuarter <= at + 1e-9);
+            var after = wheel.FirstOrDefault(w => w.AtQuarter > at + 1e-9);
+            if (wheel.All(w => w.AtQuarter > at + 1e-9))
+                return 0;
+            if (after.AtQuarter <= before.AtQuarter)
+                return before.Semitones;
+            return before.Semitones + (at - before.AtQuarter) / (after.AtQuarter - before.AtQuarter) * (after.Semitones - before.Semitones);
+        }
+
+        [Test]
+        public void TheTechniques_AreHowTheNotesArePlayed()
+        {
+            var song = GuitarProSong();
+            var lead = song.Tracks[2];  // Guitar 1, the lead guitar
+            lead.Notes.Clear();
+            void Add(double at, double quarters, int pitch, string technique = "", int stringIndex = 2) =>
+                lead.Notes.Add(new TrackNote { AtQuarter = at, Quarters = quarters, Pitch = pitch, StringIndex = stringIndex, Fret = 5, Velocity = 79, Technique = technique });
+            Add(4, 2, 64, "~");
+            lead.Notes[0].Vibrato = "slight";
+            Add(6, 1, 64, "s");  // a legato slide up a semitone to the next note
+            lead.Notes[1].SlideOut = "legato";
+            Add(7, 1, 65);
+            Add(8, 1, 64, "h");  // a hammer-on to the next note
+            Add(9, 1, 66);
+            Add(10, 1, 64, "m");  // palm-muted
+            Add(11, 1, 64, ".");  // staccato
+            Add(12, 1, 64, "z");  // tremolo picking in sixteenths
+            lead.Notes[lead.Notes.Count - 1].TremoloQuarters = 0.25;
+            Add(13, 1, 52, "x");  // a dead note
+            var a = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"), new BandConnections());
+            var notes = a.Part(BandPart.Lead1).OrderBy(n => n.AtQuarter).ToList();
+            var wheel = a.Wheel.Where(w => w.Part == BandPart.Lead1).ToList();
+            var perSecond = song.Tempo.BpmAt(4) / 60.0;
+
+            // vibrato: nothing for 0.15 s, then a wobble a quarter semitone each way
+            Assert.AreEqual(0, WheelAt(wheel, 4 + 0.1 * perSecond), 1e-6);
+            var wobble = wheel.Where(w => w.AtQuarter > 4.6 && w.AtQuarter < 5.9).Select(w => w.Semitones).ToList();
+            Assert.IsTrue(wobble.Max() > 0.2 && wobble.Min() < -0.2 && wobble.All(s => Math.Abs(s) <= 0.25 + 1e-6));
+            // the slide glides up a semitone at its note's end; the note it slides to is not picked: softer
+            Assert.AreEqual(1, WheelAt(wheel, 6.999), 0.02);
+            Assert.AreEqual(0, WheelAt(wheel, 7.2), 1e-6);
+            var picked = notes.Single(n => n.AtQuarter == 6).Velocity;
+            Assert.AreEqual(picked - 25, notes.Single(n => n.AtQuarter == 7).Velocity);
+            Assert.AreEqual(picked - 25, notes.Single(n => n.AtQuarter == 9).Velocity);  // hammered on
+            // palm-muted: shorter, softer, the palm mute's controller around it
+            var muted = notes.Single(n => n.AtQuarter == 10);
+            Assert.IsTrue(muted.Quarters <= 0.5 && muted.Velocity == picked - 12);
+            CollectionAssert.AreEqual(new[] { (10.0, 127), (10 + muted.Quarters, 0) },
+                                      a.Controls.Where(c => c.Part == BandPart.Lead1 && c.Controller == Arranger.PalmMuteController).Select(c => (c.AtQuarter, c.Value)));
+            Assert.AreEqual(0.5, notes.Single(n => n.AtQuarter == 11).Quarters, 1e-6);  // staccato: half as long
+            CollectionAssert.AreEqual(new[] { 12.0, 12.25, 12.5, 12.75 }, notes.Where(n => n.AtQuarter >= 12 && n.AtQuarter < 13).Select(n => n.AtQuarter));
+            var dead = notes.Single(n => n.AtQuarter == 13);  // a click
+            Assert.IsTrue(dead.Velocity <= 30 && dead.Quarters < 0.2);
+
+            // the bass bends only where nothing else of it rings
+            var bass = song.Tracks[5];
+            bass.Notes.Clear();
+            bass.Notes.Add(new TrackNote { AtQuarter = 0, Quarters = 1, Pitch = 40, StringIndex = 0, Fret = 0, Technique = "b", Bend = 1,
+                                           BendPoints = new List<double[]> { new[] { 0.0, 0.0 }, new[] { 0.5, 1.0 } } });
+            bass.Notes.Add(new TrackNote { AtQuarter = 2, Quarters = 2, Pitch = 45, StringIndex = 1, Fret = 0, Technique = "b", Bend = 1,
+                                           BendPoints = new List<double[]> { new[] { 0.0, 0.0 }, new[] { 0.5, 1.0 } } });
+            bass.Notes.Add(new TrackNote { AtQuarter = 2.5, Quarters = 1, Pitch = 40, StringIndex = 0, Fret = 0 });  // rings under it
+            var connections = new BandConnections();
+            connections.Choose(Instrument.Bass, TrackRef.Of(bass));
+            var b = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"), connections);
+            var bassWheel = b.Wheel.Where(w => w.Part == BandPart.Bass).ToList();
+            Assert.AreEqual(1, WheelAt(bassWheel, 0.75), 1e-6);  // alone: bent
+            Assert.IsFalse(bassWheel.Any(w => w.AtQuarter >= 2 && Math.Abs(w.Semitones) > 1e-6));  // another note rings: not
         }
 
         [Test]
         public void DrumsAndBass_PlayTheirTracksInsteadOfMadeUpParts()
         {
             var song = GuitarProSong();
-            song.Tracks[5].Notes[1].Technique = "x";  // a dead bass note: not played
+            song.Tracks[5].Notes[1].Technique = "x";  // a dead bass note: a click
             var chart = new SongChart(song);
             var madeUp = Arranger.Arrange(chart, BandStyle.Named("Ballad"));
             var connections = new BandConnections();
             var a = Arranger.Arrange(chart, BandStyle.Named("Ballad"), connections);
             CollectionAssert.AreEqual(song.Tracks[6].Notes.Select(n => (n.Pitch, n.AtQuarter, n.Velocity)),
                                       a.Part(BandPart.Drums).Select(n => (n.Pitch, n.AtQuarter, n.Velocity)));
-            Assert.AreEqual(59, a.Part(BandPart.Bass).Count());
+            Assert.AreEqual(60, a.Part(BandPart.Bass).Count());
             // the piano is too short to be connected automatically: the keys make up their part as before (the same notes; their velocities vary a little differently)
             // (a chord's notes in pitch order: the arrangement's sort by time leaves their order open)
             CollectionAssert.AreEqual(madeUp.Part(BandPart.Keys).Select(n => (n.AtQuarter, n.Pitch, n.Quarters)).OrderBy(k => k),
@@ -214,7 +298,7 @@ namespace GuitarTutor.Core.Tests
             Assert.AreEqual(0, a.Voicings.Count);
             Assert.AreEqual(0, a.SingleSpans.Count);
             var guitar = a.Part(BandPart.Guitar).ToList();
-            Assert.AreEqual(32, guitar.Count);  // every note but the dead ones
+            Assert.AreEqual(40, guitar.Count);  // every note, the dead ones short clicks
             Assert.IsTrue(guitar.All(n => !n.Single));
             var bass = guitar.Where(n => n.Pitch == 45).OrderBy(n => n.AtQuarter).ToList();
             Assert.AreEqual(3.99, bass[0].Quarters, 1e-6);  // let ring: until the next note on its string, a bar on

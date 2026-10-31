@@ -130,6 +130,25 @@ namespace GuitarTutor.Core.Band
         public override string ToString() => $"{Part} {Semitones:+0.##;-0.##;0} at {AtQuarter}";
     }
 
+    /// <summary>A MIDI controller a part's plugin is sent at a moment (the palm mute's, <see cref="Arranger.PalmMuteController"/>).</summary>
+    public readonly struct ControlPoint
+    {
+        public BandPart Part { get; }
+        public double AtQuarter { get; }
+        public int Controller { get; }
+        public int Value { get; }
+
+        public ControlPoint(BandPart part, double atQuarter, int controller, int value)
+        {
+            Part = part;
+            AtQuarter = atQuarter;
+            Controller = controller;
+            Value = value;
+        }
+
+        public override string ToString() => $"{Part} CC{Controller}={Value} at {AtQuarter}";
+    }
+
     /// <summary>The band's parts for a whole song.</summary>
     public sealed class Arrangement
     {
@@ -147,6 +166,8 @@ namespace GuitarTutor.Core.Band
         public List<BandPick> Picks { get; } = new List<BandPick>();
         /// <summary>The parts' pitch wheels (bends), in time order.</summary>
         public List<WheelPoint> Wheel { get; } = new List<WheelPoint>();
+        /// <summary>The parts' MIDI controllers (palm mutes), in time order.</summary>
+        public List<ControlPoint> Controls { get; } = new List<ControlPoint>();
         public IEnumerable<BandNote> Part(BandPart part) => Notes.Where(n => n.Part == part);
     }
 
@@ -337,13 +358,15 @@ namespace GuitarTutor.Core.Band
             }
             // the drums, bass and keyboards that play the song's tracks: their notes as the file has them (a dead note's
             // pitch is its open string's: it is not one to play)
-            foreach (var (track, part) in new[] { (drumsTrack, BandPart.Drums), (bassTrack, BandPart.Bass), (keysTrack, BandPart.Keys) })
+            foreach (var (track, part) in new[] { (drumsTrack, BandPart.Drums), (keysTrack, BandPart.Keys) })
                 if (track != null)
                     foreach (var n in track.Notes)
                         if (!n.Technique.Contains('x'))
                             notes.Add(new BandNote(part, n.Pitch, n.AtQuarter, Math.Max(0.05, n.Quarters), n.Velocity));
+            if (bassTrack != null)
+                PlayTrack(bassTrack, BandPart.Bass, false, arrangement, chart.Song.Tempo);
             if (rhythmTrack != null && connections.PlaysPicked(chart.Song, Instrument.RhythmGuitar))
-                PickedRhythm(rhythmTrack, arrangement);
+                PickedRhythm(rhythmTrack, arrangement, chart.Song.Tempo);
             else if (rhythmTrack != null && connections.PlaysStringKeys(chart.Song, Instrument.RhythmGuitar))
                 StringKeyRhythm(chart, rhythmTrack, arrangement);
             else if (rhythmTrack != null)
@@ -365,50 +388,180 @@ namespace GuitarTutor.Core.Band
                     if (track == null)
                         continue;
                     arrangement.LeadNames[channel] = track.Name;
-                    foreach (var n in track.Notes)
-                        if (!n.Technique.Contains('x'))  // (a dead note's pitch is its open string's: it is not one to play)
-                            notes.Add(new BandNote(part, n.Pitch, n.AtQuarter, Math.Max(0.05, n.Quarters), n.Velocity));
-                    LeadBends(track, part, arrangement.Wheel);
+                    PlayTrack(track, part, true, arrangement, chart.Song.Tempo);
                 }
             notes.Sort((a, b) => a.AtQuarter != b.AtQuarter ? a.AtQuarter.CompareTo(b.AtQuarter) : a.Part.CompareTo(b.Part));
             var wheel = arrangement.Wheel.OrderBy(w => w.AtQuarter).ToList();  // (a stable sort: a part's points at one moment keep their order)
             arrangement.Wheel.Clear();
             arrangement.Wheel.AddRange(wheel);
+            var controls = arrangement.Controls.OrderBy(c => c.AtQuarter).ToList();
+            arrangement.Controls.Clear();
+            arrangement.Controls.AddRange(controls);
             return arrangement;
         }
 
-        /// <summary>How long before its note a pre-bend's wheel is up (quarter notes): bent before the string is picked.</summary>
+        // ------------------------------------------------------------ techniques (docs/instrument-tracks.md, step 9)
+        /// <summary>
+        /// The MIDI controller the band sends a part's plugin around a palm-muted note: 127 as it starts, 0 as it ends. The
+        /// free Shreddage has the Mute articulation but not its keyswitch: in its Map tab, Mute triggered by "CC20 64-127"
+        /// plays the real palm mute. Without that the note is still shorter and softer.
+        /// </summary>
+        public const int PalmMuteController = 20;
+
+        /// <summary>How long before its note a pre-bend's or a slide-in's wheel is up (quarter notes): before the string is picked.</summary>
         const double PreBendLead = 0.02;
 
-        /// <summary>
-        /// A lead's bends on its pitch wheel: each bent note's points as the file draws them (a pre-bend up just before the
-        /// note, after the one before has ended), back in the middle where the note ends or the next one starts. A lead
-        /// plays one note at a time, so the wheel's bend is the note's.
-        /// </summary>
-        static void LeadBends(SongTrack track, BandPart part, List<WheelPoint> wheel)
+        /// <summary>A note of a track as a part plays it: where it sounds, for the pitch wheel afterwards.</summary>
+        readonly struct Played
         {
-            var notes = track.Notes.Where(n => !n.Technique.Contains('x')).OrderBy(n => n.AtQuarter).ToList();
+            public TrackNote Note { get; }
+            public double From { get; }
+            public double To { get; }
+
+            public Played(TrackNote note, double from, double to)
+            {
+                Note = note;
+                From = from;
+                To = to;
+            }
+        }
+
+        /// <summary>
+        /// A lead's or the bass's track, each note with its techniques (<see cref="Play"/>), then their pitch wheel
+        /// (<see cref="Wheel"/>): a lead plays one note at a time, so it bends whatever else rings; the bass only where
+        /// nothing else of it rings.
+        /// </summary>
+        static void PlayTrack(SongTrack track, BandPart part, bool lead, Arrangement arrangement, TempoMap tempo)
+        {
+            var played = new List<Played>();
+            var before = new Dictionary<int, TrackNote>();  // per string (or the part's, without one): the note before
+            foreach (var n in track.Notes.OrderBy(n => n.AtQuarter))
+            {
+                var key = n.StringIndex >= 0 ? n.StringIndex : -1;
+                before.TryGetValue(key, out var previous);
+                Play(arrangement, part, n, previous, n.AtQuarter, Math.Max(0.05, n.Quarters), n.Velocity, false, tempo, played);
+                before[key] = n;
+            }
+            Wheel(arrangement, part, played, lead, tempo);
+        }
+
+        /// <summary>
+        /// A note as it is played, from the length and velocity its part gives it: softer after a hammer-on, a pull-off or
+        /// a legato slide into it (the string is not picked); a dead note very short and very soft (a muted click, its
+        /// pitch the open string's); a palm-muted one shorter and softer, with the palm mute's controller around it; a
+        /// staccato one half as long; tremolo picking repeated notes at its speed, every other one a little softer.
+        /// </summary>
+        static void Play(Arrangement arrangement, BandPart part, TrackNote n, TrackNote before, double at, double quarters, int velocity,
+                         bool single, TempoMap tempo, List<Played> played)
+        {
+            var perSecond = tempo.BpmAt(at) / 60.0;  // quarters a second
+            if (before != null && (before.Technique.Contains('h') || before.SlideOut == "legato"))
+                velocity -= 25;
+            if (n.Technique.Contains('x'))
+            {
+                quarters = Math.Min(quarters, 0.06 * perSecond);
+                velocity = Math.Min(velocity, 30);
+            }
+            if (n.Technique.Contains('m'))
+            {
+                quarters = Math.Min(quarters * 0.5, 0.25 * perSecond);
+                velocity -= 12;
+                arrangement.Controls.Add(new ControlPoint(part, at, PalmMuteController, 127));
+                arrangement.Controls.Add(new ControlPoint(part, at + quarters, PalmMuteController, 0));
+            }
+            if (n.Technique.Contains('.'))
+                quarters *= 0.5;
+            velocity = Math.Max(1, Math.Min(127, velocity));
+            if (n.TremoloQuarters > 0 && quarters > n.TremoloQuarters * 1.5)
+            {
+                var k = 0;
+                for (var q = at; q < at + quarters - 1e-6; q += n.TremoloQuarters, ++k)
+                    arrangement.Notes.Add(new BandNote(part, n.Pitch, q, Math.Min(n.TremoloQuarters * 0.9, at + quarters - q),
+                                                       Math.Max(1, velocity - (k % 2) * 10), single));
+            }
+            else
+                arrangement.Notes.Add(new BandNote(part, n.Pitch, at, quarters, velocity, single));
+            played.Add(new Played(n, at, at + quarters));
+        }
+
+        /// <summary>
+        /// A part's pitch wheel from its notes' techniques, each note's own: its bend as the file draws it, its vibrato
+        /// (about 5.5 times a second, a quarter semitone each way, half one wide, from 0.15 s into the note), a slide to the
+        /// next note (a glide towards it over the note's last 0.1 s, 2 semitones at most: then the next note takes over), a
+        /// slide out down or up and a slide in from below or above (2 semitones over 0.1 s). Up before the note when it
+        /// starts away from the middle (a pre-bend), back in the middle where it ends or the next one starts. Every so
+        /// often (15 ms), and at each of the bend's points. The wheel bends everything on the part's channel: a part that
+        /// is not a lead only gets it where nothing else of it rings.
+        /// </summary>
+        static void Wheel(Arrangement arrangement, BandPart part, List<Played> played, bool lead, TempoMap tempo)
+        {
+            var notes = played.OrderBy(p => p.From).ToList();
             var previousEnd = double.NegativeInfinity;
             for (int i = 0; i < notes.Count; ++i)
             {
-                var n = notes[i];
-                var end = n.AtQuarter + n.Quarters;
-                var next = notes.Skip(i + 1).FirstOrDefault(m => m.AtQuarter > n.AtQuarter + 1e-6);
-                if (next != null)
-                    end = Math.Min(end, next.AtQuarter);
-                if (n.BendPoints != null && n.BendPoints.Count > 0)
+                var (n, from) = (notes[i].Note, notes[i].From);
+                var next = notes.Skip(i + 1).FirstOrDefault(m => m.From > from + 1e-6);
+                var end = next.Note != null ? Math.Min(notes[i].To, next.From) : notes[i].To;
+                var bends = n.BendPoints != null && n.BendPoints.Count > 0;
+                var slides = n.SlideOut != "" || n.SlideIn != "";
+                var to = notes[i].To;  // (another note sounding under all of it, not only before the next one starts)
+                if ((!bends && n.Vibrato == "" && !slides) || end - from < 0.01
+                    || (!lead && notes.Any(o => !ReferenceEquals(o.Note, n) && o.From < to - 1e-6 && o.To > from + 1e-6)))
                 {
-                    var first = n.BendPoints[0][1];
-                    if (Math.Abs(first) > 1e-6)
-                        wheel.Add(new WheelPoint(part, Math.Max(previousEnd, n.AtQuarter - PreBendLead), first));
-                    foreach (var p in n.BendPoints)
-                        if (n.AtQuarter + p[0] * (end - n.AtQuarter) < end - 0.001)
-                            wheel.Add(new WheelPoint(part, n.AtQuarter + p[0] * (end - n.AtQuarter), p[1]));
-                    var last = n.BendPoints[n.BendPoints.Count - 1][1];
-                    wheel.Add(new WheelPoint(part, end - 0.001, last));  // as the note ends
-                    if (Math.Abs(last) > 1e-6)
-                        wheel.Add(new WheelPoint(part, end, 0));  // the next note starts unbent
+                    previousEnd = Math.Max(previousEnd, end);
+                    continue;
                 }
+                var perSecond = tempo.BpmAt(from) / 60.0;
+                var glide = Math.Min(0.1 * perSecond, (end - from) / 2);
+                var target = n.SlideOut == "down" ? -2.0 : n.SlideOut == "up" ? 2.0
+                           : next.Note != null && (n.SlideOut == "shift" || n.SlideOut == "legato") ? Math.Max(-2, Math.Min(2, next.Note.Pitch - n.Pitch)) : 0.0;
+                var into = n.SlideIn == "below" ? -2.0 : n.SlideIn == "above" ? 2.0 : 0.0;
+                var depth = n.Vibrato == "wide" ? 0.5 : n.Vibrato == "slight" ? 0.25 : 0.0;
+                double At(double q)
+                {
+                    var semitones = 0.0;
+                    if (bends)
+                    {
+                        var f = (q - from) / (end - from);
+                        var points = n.BendPoints;
+                        semitones = points[0][1];
+                        for (int k = 1; k < points.Count; ++k)
+                            if (f >= points[k][0])
+                                semitones = points[k][1];
+                            else
+                            {
+                                var span = points[k][0] - points[k - 1][0];
+                                semitones = span > 1e-9 ? points[k - 1][1] + (f - points[k - 1][0]) / span * (points[k][1] - points[k - 1][1]) : points[k][1];
+                                break;
+                            }
+                    }
+                    var seconds = (q - from) / perSecond;
+                    if (depth > 0 && seconds > 0.15)
+                        semitones += depth * Math.Min(1, (seconds - 0.15) / 0.1) * Math.Sin(2 * Math.PI * 5.5 * (seconds - 0.15));
+                    if (target != 0 && q > end - glide)
+                        semitones += target * (q - (end - glide)) / glide;
+                    if (into != 0 && q < from + glide)
+                        semitones += into * (1 - (q - from) / glide);
+                    return semitones;
+                }
+                var times = new List<double>();
+                for (var q = from; q < end - 0.001; q += 0.015 * perSecond)
+                    times.Add(q);
+                if (bends)
+                    times.AddRange(n.BendPoints.Select(p => from + p[0] * (end - from)).Where(q => q > from && q < end - 0.001));
+                times.Add(end - 0.001);
+                var start = At(from);
+                if (Math.Abs(start) > 1e-6)
+                {
+                    // up at once just before the note (the wheel moves evenly between two points: from the middle until then)
+                    var up = Math.Max(previousEnd, from - PreBendLead);
+                    arrangement.Wheel.Add(new WheelPoint(part, up - 0.001, 0));
+                    arrangement.Wheel.Add(new WheelPoint(part, up, start));
+                }
+                foreach (var q in times.Distinct().OrderBy(q => q))
+                    arrangement.Wheel.Add(new WheelPoint(part, q, Math.Round(At(q), 3)));
+                if (Math.Abs(At(end - 0.001)) > 1e-6)
+                    arrangement.Wheel.Add(new WheelPoint(part, end, 0));  // the next note starts unbent
                 previousEnd = Math.Max(previousEnd, end);
             }
         }
@@ -564,12 +717,13 @@ namespace GuitarTutor.Core.Band
         /// The band guitarist's rhythm from a track played picked (a fingerpicked part, Redbud Tree's): every note as a
         /// note, as the file has it, and no strokes, so a strum-capable guitar stays out of its strumming mode. A note rings
         /// for its length, or with let ring until the next note on its string (a bar at most), and a string sounds one
-        /// note at a time. Dead notes are left out.
+        /// note at a time; each with its techniques (<see cref="Play"/>, <see cref="Wheel"/>).
         /// </summary>
-        static void PickedRhythm(SongTrack track, Arrangement arrangement)
+        static void PickedRhythm(SongTrack track, Arrangement arrangement, TempoMap tempo)
         {
             const double ringAtMost = 4.0;  // quarters a let-ring note rings on, at most
-            foreach (var onString in track.Notes.Where(n => !n.Technique.Contains('x')).GroupBy(n => n.StringIndex >= 0 ? n.StringIndex : -1 - n.Pitch))
+            var played = new List<Played>();
+            foreach (var onString in track.Notes.GroupBy(n => n.StringIndex >= 0 ? n.StringIndex : -1 - n.Pitch))
             {
                 var list = onString.OrderBy(n => n.AtQuarter).ToList();
                 for (int k = 0; k < list.Count; ++k)
@@ -577,9 +731,11 @@ namespace GuitarTutor.Core.Band
                     var n = list[k];
                     var next = k + 1 < list.Count ? list[k + 1].AtQuarter : double.PositiveInfinity;
                     var end = n.Technique.Contains('r') ? Math.Min(next, n.AtQuarter + ringAtMost) : Math.Min(next, n.AtQuarter + n.Quarters);
-                    arrangement.Notes.Add(new BandNote(BandPart.Guitar, n.Pitch, n.AtQuarter, Math.Max(0.05, end - n.AtQuarter - 0.01), GuitarVelocity(n.Velocity)));
+                    Play(arrangement, BandPart.Guitar, n, k > 0 ? list[k - 1] : null, n.AtQuarter, Math.Max(0.05, end - n.AtQuarter - 0.01),
+                         GuitarVelocity(n.Velocity), false, tempo, played);
                 }
             }
+            Wheel(arrangement, BandPart.Guitar, played, false, tempo);
         }
 
         /// <summary>

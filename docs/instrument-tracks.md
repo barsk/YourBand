@@ -122,7 +122,8 @@ Each step leaves "Default" playing exactly as today, and is checked before the n
      and the load message carries them. The engine sends them on the part's MIDI channel, scaled to its plugin's
      range (±2 for Shreddage; Numa Player, Ample Bass and MONSTER Bass are measured in this step), and puts the
      wheel back in the middle at stop, seek and a new song.
-   - **9.3 What each technique becomes.** For the lead guitar, instrument 1, the bass, and the rhythm guitar played
+   - **9.3 What each technique becomes.** (Done 2026-10-31. The palm mute's controller is 20: in Shreddage's Map tab,
+     Mute with the rule "CC20 64-127" plays real palm mutes; without that rule only the shorter, softer note.) For the lead guitar, instrument 1, the bass, and the rhythm guitar played
      picked or string by string; strummed chords keep their strokes:
 
      | Technique | Played as |

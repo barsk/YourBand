@@ -222,6 +222,15 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   middle. Measured with plugin_probe `--bend` (2026-10-31): Shreddage, MONSTER Bass and Numa Player all bend 2
   semitones each way (linear, at once; a string key's pick too), so the engine scales 2 semitones to the wheel's
   end and a bend past it stops there; Ample Bass P Lite does not bend at all.
+- Techniques (step 9.3): the lead guitar, instrument 1, the bass and the rhythm guitar played picked bend as the file
+  draws it, wobble on a vibrato (about 5.5 times a second, a quarter semitone, half one wide), glide on a slide (2
+  semitones at most), and play a hammer-on's, pull-off's or legato slide's next note softer, a palm mute shorter and
+  softer, a staccato note half as long, a dead note as a short soft click and tremolo picking as repeated notes. The
+  bass and the rhythm guitar bend only where nothing else of theirs rings (the wheel bends a whole channel). A palm
+  mute also sends controller 20 (127 as the note starts, 0 as it ends): the free Shreddage has the Mute articulation
+  but not its keyswitch, so in its window's Articulations, Map tab, give Mute the rule "CC20 64-127" (and keep it on)
+  for the real palm-muted samples; without it the controller does nothing. The rule is kept in Kontakt's state, which is
+  a song's sound (and the playstyle defaults' when saved).
 - Mixer: each part's sound has a level (drums 0.8, the built-in bass 1.75 or the bass plugin's own, keys set
   by the game per style, the built-in guitar 1.75 (a DI sound, not measured) or the guitar plugin's own),
   then the instrument row's mixer channel (docs/instrument-tracks.md, step 8): M (mute), S (solo: only the soloed

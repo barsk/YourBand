@@ -1,6 +1,7 @@
 #include "Band.h"
 
 #include <algorithm>
+#include <utility>
 #include <cmath>
 #include <limits>
 #include <map>
@@ -215,6 +216,12 @@ std::unique_ptr<Score> Score::fromMessage (const juce::var& message, juce::Strin
                 score->wheels[(size_t) (int) w[0]].push_back ({ (double) w[1], (float) (double) w[2] });
     for (auto& points : score->wheels)  // (stable: a part's points at one moment keep the game's order)
         std::stable_sort (points.begin(), points.end(), [] (const WheelPoint& a, const WheelPoint& b) { return a.at < b.at; });
+    if (auto* controls = message["controls"].getArray())
+        for (const auto& c : *controls)
+            if (c.size() >= 4 && (int) c[0] >= 0 && (int) c[0] < BandProcessor::numParts && (int) c[2] >= 0 && (int) c[2] < 120)
+                score->controls[(size_t) (int) c[0]].push_back ({ (double) c[1], (int) c[2], juce::jlimit (0, 127, (int) c[3]) });
+    for (auto& points : score->controls)
+        std::stable_sort (points.begin(), points.end(), [] (const Control& a, const Control& b) { return a.at < b.at; });
     if (auto* spans = message["spans"].getArray())
         for (const auto& sp : *spans)
             if (sp.size() >= 2 && (double) sp[1] > (double) sp[0])
@@ -333,13 +340,17 @@ void BandProcessor::restartWheels (double q)
 {
     for (int part = 0; part < numParts; ++part)
     {
-        wheelCursor[(size_t) part] = 0;
+        wheelCursor[(size_t) part] = controlCursor[(size_t) part] = 0;
         if (playingScore != nullptr)
         {
             const auto& points = playingScore->wheels[(size_t) part];
             wheelCursor[(size_t) part] = (size_t) (std::lower_bound (points.begin(), points.end(), q - 1.0e-9,
                                                                      [] (const Score::WheelPoint& w, double at) { return w.at < at; })
                                                    - points.begin());
+            const auto& controls = playingScore->controls[(size_t) part];
+            controlCursor[(size_t) part] = (size_t) (std::lower_bound (controls.begin(), controls.end(), q - 1.0e-9,
+                                                                       [] (const Score::Control& c, double at) { return c.at < at; })
+                                                     - controls.begin());
         }
     }
 }
@@ -381,6 +392,14 @@ void BandProcessor::releaseAll (juce::MidiBuffer& midi)
         {
             midi.addEvent (juce::MidiMessage::pitchWheel (channelOf ((Part) part), 8192), 0);
             wheelSent[(size_t) part] = 8192;
+        }
+    if (playingScore != nullptr)  // and a palm mute (its controller back to 0)
+        for (int part = 0; part < numParts; ++part)
+        {
+            std::array<bool, 128> done {};
+            for (const auto& c : playingScore->controls[(size_t) part])
+                if (! std::exchange (done[(size_t) c.controller], true))
+                    midi.addEvent (juce::MidiMessage::controllerEvent (channelOf ((Part) part), c.controller, 0), 0);
         }
     numOffs = 0;
     strumModeOn = false;  // allNotesOff let go of the strumming-mode keyswitch
@@ -585,6 +604,19 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
                 sendWheel (part, points.back().semitones, 0, midi);
             for (; next < points.size() && points[next].at - ahead < q1; ++next)
                 sendWheel (part, points[next].semitones, offsetOf (points[next].at - ahead), midi);
+        }
+        // the parts' controllers (a palm mute's), each at its moment, before the notes as the wheels are
+        for (int part = 0; part < numParts; ++part)
+        {
+            const auto& controls = s->controls[(size_t) part];
+            if (controls.empty())
+                continue;
+            const auto ahead = part == guitar && onPlugin[(size_t) guitar].load() ? guitarAdvance.load() * rate : 0.0;
+            auto& next = controlCursor[(size_t) part];
+            for (; next < controls.size() && controls[next].at - ahead < q1; ++next)
+                if (controls[next].at - ahead >= q0 - 1.0e-9 && onPlugin[(size_t) part].load() && ! (countingIn && controls[next].at < countInUntil - 1.0e-9))
+                    midi.addEvent (juce::MidiMessage::controllerEvent (channelOf ((Part) part), controls[next].controller, controls[next].value),
+                                   offsetOf (controls[next].at - ahead));
         }
         // the tab's single-string notes go to the lead 1 plugin, where it has one (and its fader is up) and the song
         // gives that channel no part of its own: the guitar plugin then only strums (and keeps quiet while the tab plays), so the two do not

@@ -61,6 +61,9 @@ struct Score
     /** A point of a part's pitch wheel: semitones above (below) its notes; between two points the wheel moves evenly. */
     struct WheelPoint { double at; float semitones; };
     std::array<std::vector<WheelPoint>, 6> wheels;  // per part (BandProcessor::Part), in time order
+    /** A MIDI controller a part's plugin is sent (the palm mute's: 127 as a palm-muted note starts, 0 as it ends). */
+    struct Control { double at; int controller, value; };
+    std::array<std::vector<Control>, 6> controls;  // per part, in time order
     std::vector<Span> spans;      // in time order
 
     double bpmAt (double quarter) const;
@@ -149,8 +152,8 @@ private:
     size_t firstStrokeFrom (double quarter) const;
     size_t firstPickFrom (double quarter) const;
     size_t firstSpanFrom (double quarter) const;
-    /** Every part's pitch wheel from a position on (its next point); the wheels themselves go back to the middle in
-        releaseAll. */
+    /** Every part's pitch wheel and controllers from a position on (their next points); the wheels go back to the
+        middle and the controllers to 0 in releaseAll. */
     void restartWheels (double quarter);
     /** A part's pitch wheel to a bend (semitones), if it is not there already. */
     void sendWheel (int part, float semitones, int sample, juce::MidiBuffer&);
@@ -190,6 +193,7 @@ private:
     size_t cursor = 0, guitarCursor = 0, voicingCursor = 0, strokeCursor = 0, pickCursor = 0, spanCursor = 0;
     std::array<size_t, numParts> wheelCursor {};  // per part: its next wheel point
     std::array<int, numParts> wheelSent {};  // per part: the wheel's value last sent (8192: the middle)
+    std::array<size_t, numParts> controlCursor {};  // per part: its next controller point
     bool singleActive = false;  // inside a stretch of single-string notes: the strumming mode is let go
     bool strumModeOn = false;  // Shreddage's F#5 strumming-mode keyswitch (note 78), held while the plugin strums
     std::array<Off, 256> offs;
