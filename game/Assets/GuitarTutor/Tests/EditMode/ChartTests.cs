@@ -106,6 +106,20 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
+        public void PatternMeter_IsTheSectionsMostCommonMeterThePatternFills()
+        {
+            var song = DemoSong.Create();
+            var section = song.Sections[0];
+            var chart = new SongChart(song);
+            var fourFour = new StrumPattern { Subdivision = 16, Strokes = Enumerable.Repeat(Stroke.Down, 16).ToList() };
+            var sixEighths = new StrumPattern { Subdivision = 8, Strokes = Enumerable.Repeat(Stroke.Down, 6).ToList() };
+            Assert.AreEqual(TimeSignature.FourFour, chart.PatternMeter(fourFour, section, new TimeSignature(3, 4)));
+            // a pattern that fills no bar of 4/4 (one and a half): still the section's meter
+            Assert.AreEqual(TimeSignature.FourFour, chart.PatternMeter(sixEighths, section, new TimeSignature(3, 4)));
+            Assert.AreEqual(new TimeSignature(3, 4), chart.PatternMeter(fourFour, null, new TimeSignature(3, 4)));
+        }
+
+        [Test]
         public void NotesPerBar_CountsTheNotesStarting_AndMarksTheBarsAHeldNoteSoundsThrough()
         {
             var song = DemoSong.Create();

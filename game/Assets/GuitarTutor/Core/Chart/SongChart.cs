@@ -538,6 +538,29 @@ namespace GuitarTutor.Core.Chart
             return Math.Max(1, (int)Math.Round(beatQuarters * pattern.Subdivision / 4.0));
         }
 
+        /// <summary>
+        /// The meter a section's pattern is shown in: of the meters of the section's bars, the most common one the pattern
+        /// fills a whole number of bars of (Redbud Tree's verse starts on a 3/4 bar, but is mostly 4/4, and its pattern is
+        /// a 4/4 bar), else the most common; <paramref name="fallback"/> without a section.
+        /// </summary>
+        public TimeSignature PatternMeter(StrumPattern pattern, Section section, TimeSignature fallback)
+        {
+            if (section == null || pattern == null || pattern.Subdivision <= 0)
+                return fallback;
+            var meters = bars.Where(b => b.AtQuarter >= section.AtQuarter - 1e-6 && b.AtQuarter < section.AtQuarter + section.Quarters - 1e-6)
+                .GroupBy(b => b.Signature).OrderByDescending(g => g.Count()).Select(g => g.Key).ToList();
+            if (meters.Count == 0)
+                return fallback;
+            var quarters = pattern.Strokes.Count * 4.0 / pattern.Subdivision;
+            foreach (var meter in meters)
+            {
+                var filled = quarters / meter.QuartersPerBar;
+                if (filled >= 1 - 1e-6 && Math.Abs(filled - Math.Round(filled)) < 1e-6)
+                    return meter;
+            }
+            return meters[0];
+        }
+
         /// <summary>The slots of a pattern in a bar of a meter.</summary>
         public static int SlotsPerBar(StrumPattern pattern, TimeSignature meter) =>
             Math.Max(1, (int)Math.Round(meter.QuartersPerBar * pattern.Subdivision / 4.0));

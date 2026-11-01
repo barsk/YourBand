@@ -50,6 +50,8 @@ namespace GuitarTutor.Runtime.UI
         readonly Dictionary<Panel, VisualElement> panels = new Dictionary<Panel, VisualElement>();
         readonly Dictionary<Panel, Label> panelTitles = new Dictionary<Panel, Label>();
         const float PanelGap = 16, InfoWidth = 330;  // the panels' right margin; the standing song panel's width
+        const float StrumPanelFrame = 34;  // a panel's padding and border, left and right (Chart.uss)
+        const float StrumPanelMinWidth = 480;  // room for the pattern's name beside where it is from, whatever its length
 
         readonly VisualElement chordRow, info;
         readonly StrumView strum;
@@ -71,7 +73,7 @@ namespace GuitarTutor.Runtime.UI
             var chordsPanel = AddPanel(Panel.Chords, "CHORDS", middle);
             chordRow = ChartLook.Box("gt-panel__row", chordsPanel);
             var strumPanel = AddPanel(Panel.Strumming, "STRUMMING", middle);
-            strumPanel.style.minWidth = 480;  // room for the pattern's name beside where it is from, whatever its length
+            strumPanel.style.minWidth = StrumPanelMinWidth;
             strum = new StrumView();
             strumPanel.Add(strum);
             strumName = ChartLook.Label("", "gt-strum__name", strumPanel);
@@ -79,18 +81,27 @@ namespace GuitarTutor.Runtime.UI
             strumOrigin = ChartLook.Label("", "gt-strum__origin", strumPanel);
 
             // when the others leave no room beside the song panel (six chords and a long pattern) it lies down, one row
-            // across the top, the others under it, rather than a tall panel that would push the tab strip over them
-            void FitInfo(GeometryChangedEvent _)
+            // across the top, the others under it, rather than a tall panel that would push the tab strip over them; and
+            // when the chords leave no room beside the strumming panel, it goes across the row under them, its pattern
+            // as large as that allows (a narrow window). Both by the strumming panel's width beside the others.
+            void Fit(GeometryChangedEvent _)
             {
-                float Taken(VisualElement p) => IsShown(p == chordsPanel ? Panel.Chords : Panel.Strumming) && !float.IsNaN(p.layout.width) ? p.layout.width + PanelGap : 0;
                 var room = middle.contentRect.width;
-                if (float.IsNaN(room) || room <= 0)
+                if (float.IsNaN(room) || room <= 0 || float.IsNaN(chordsPanel.layout.width))
                     return;
-                info.EnableInClassList("gt-panel--lying", Taken(chordsPanel) + Taken(strumPanel) + InfoWidth + PanelGap > room);
+                var chords = IsShown(Panel.Chords) ? chordsPanel.layout.width + PanelGap : 0;
+                var strumming = IsShown(Panel.Strumming) ? Math.Max(StrumPanelMinWidth, strum.NaturalWidth + StrumPanelFrame) + PanelGap : 0;
+                var lying = chords + strumming + InfoWidth + PanelGap > room;
+                info.EnableInClassList("gt-panel--lying", lying);
+                var row = room - (lying || !IsShown(Panel.Song) ? 0 : InfoWidth + PanelGap);
+                var alone = IsShown(Panel.Strumming) && chords + strumming > row;
+                strumPanel.EnableInClassList("gt-panel--across", alone);
+                strum.SetRoom(alone ? room - StrumPanelFrame : StrumView.DefaultRoom);
             }
-            middle.RegisterCallback<GeometryChangedEvent>(FitInfo);
-            chordsPanel.RegisterCallback<GeometryChangedEvent>(FitInfo);
-            strumPanel.RegisterCallback<GeometryChangedEvent>(FitInfo);
+            middle.RegisterCallback<GeometryChangedEvent>(Fit);
+            chordsPanel.RegisterCallback<GeometryChangedEvent>(Fit);
+            strumPanel.RegisterCallback<GeometryChangedEvent>(Fit);
+            strum.RegisterCallback<GeometryChangedEvent>(Fit);
 
             // the tab, across the screen above the chart
             var tabStrip = ChartLook.Box("gt-tabstrip", this);
@@ -321,8 +332,8 @@ namespace GuitarTutor.Runtime.UI
             {
                 var patterns = chart.PatternsFor(section);
                 var shown = patterns.Count > 0 ? patterns[((pattern % patterns.Count) + patterns.Count) % patterns.Count] : null;
-                // the meter of the section's first bar: one odd bar in the middle of it does not change the panel
-                var meter = (section != null ? chart.BarOf(section.AtQuarter) : null)?.Signature ?? bar?.Signature ?? TimeSignature.FourFour;
+                // the section's meter, the one the pattern fits: one odd bar in it does not change the panel
+                var meter = chart.PatternMeter(shown, section, bar?.Signature ?? TimeSignature.FourFour);
                 strum.Show(shown, meter);
                 strum.EnableInClassList("gt-hidden", shown == null);
                 strumEmpty.EnableInClassList("gt-hidden", shown != null);
