@@ -100,12 +100,12 @@ namespace GuitarTutor.Runtime.Desktop
             screen = new DesktopScreen();
             root.Add(screen);
             screen.Strip.SeekToBar += bar => Seek(chart.Bars[Mathf.Clamp(bar, 0, chart.Bars.Count - 1)].AtQuarter);
-            // a bar clicked in the tracks overlay: there, with that track's tab (a doubling track's is its twin's)
+            // a bar clicked in the tracks overlay: there, with that track's tab (a doubling track's is its twin's); the
+            // overlay stays open until M
             screen.Tracks.BarChosen += (bar, track) =>
             {
                 SeekBar(bar);
                 screen.ShowTabOf(BandConnections.Played(chart.Song, track));
-                screen.ToggleTracks();
             };
             foreach (var panel in PanelOrder)
                 screen.SetShown(panel, PlayerPrefs.GetInt("panel." + panel, 1) == 1);

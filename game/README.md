@@ -88,7 +88,7 @@ Keys:
 - C: the control panel (audio device, band faders, log). T: your guitar's tone (TONE3000).
 - M: the tracks of a Guitar Pro song bar by bar, as TuxGuitar shows them, over the chart: a row per track (with who
   of the band plays it), brighter the more it plays in a bar, the sections' names above and where the music is.
-  Click a bar to go there; the TAB panel then shows that track's tab, and the overlay closes.
+  Click a bar to go there; the TAB panel then shows that track's tab. The overlay stays open until M again.
 - H: help. Esc: closes the help or the tracks overlay; with neither open, quits.
 
 The footswitch's buttons 3-6 (play / pause, previous section, next section, restart) come through the engine.

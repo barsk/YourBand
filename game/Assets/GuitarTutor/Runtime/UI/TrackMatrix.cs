@@ -12,7 +12,8 @@ namespace GuitarTutor.Runtime.UI
     /// <summary>
     /// The song's tracks bar by bar, over the chart (M), as TuxGuitar shows them: a row per track of the Guitar Pro file,
     /// a cell per bar, brighter the more the track plays in it, with the sections' names above and where the music is.
-    /// Each track says which of the band plays it. Clicking a cell goes to that bar (<see cref="BarChosen"/>).
+    /// Each track says which of the band plays it. Clicking a cell goes to that bar (<see cref="BarChosen"/>); the
+    /// overlay stays open, the cursor following the music, until M closes it.
     /// </summary>
     public sealed class TrackMatrix : VisualElement
     {
