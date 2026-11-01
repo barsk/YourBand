@@ -51,7 +51,7 @@ namespace GuitarTutor.Runtime.Desktop
         public StyleSheet style;
 
         static readonly DesktopScreen.Panel[] PanelOrder =
-            { DesktopScreen.Panel.Chords, DesktopScreen.Panel.Strumming, DesktopScreen.Panel.Tab, DesktopScreen.Panel.Song };
+            { DesktopScreen.Panel.Song, DesktopScreen.Panel.Chords, DesktopScreen.Panel.Strumming, DesktopScreen.Panel.Tab };
 
         DesktopScreen screen;
         SongChart chart;

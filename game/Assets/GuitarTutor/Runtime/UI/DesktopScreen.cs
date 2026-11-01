@@ -28,7 +28,7 @@ namespace GuitarTutor.Runtime.UI
 
     /// <summary>
     /// The desktop screen (see docs/plan.md, "Desktop mode"): a header with the song and where you are, the panels
-    /// (chords, strumming, song info), the tab across the screen, the chart's rows, and a help overlay. The panels
+    /// (song info, chords, strumming), the tab across the screen, the chart's rows, and a help overlay. The panels
     /// and the tab can be toggled. The middle stays clear for the band once it is there (M6).
     /// </summary>
     public sealed class DesktopScreen : VisualElement
@@ -64,6 +64,7 @@ namespace GuitarTutor.Runtime.UI
             status = ChartLook.Label("", "gt-status", header);
 
             var middle = ChartLook.Box("gt-middle", this);
+            info = AddPanel(Panel.Song, "SONG", middle);  // first, at the top left
             var chordsPanel = AddPanel(Panel.Chords, "CHORDS", middle);
             chordRow = ChartLook.Box("gt-panel__row", chordsPanel);
             var strumPanel = AddPanel(Panel.Strumming, "STRUMMING", middle);
@@ -73,10 +74,9 @@ namespace GuitarTutor.Runtime.UI
             strumName = ChartLook.Label("", "gt-strum__name", strumPanel);
             strumEmpty = ChartLook.Label("No strumming pattern in this song", "gt-panel__empty", strumPanel);
             strumOrigin = ChartLook.Label("", "gt-strum__origin", strumPanel);
-            info = AddPanel(Panel.Song, "SONG", middle);
 
-            // the song panel wraps under the others when they leave no room for it (six chords and a long pattern):
-            // there it lies down, one row, rather than a tall panel that would push the tab strip over it
+            // when the others leave no room beside the song panel (six chords and a long pattern) it lies down, one row
+            // across the top, the others under it, rather than a tall panel that would push the tab strip over them
             void FitInfo(GeometryChangedEvent _)
             {
                 float Taken(VisualElement p) => IsShown(p == chordsPanel ? Panel.Chords : Panel.Strumming) && !float.IsNaN(p.layout.width) ? p.layout.width + PanelGap : 0;
@@ -112,7 +112,7 @@ namespace GuitarTutor.Runtime.UI
                          ("Left / Right", "a bar back / on"),
                          ("PgUp / PgDn", "the section before / after"),
                          ("Up / Down", "speed up / slow down by 5%"),
-                         ("1  2  3  4", "chords, strumming, tab, song panels"),
+                         ("1  2  3  4", "song, chords, strumming, tab panels"),
                          ("Tab", "the TAB panel shows another track's tab (Guitar Pro songs); Shift+Tab the one before"),
                          ("P", "next strumming pattern"),
                          ("B", "next band style"),

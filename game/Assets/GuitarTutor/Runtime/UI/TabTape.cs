@@ -9,7 +9,7 @@ namespace GuitarTutor.Runtime.UI
 {
     /// <summary>
     /// The tab as a tape running under a fixed play marker, a quarter of the way in: the strings as written (the
-    /// highest on top), the fret numbers at their positions, bar lines and riff names, all moving smoothly from
+    /// highest on top), the fret numbers at their positions, bar lines with the bars' numbers and riff names, all moving smoothly from
     /// right to left with the music, at a fixed distance per beat. It shows one of the chart's tabs: the song's own,
     /// or another track's (<see cref="SetTab"/>), with that track's strings.
     /// </summary>
@@ -110,6 +110,12 @@ namespace GuitarTutor.Runtime.UI
             for (int b = from; b <= to; ++b)
             {
                 var bar = chart.Bars[b];
+                // the bar's number, as the chart has it, above the top string just after the bar line; a riff
+                // name starting there goes after it
+                var number = (bar.Index + 1).ToString();
+                var barX = (float)((bar.AtQuarter - tapeStart) * PixelsPerQuarter);
+                ChartLook.Label(number, "gt-tape__bar", tape).style.left = barX + 5;
+                var numberRight = barX + 5 + number.Length * 9 + 8;  // about the number's width at 15 px bold
                 foreach (var n in shown.NotesIn(b))
                 {
                     var at = bar.AtQuarter + n.Offset;
@@ -122,10 +128,11 @@ namespace GuitarTutor.Runtime.UI
                     label.style.left = x;
                     label.style.top = LineY(n.Note.StringIndex) - 11;
                     label.style.translate = new Translate(Length.Percent(-50), 0);
-                    if (named.Add(n.Riff) && x > nameRight)
+                    var nameX = Math.Max(x, numberRight);
+                    if (named.Add(n.Riff) && nameX > nameRight)
                     {
-                        ChartLook.Label(n.Riff.Name, "gt-tape__riff", tape).style.left = x;
-                        nameRight = x + n.Riff.Name.Length * 8 + 16;  // about the name's width at 14 px
+                        ChartLook.Label(n.Riff.Name, "gt-tape__riff", tape).style.left = nameX;
+                        nameRight = nameX + n.Riff.Name.Length * 8 + 16;  // about the name's width at 14 px
                     }
                 }
             }

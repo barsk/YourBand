@@ -282,8 +282,9 @@
 .gt-cell__number {
     position: absolute;
     right: 0;
-    font-size: 14px;
-    color: var(--gt-faint);
+    font-size: 15px;
+    color: var(--gt-text);
+    -unity-font-style: bold;
     padding: 0;
     margin: 0;
 }
@@ -392,6 +393,15 @@
     font-size: 14px;
     color: var(--gt-dim);
     white-space: nowrap;
+    padding: 0;
+    margin: 0;
+}
+.gt-tape__bar {
+    position: absolute;
+    top: 0;
+    font-size: 15px;
+    color: var(--gt-text);
+    -unity-font-style: bold;
     padding: 0;
     margin: 0;
 }

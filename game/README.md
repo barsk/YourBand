@@ -78,7 +78,7 @@ Keys:
 - Left / Right: a bar back or on.
 - PgUp / PgDn: a section back or on (or click it in the section map).
 - Up / Down: the speed in 5 % steps.
-- 1-4: the panels.
+- 1-4: the panels, in their order on screen: song, chords, strumming, tab.
 - P: the next strumming pattern.
 - B: the next band style.
 - G: the band guitarist plays the rhythm, or rests (the same as the control panel's checkbox).
