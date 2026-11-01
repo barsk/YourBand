@@ -85,12 +85,13 @@ namespace
                                        { EngineCore::Slot::bandKeys, "Numa Player*.vst3", "Numa Player", true, 0.8f } };
 
     /** The General MIDI drum notes a drum plugin plays, if it does not play them all (empty: all): MONSTER Drums v3,
-        measured with plugin_probe --map on a standard kit, plays 35 to 57 but the high tom (50), the tambourine (54),
-        the cowbell (56) and ride 2 (59). The band plays a drum a kit lacks on the nearest one it has. */
+        measured with plugin_probe --map, plays 35 to 57 but the high tom (50), the tambourine (54), the splash (55; a
+        standard kit had one on 2026-10-29, the kit in use on 2026-11-01 none), the cowbell (56) and ride 2 (59), and
+        nothing above. The band plays a drum a kit lacks on the nearest one it has. */
     std::vector<int> drumPluginNotes (const juce::File& plugin)
     {
         if (plugin.getFileName().startsWithIgnoreCase ("MONSTER Drums"))
-            return { 30, 32, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 51, 52, 53, 55, 57 };
+            return { 30, 32, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 51, 52, 53, 57 };
         return {};
     }
 

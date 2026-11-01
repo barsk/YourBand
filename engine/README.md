@@ -152,10 +152,12 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
 
   Drum notes are General MIDI. A drum the kit in use does not have is played on the nearest one it has (`Band.cpp`,
   `drumStandIns`: an acoustic bass drum 35 on the kick 36, a floor tom on another tom, a china or splash on a crash,
-  ride 2 or the ride bell on the ride, a shaker on the closed hat, claves on the side stick), and hand percussion
-  with no stand-in (congas, bongos, cowbell) is left out. The built-in kit has 12 drums (kick, side stick, snare,
-  closed, pedal and open hat, three toms, crash, ride, sticks); MONSTER Drums plays every General MIDI drum from 35
-  to 57 but the high tom 50, the tambourine 54, the cowbell 56 and ride 2 59 (`plugin_probe --map`, 2026-10-29); any
+  ride 2 or the ride bell on the ride, a shaker on the closed hat, claves on the side stick, and hand percussion where a
+  drummer plays it on a kit: congas, bongos and timbales on the toms, a cowbell or a triangle on the ride's bell, a
+  tambourine on the open hi-hat); anything else (a whistle, a cuica) is left out. The built-in kit has 12 drums (kick,
+  side stick, snare, closed, pedal and open hat, three toms, crash, ride, sticks); MONSTER Drums plays every General
+  MIDI drum from 35 to 57 but the high tom 50, the tambourine 54, the splash 55 (in the kit in use; a standard kit
+  had one), the cowbell 56 and ride 2 59, and nothing above (`plugin_probe --map`, 2026-10-29 and 2026-11-01); any
   other drum plugin is taken to play them all. This matters most for a song's own drum track (docs/instrument-tracks.md),
   which uses whatever drums the file has.
 - The band guitarist (switched on and off with G in the game; remembered) strums the song's strumming pattern for each section on the chord shapes the chart shows (the

@@ -568,6 +568,8 @@ namespace GuitarTutor.SongTool
                     continue;
                 var first = track.Staves[0];
                 var drums = first.IsPercussion || track.IsPercussion;
+                if (drums && NamedPercussion(track) is int named)
+                    report.Add($"Track '{track.Name}' is named after one instrument, not a kit: its hits that read as a kit's drums play General MIDI {named}.");
                 // tab: one stringed staff (a track on two staves, as a string section or a piano is written, can sound two
                 // notes on one "string" at once: it keeps its pitches only)
                 var tab = !drums && track.Staves.Count == 1 && first.IsStringed && first.StringTuning.Tunings.Count > 0;
@@ -684,7 +686,10 @@ namespace GuitarTutor.SongTool
         static int TrackPitch(Track track, Staff staff, Note n)
         {
             if (n.IsPercussion)
-                return DrumNote(n);
+            {
+                var drum = DrumNote(n);
+                return KitDrum(drum) && NamedPercussion(track) is int named ? named : drum;
+            }
             if (n.IsStringed)
             {
                 var pitch = Pitch(staff, n);
@@ -705,6 +710,32 @@ namespace GuitarTutor.SongTool
         /// alphaTab, so it is called by reflection; -1 if it is not there.
         /// </summary>
         static int DrumNote(Note n) => DrumArticulation(n) is InstrumentArticulation a ? (int)a.OutputMidiNumber : -1;
+
+        /// <summary>
+        /// The General MIDI note of the one instrument a percussion track is named after, if that is no drum of a kit
+        /// (a tambourine, shaker, cowbell...); null for a kit or a drum. A Guitar Pro 6 file writes such a track's hits as
+        /// the elements of its own instrument, but its elements are read (by alphaTab, as by TuxGuitar) as the drum
+        /// kit's: Zombie's "Tambourine" plays element 0, the kit's bass drum. A drum the name tells nothing against
+        /// (Redbud Tree's "Congas" on the bass drum: they are drums too, and it fits the recording) stays as the file
+        /// has it.
+        /// </summary>
+        static int? NamedPercussion(Track track)
+        {
+            var name = (track.Name ?? "") + " " + (track.ShortName ?? "");
+            foreach (var (pattern, note) in NamedPercussionNotes)
+                if (Regex.IsMatch(name, pattern, RegexOptions.IgnoreCase))
+                    return note;
+            return null;
+        }
+
+        static readonly (string pattern, int note)[] NamedPercussionNotes =
+        {
+            ("tamb|jingle", 54), ("cow ?bell", 56), ("vibra ?slap", 58), ("agogo", 67), ("cabasa", 69), ("marac", 70),
+            ("guiro", 73), ("clave", 75), ("wood ?block", 76), ("triang", 81), ("shak", 82),
+        };
+
+        /// <summary>A drum of a kit (the kicks, snares, toms, hi-hats and cymbals, 35 to 53, 55, 57 and 59).</summary>
+        static bool KitDrum(int note) => note >= 35 && note <= 53 || note == 55 || note == 57 || note == 59;
 
         /// <summary>A drum note's articulation (the drum and how it is struck), as alphaTab's player has it; null if none.</summary>
         internal static InstrumentArticulation DrumArticulation(Note n) =>

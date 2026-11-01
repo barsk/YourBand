@@ -56,8 +56,10 @@ namespace
             pitch += 12;
         return pitch;
     }
-    /** For a General MIDI drum note a kit does not have, the drums to play it on instead, nearest first (none: hand
-        percussion with no stand-in, left out). Built when the program starts: the audio thread only looks it up. */
+    /** For a General MIDI drum note a kit does not have, the drums to play it on instead, nearest first (none: left
+        out). Hand percussion goes where a drummer would play it on a kit: congas, bongos and timbales on the toms, a
+        cowbell or a triangle on the ride's bell, a tambourine on the open hi-hat. Built when the program starts: the
+        audio thread only looks it up. */
     const std::map<int, std::vector<int>> drumStandIns {
         { 35, { 36 } }, { 36, { 35 } },                                                       // kicks
         { 37, { 38 } }, { 38, { 40 } }, { 39, { 38, 37 } }, { 40, { 38 } },                   // side stick, snares, clap
@@ -66,8 +68,12 @@ namespace
         { 42, { 44 } }, { 44, { 42 } }, { 46, { 42 } },                                       // hi-hats
         { 49, { 57, 52, 55 } }, { 52, { 49, 57 } }, { 55, { 49, 57 } }, { 57, { 49 } },       // crashes, china, splash
         { 51, { 59, 53 } }, { 53, { 51 } }, { 59, { 51 } },                                   // rides, ride bell
-        { 54, { 42 } }, { 69, { 42 } }, { 70, { 42 } }, { 82, { 42 } },                       // tambourine, cabasa, maracas, shaker
+        { 54, { 46, 42 } }, { 69, { 42 } }, { 70, { 42 } }, { 82, { 42 } },                   // tambourine, cabasa, maracas, shaker
         { 75, { 37 } }, { 76, { 37 } }, { 77, { 37 } },                                       // claves, woodblocks
+        { 56, { 53, 51 } }, { 67, { 53, 51 } }, { 68, { 53, 51 } }, { 80, { 53, 51 } }, { 81, { 53, 51 } },  // cowbell, agogos, triangles
+        { 60, { 48, 50, 47 } }, { 61, { 47, 45 } },                                           // bongos, high and low
+        { 62, { 47, 45 } }, { 63, { 47, 45 } }, { 64, { 45, 43 } },                           // congas: high muted and open, low
+        { 65, { 48, 50, 47 } }, { 66, { 45, 47 } },                                           // timbales, high and low
     };
 
     /** The drums the built-in kit (DrumKit) plays. */
