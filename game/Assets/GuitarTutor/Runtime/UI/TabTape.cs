@@ -11,7 +11,7 @@ namespace GuitarTutor.Runtime.UI
     /// The tab as a tape running under a fixed play marker, a quarter of the way in: the strings as written (the
     /// highest on top), the fret numbers at their positions, bar lines with the bars' numbers and riff names, all moving smoothly from
     /// right to left with the music, at a fixed distance per beat. It shows one of the chart's tabs: the song's own,
-    /// or another track's (<see cref="SetTab"/>), with that track's strings.
+    /// or another track's (<see cref="SetTab"/>), with that track's strings, or a drum track's drums.
     /// </summary>
     public sealed class TabTape : VisualElement
     {
@@ -64,8 +64,9 @@ namespace GuitarTutor.Runtime.UI
             names.Clear();
             for (int s = 0; s < strings; ++s)
             {
-                var name = tab.Tuning[s].TrimEnd('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-');
-                var label = ChartLook.Label(s == strings - 1 && strings == 6 ? name.ToLowerInvariant() : name, "gt-tape__string", names);
+                // a string's note name without its octave (the top E of six lower-case); a drum's name as it is
+                var name = tab.IsDrums ? tab.Tuning[s] : tab.Tuning[s].TrimEnd('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-');
+                var label = ChartLook.Label(!tab.IsDrums && s == strings - 1 && strings == 6 ? name.ToLowerInvariant() : name, "gt-tape__string", names);
                 label.style.top = LineY(s) - 10;
             }
             MarkDirtyRepaint();
@@ -124,7 +125,7 @@ namespace GuitarTutor.Runtime.UI
                         || !drawn.Add((n.Note.StringIndex, n.Note.Fret, (long)Math.Round(at * 960))))
                         continue;
                     noteTimes.Add(at);
-                    var label = ChartLook.Label(FretText(n.Note), "gt-tape__fret", tape);
+                    var label = ChartLook.Label(shown.IsDrums ? n.Note.Technique : FretText(n.Note), "gt-tape__fret", tape);
                     label.style.left = x;
                     label.style.top = LineY(n.Note.StringIndex) - 11;
                     label.style.translate = new Translate(Length.Percent(-50), 0);

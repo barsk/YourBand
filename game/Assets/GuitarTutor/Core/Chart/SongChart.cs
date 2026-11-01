@@ -85,14 +85,20 @@ namespace GuitarTutor.Core.Chart
         public IReadOnlyList<string> Tuning { get; }
         /// <summary>The song's own tab (the one the band's guitarist follows), not another track's.</summary>
         public bool IsSongTab { get; }
+        /// <summary>
+        /// A drum tab: a line per drum (<see cref="Tuning"/> holds their short names, the bass drum lowest), each hit
+        /// a mark in its note's <see cref="TabNote.Technique"/> (x, o, X or O accented, (o) a ghost note), no frets.
+        /// </summary>
+        public bool IsDrums { get; }
         readonly IReadOnlyList<IReadOnlyList<BarNote>> notes;
 
-        internal ChartTab(string name, IReadOnlyList<string> tuning, bool isSongTab, IReadOnlyList<IReadOnlyList<BarNote>> barNotes)
+        internal ChartTab(string name, IReadOnlyList<string> tuning, bool isSongTab, IReadOnlyList<IReadOnlyList<BarNote>> barNotes, bool isDrums = false)
         {
             Name = name;
             Tuning = tuning;
             IsSongTab = isSongTab;
             notes = barNotes;
+            IsDrums = isDrums;
         }
 
         /// <summary>The tab notes played in a bar, in time order.</summary>
@@ -256,8 +262,8 @@ namespace GuitarTutor.Core.Chart
         // ------------------------------------------------------------ tabs
         /// <summary>
         /// The song's own tab, then each track of the file that is written as tab, has notes of its own (not the same as
-        /// another's) and is not the song's own tab's track. A vocal track is left out: a file writes the melody on a
-        /// guitar's staff, but nobody plays it from tab.
+        /// another's) and is not the song's own tab's track, a vocal too (a file writes the melody on a guitar's staff),
+        /// and each drum track as drum tab (<see cref="DrumTab"/>).
         /// </summary>
         void BuildTabs(Song song)
         {
@@ -265,24 +271,82 @@ namespace GuitarTutor.Core.Chart
             tabs.Add(new ChartTab(own?.Name ?? "", song.Info.Tuning, true, bars.Select(b => (IReadOnlyList<BarNote>)b.Notes).ToList()));
             foreach (var track in song.Tracks)
             {
-                if (track == own || track.SameAs != null || track.Kind == "voice" || track.Tuning.Count == 0 || !track.Notes.Any(n => n.StringIndex >= 0))
-                    continue;
-                var riff = new Riff { Name = track.Name };
-                var perBar = bars.Select(_ => new List<BarNote>()).ToList();
-                foreach (var n in track.Notes)
+                if (track.SameAs == null && track.Kind == "drums" && track.Notes.Count > 0)
                 {
-                    if (n.StringIndex < 0 || n.StringIndex >= track.Tuning.Count)
-                        continue;
-                    var note = TabNoteOf(n);
-                    riff.Notes.Add(note);
-                    var bar = BarOf(n.AtQuarter);
-                    if (bar != null)
-                        perBar[bar.Index].Add(new BarNote(note, n.AtQuarter - bar.AtQuarter, riff));
+                    tabs.Add(DrumTab(track));
+                    continue;
                 }
-                foreach (var list in perBar)
-                    list.Sort((a, b) => a.Offset.CompareTo(b.Offset));
-                tabs.Add(new ChartTab(track.Name, track.Tuning, false, perBar.Select(l => (IReadOnlyList<BarNote>)l).ToList()));
+                if (track == own || track.SameAs != null || track.Tuning.Count == 0 || !track.Notes.Any(n => n.StringIndex >= 0))
+                    continue;
+                tabs.Add(new ChartTab(track.Name, track.Tuning, false, PerBar(track, track.Notes.Where(n => n.StringIndex >= 0 && n.StringIndex < track.Tuning.Count)
+                                                                                             .Select(n => (n, TabNoteOf(n))))));
             }
+        }
+
+        /// <summary>A track's tab notes bar by bar, in time order.</summary>
+        IReadOnlyList<IReadOnlyList<BarNote>> PerBar(SongTrack track, IEnumerable<(TrackNote track, TabNote tab)> notes)
+        {
+            var riff = new Riff { Name = track.Name };
+            var perBar = bars.Select(_ => new List<BarNote>()).ToList();
+            foreach (var (n, note) in notes)
+            {
+                riff.Notes.Add(note);
+                var bar = BarOf(n.AtQuarter);
+                if (bar != null)
+                    perBar[bar.Index].Add(new BarNote(note, n.AtQuarter - bar.AtQuarter, riff));
+            }
+            foreach (var list in perBar)
+                list.Sort((a, b) => a.Offset.CompareTo(b.Offset));
+            return perBar.Select(l => (IReadOnlyList<BarNote>)l).ToList();
+        }
+
+        /// <summary>
+        /// The drum kit's lines as drum tab has them, top to bottom, with the General MIDI drums on each and their
+        /// marks (x a cymbal or a stick on the rim, o a drum or an open hi-hat).
+        /// </summary>
+        static readonly (string line, (int drum, string mark)[] drums)[] DrumLines =
+        {
+            ("CC", new[] { (49, "x"), (57, "x"), (52, "x"), (55, "x") }),  // crash, crash 2, china, splash
+            ("RC", new[] { (51, "x"), (59, "x"), (53, "b") }),              // ride, ride 2, its bell
+            ("HH", new[] { (42, "x"), (46, "o") }),                        // closed, open
+            ("HT", new[] { (50, "o"), (48, "o") }),
+            ("SD", new[] { (38, "o"), (40, "o"), (37, "x"), (39, "x") }),  // snare, electric snare, side stick, clap
+            ("MT", new[] { (47, "o"), (45, "o") }),
+            ("FT", new[] { (43, "o"), (41, "o") }),
+            ("BD", new[] { (36, "o"), (35, "o") }),
+            ("HF", new[] { (44, "x") }),                                   // the hi-hat's pedal
+        };
+
+        /// <summary>Percussion of one sound, named on its line above the kit's (any other by its General MIDI number).</summary>
+        static readonly Dictionary<int, string> PercussionNames = new Dictionary<int, string>
+        {
+            { 54, "Tb" }, { 56, "Cb" }, { 69, "Ca" }, { 70, "Ma" }, { 75, "Cl" }, { 82, "Sh" },  // tambourine, cowbell, cabasa, maracas, claves, shaker
+        };
+
+        /// <summary>
+        /// A drum track as drum tab: a line for each drum the track plays, the kit's in drum tab's order and any
+        /// other percussion above them (<see cref="PercussionNames"/>, else its General MIDI number); an accented hit in
+        /// capitals, a ghost note in brackets.
+        /// </summary>
+        ChartTab DrumTab(SongTrack track)
+        {
+            var kit = DrumLines.SelectMany(l => l.drums.Select(d => (d.drum, l.line, d.mark))).ToDictionary(d => d.drum, d => (d.line, d.mark));
+            (string line, string mark) LineOf(int drum) =>
+                kit.TryGetValue(drum, out var l) ? l : (PercussionNames.TryGetValue(drum, out var name) ? name : drum.ToString(), "x");
+            var order = DrumLines.Select(l => l.line).ToList();
+            var lines = track.Notes.Select(n => LineOf(n.Pitch).line).Distinct()
+                .OrderByDescending(l => order.IndexOf(l)).ThenByDescending(l => l, StringComparer.Ordinal).ToList();  // lowest first
+            var notes = track.Notes.Select(n =>
+            {
+                var (line, mark) = LineOf(n.Pitch);
+                var t = n.Technique ?? "";
+                if (t.Contains('a'))
+                    mark = mark.ToUpperInvariant();
+                if (t.Contains('g'))
+                    mark = "(" + mark + ")";
+                return (n, new TabNote { StringIndex = lines.IndexOf(line), Fret = 0, AtQuarter = n.AtQuarter, Quarters = n.Quarters, Technique = mark });
+            });
+            return new ChartTab(track.Name, lines, false, PerBar(track, notes), isDrums: true);
         }
 
         /// <summary>

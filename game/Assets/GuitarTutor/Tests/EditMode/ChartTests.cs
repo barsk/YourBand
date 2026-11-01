@@ -76,7 +76,7 @@ namespace GuitarTutor.Core.Tests
 
             var standard = new[] { "E2", "A2", "D3", "G3", "B3", "E4" };
             var bassTuning = new[] { "E1", "A1", "D2", "G2" };
-            // the song's own tab's track (named as its riff), a bass, a doubled bass, a piano not written as tab, and a vocal
+            // the song's own tab's track (named as its riff), a bass, a doubled bass, a piano not written as tab, and a vocal written as tab
             song.Tracks.Add(new SongTrack { Index = 0, Name = "Intro lick", Kind = "guitar", Tuning = standard.ToList(),
                                             Notes = { new TrackNote { AtQuarter = 0, Quarters = 1, Pitch = 64, StringIndex = 5, Fret = 0 } } });
             song.Tracks.Add(new SongTrack { Index = 1, Name = "Bass", Kind = "bass", Tuning = bassTuning.ToList(), Notes =
@@ -91,7 +91,7 @@ namespace GuitarTutor.Core.Tests
                                             Notes = { new TrackNote { AtQuarter = 16, Quarters = 1, Pitch = 64, StringIndex = 5, Fret = 0 } } });
 
             var chart = new SongChart(song);
-            CollectionAssert.AreEqual(new[] { "Intro lick", "Bass" }, chart.Tabs.Select(t => t.Name));
+            CollectionAssert.AreEqual(new[] { "Intro lick", "Bass", "Vocal" }, chart.Tabs.Select(t => t.Name));
             Assert.IsTrue(chart.Tabs[0].IsSongTab);
             Assert.AreEqual(chart.Bars[1].Notes.Count, chart.Tabs[0].NotesIn(1).Count);  // the song's own: its riffs, as the bars hold them
             var bass = chart.Tabs[1];
@@ -103,6 +103,29 @@ namespace GuitarTutor.Core.Tests
             Assert.AreEqual("Bass", bar4[0].Riff.Name);
             Assert.AreEqual(0, bass.NotesIn(0).Count);
             Assert.AreEqual(0, bass.NotesIn(999).Count);
+        }
+
+        [Test]
+        public void Tabs_ADrumTrackIsDrumTab_ALinePerDrumInTheKitsOrder()
+        {
+            var song = DemoSong.Create();
+            song.Tracks.Add(new SongTrack { Index = 0, Name = "Drums", Kind = "drums", Notes =
+            {
+                new TrackNote { AtQuarter = 0, Quarters = 0.5, Pitch = 36 },                    // bass drum
+                new TrackNote { AtQuarter = 0, Quarters = 0.5, Pitch = 42 },                    // closed hi-hat
+                new TrackNote { AtQuarter = 1, Quarters = 0.5, Pitch = 38, Technique = "a" },   // snare, accented
+                new TrackNote { AtQuarter = 1.5, Quarters = 0.5, Pitch = 38, Technique = "g" }, // a ghost note
+                new TrackNote { AtQuarter = 2, Quarters = 0.5, Pitch = 46 },                    // open hi-hat, the same line
+                new TrackNote { AtQuarter = 3, Quarters = 0.5, Pitch = 54 },                    // a tambourine: above the kit
+                new TrackNote { AtQuarter = 3.5, Quarters = 0.5, Pitch = 78 },                  // a cuica: named by its number
+            } });
+
+            var drums = new SongChart(song).Tabs.Single(t => t.Name == "Drums");
+            Assert.IsTrue(drums.IsDrums);
+            CollectionAssert.AreEqual(new[] { "BD", "SD", "HH", "Tb", "78" }, drums.Tuning);  // lowest first
+            var bar0 = drums.NotesIn(0);
+            CollectionAssert.AreEqual(new[] { (0, "o"), (2, "x"), (1, "O"), (1, "(o)"), (2, "o"), (3, "x"), (4, "x") },
+                bar0.OrderBy(n => n.Offset).ThenBy(n => n.Note.StringIndex).Select(n => (n.Note.StringIndex, n.Note.Technique)));
         }
 
         [Test]
