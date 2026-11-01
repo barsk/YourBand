@@ -166,11 +166,57 @@ namespace GuitarTutor.SongTool
             ("m9",   new[] { 0, 3, 7, 10, 14 }),
         };
 
+        /// <summary>
+        /// A Guitar Pro file read with alphaTab. Guitar Pro 3 to 5 files keep their text in the writer's Windows code
+        /// page, not UTF-8 (alphaTab's default): a file whose text does not read as UTF-8 ("2°gtr" written as 32 B0, the
+        /// B0 alone no UTF-8) is read again as Windows-1252. The newer formats are XML, UTF-8 by their own header.
+        /// </summary>
+        public static Score LoadScore(string path)
+        {
+            var data = File.ReadAllBytes(path);
+            var score = ScoreLoader.LoadScoreFromBytes(data);
+            if (!Texts(score).Any(t => t != null && t.Contains('�')))
+                return score;
+            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+            var settings = new Settings();
+            settings.Importer.Encoding = "windows-1252";
+            return ScoreLoader.LoadScoreFromBytes(data, settings);
+        }
+
+        /// <summary>Every text in a score: its title and credits, track names, section names, lyrics, beat texts, chord names.</summary>
+        static IEnumerable<string> Texts(Score score)
+        {
+            foreach (var t in new[] { score.Title, score.SubTitle, score.Artist, score.Album, score.Words, score.Music, score.Copyright, score.Tab, score.Instructions, score.Notices })
+                yield return t;
+            foreach (var master in score.MasterBars)
+                if (master.Section != null)
+                {
+                    yield return master.Section.Text;
+                    yield return master.Section.Marker;
+                }
+            foreach (var track in score.Tracks)
+            {
+                yield return track.Name;
+                foreach (var staff in track.Staves)
+                foreach (var bar in staff.Bars)
+                foreach (var voice in bar.Voices)
+                foreach (var beat in voice.Beats)
+                {
+                    yield return beat.Text;
+                    if (beat.Chord != null)
+                        yield return beat.Chord.Name;
+                    if (beat.Lyrics != null)
+                        foreach (var line in beat.Lyrics)
+                            yield return line;
+                }
+            }
+        }
+
         public static Song Import(string path, out ImportReport report, int trackIndex = -1, List<StrumPattern> ugStrumming = null,
             Dictionary<string, string> ugSectionMap = null)
         {
             report = new ImportReport();
-            var score = ScoreLoader.LoadScoreFromBytes(File.ReadAllBytes(path));
+            var score = LoadScore(path);
             if (score.Tracks.Count == 0)
                 throw new InvalidDataException("no tracks in the Guitar Pro file");
 
@@ -1408,7 +1454,7 @@ namespace GuitarTutor.SongTool
         public static void DiagStrum(string path, int trackIndex)
         {
             var report = new ImportReport();
-            var score = ScoreLoader.LoadScoreFromBytes(File.ReadAllBytes(path));
+            var score = LoadScore(path);
             if (score.Tracks.Count == 0)
                 throw new InvalidDataException("no tracks in the Guitar Pro file");
             var tpq = TicksPerQuarter(score);

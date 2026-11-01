@@ -16,7 +16,7 @@ namespace GuitarTutor.SongTool
         /// <summary>The beats of one track's bars (<c>from-to</c>, 1-based): each note's string, fret and flags.</summary>
         public static int Beats(string path, int track, string bars)
         {
-            var score = ScoreLoader.LoadScoreFromBytes(File.ReadAllBytes(path));
+            var score = GpxImporter.LoadScore(path);
             var range = bars.Split('-');
             var from = int.Parse(range[0]);
             var to = range.Length > 1 ? int.Parse(range[1]) : from;
@@ -56,7 +56,7 @@ namespace GuitarTutor.SongTool
         /// </summary>
         public static int Order(string path)
         {
-            var score = ScoreLoader.LoadScoreFromBytes(File.ReadAllBytes(path));
+            var score = GpxImporter.LoadScore(path);
             foreach (var mb in score.MasterBars)
             {
                 var marks = new StringBuilder();
@@ -93,7 +93,7 @@ namespace GuitarTutor.SongTool
 
         public static int Print(string path)
         {
-            var score = ScoreLoader.LoadScoreFromBytes(File.ReadAllBytes(path));
+            var score = GpxImporter.LoadScore(path);
             Console.WriteLine($"{score.Artist} - {score.Title}: {score.MasterBars.Count} bars, {score.Tracks.Count} tracks");
             for (int t = 0; t < score.Tracks.Count; ++t)
             {
