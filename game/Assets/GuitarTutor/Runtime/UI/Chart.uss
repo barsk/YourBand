@@ -485,6 +485,79 @@
 .gt-help__what {
     font-size: 19px;
 }
+.gt-matrix {
+    position: absolute;
+    left: 40px;
+    right: 40px;
+    top: 80px;
+    background-color: #14161a;
+    border-color: var(--gt-accent);
+    border-width: 1px;
+    border-radius: 10px;
+    padding: 14px 20px 18px 20px;
+}
+.gt-matrix__head {
+    flex-direction: row;
+    align-items: flex-end;
+}
+.gt-matrix__hint {
+    font-size: 15px;
+    color: var(--gt-faint);
+    margin-left: 16px;
+    margin-bottom: 8px;
+}
+.gt-matrix__body {
+    flex-direction: row;
+}
+.gt-matrix__corner {
+    height: 22px;
+}
+.gt-matrix__row {
+    flex-direction: row;
+    height: 24px;
+    align-items: center;
+    padding-right: 10px;
+}
+.gt-matrix__name {
+    font-size: 16px;
+    -unity-font-style: bold;
+    padding: 0;
+    margin: 0;
+    flex-shrink: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.gt-matrix__role {
+    font-size: 14px;
+    color: var(--gt-dim);
+    margin: 0 0 0 auto;
+    padding: 0 0 0 8px;
+    white-space: nowrap;
+}
+.gt-matrix__area {
+    flex-grow: 1;
+}
+.gt-matrix__sections {
+    height: 22px;
+}
+.gt-matrix__section {
+    position: absolute;
+    top: 0;
+    font-size: 13px;
+    color: var(--gt-dim);
+    white-space: nowrap;
+    padding: 0;
+    margin: 0;
+}
+.gt-matrix__cursor {
+    position: absolute;
+    top: 18px;
+    bottom: 0;
+    width: 3px;
+    margin-left: -1px;
+    background-color: var(--gt-accent);
+}
 .gt-hidden {
     display: none;
 }

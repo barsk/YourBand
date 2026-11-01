@@ -28,7 +28,8 @@ namespace GuitarTutor.Runtime.UI
 
     /// <summary>
     /// The desktop screen (see docs/plan.md, "Desktop mode"): a header with the song and where you are, the panels
-    /// (song info, chords, strumming), the tab across the screen, the chart's rows, and a help overlay. The panels
+    /// (song info, chords, strumming), the tab across the screen, the chart's rows, and overlays for help and the
+    /// tracks (<see cref="TrackMatrix"/>). The panels
     /// and the tab can be toggled. The middle stays clear for the band once it is there (M6).
     /// </summary>
     public sealed class DesktopScreen : VisualElement
@@ -38,6 +39,8 @@ namespace GuitarTutor.Runtime.UI
         public const int MaxChords = 6;
 
         public ChartStrip Strip { get; }
+        /// <summary>The song's tracks bar by bar, over the chart (M).</summary>
+        public TrackMatrix Tracks { get; }
         readonly LoadingOverlay loading = new LoadingOverlay();
         int tabIndex;  // which of the chart's tabs the TAB panel shows
 
@@ -98,7 +101,7 @@ namespace GuitarTutor.Runtime.UI
 
             Strip = new ChartStrip();
             Add(Strip);
-            hint = ChartLook.Label(string.Join("   ·   ", "Space play / pause", "R restart", "Left / Right bar", "PgUp / PgDn section", "Up / Down speed", "1-4 panels", "Tab track's tab", "P pattern", "B band style", "G band guitarist", "V band view", "X VR", "C control panel", "T tone", "H help"),
+            hint = ChartLook.Label(string.Join("   ·   ", "Space play / pause", "R restart", "Left / Right bar", "PgUp / PgDn section", "Up / Down speed", "1-4 panels", "Tab track's tab", "M tracks", "P pattern", "B band style", "G band guitarist", "V band view", "X VR", "C control panel", "T tone", "H help"),
                 "gt-hint", this);
             vrHint = ChartLook.Label(string.Join("   ·   ", "A play / pause", "B restart", "right stick: bar, speed", "left stick: section", "trigger: move the chart or a musician, grip: the band", "right stick click: in front of you", "left stick click: band guitarist", "left stick up: help"),
                 "gt-hint", this);
@@ -122,8 +125,9 @@ namespace GuitarTutor.Runtime.UI
                          ("L", "next song"),
                          ("C", "control panel: audio device, band faders"),
                          ("T", "your guitar's tone (TONE3000)"),
+                         ("M", "the tracks bar by bar: click a bar to go there and see that track's tab"),
                          ("H", "this help"),
-                         ("Esc", "quit"),
+                         ("Esc", "close the help or the tracks; else quit"),
                      });
             vrHelp = Help(new[]
                      {
@@ -140,6 +144,8 @@ namespace GuitarTutor.Runtime.UI
                          ("Y", "with the left controller resting on the floor: the floor's height"),
                          ("Keyboard X", "back to the desktop"),
                      });
+            Tracks = new TrackMatrix();
+            Add(Tracks);
             Add(loading);  // last: over everything
         }
 
@@ -197,7 +203,38 @@ namespace GuitarTutor.Runtime.UI
                                         + (chart.Tabs.Count > 1 ? $"  ({tabIndex + 1} of {chart.Tabs.Count}, Tab for the next)" : "");
         }
 
+        /// <summary>
+        /// The TAB panel to a track's tab, if it has one (shown if it was hidden). Returns the tab's name, or null if the
+        /// track has none.
+        /// </summary>
+        public string ShowTabOf(SongTrack track)
+        {
+            if (chart == null)
+                return null;
+            var index = chart.Tabs.ToList().FindIndex(t => t.Name == track.Name && t.Name != "");
+            if (index < 0)
+                return null;
+            return StepTab(index - tabIndex) ?? track.Name;
+        }
+
         public void ToggleHelp() => (vr ? vrHelp : help).ToggleInClassList("gt-hidden");
+
+        /// <summary>Opens or closes the tracks overlay (closing the help, which sits in the same place).</summary>
+        public void ToggleTracks()
+        {
+            Tracks.SetOpen(!Tracks.IsOpen);
+            help.AddToClassList("gt-hidden");
+        }
+
+        /// <summary>Closes the help and the tracks overlay; false if neither was open.</summary>
+        public bool CloseOverlays()
+        {
+            var open = Tracks.IsOpen || !help.ClassListContains("gt-hidden") || !vrHelp.ClassListContains("gt-hidden");
+            Tracks.SetOpen(false);
+            help.AddToClassList("gt-hidden");
+            vrHelp.AddToClassList("gt-hidden");
+            return open;
+        }
 
         /// <summary>The controllers' hints and help (VR mode), or the keyboard's.</summary>
         public void SetVr(bool on)
@@ -207,6 +244,7 @@ namespace GuitarTutor.Runtime.UI
             vrHint.EnableInClassList("gt-hidden", !on);
             help.AddToClassList("gt-hidden");
             vrHelp.AddToClassList("gt-hidden");
+            Tracks.SetOpen(false);
         }
 
         public void SetSong(SongChart songChart)
@@ -216,6 +254,7 @@ namespace GuitarTutor.Runtime.UI
             title.text = song.Info.Title;
             artist.text = song.Info.Artist;
             Strip.SetSong(chart);
+            Tracks.SetSong(chart);
             tab.SetSong(chart);
             tabIndex = 0;
             ShowTabTitle();
@@ -275,6 +314,7 @@ namespace GuitarTutor.Runtime.UI
             var beat = 4.0 / (bar?.Signature.Denominator ?? 4);
             var quartersPerSecond = song.Tempo.BpmAt(at) * transport.Speed / 60.0;
             Strip.Show(quarter, countIn, Math.Min(beat, 0.35 * quartersPerSecond));
+            Tracks.Show(at);
             if (IsShown(Panel.Chords))
                 ShowChords(at, countIn == null && quarter >= 0);
             if (IsShown(Panel.Strumming))

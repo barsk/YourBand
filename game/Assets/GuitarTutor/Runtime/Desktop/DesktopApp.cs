@@ -24,7 +24,7 @@ namespace GuitarTutor.Runtime.Desktop
     public enum Command
     {
         PlayPause, Restart, Home, BarBack, BarOn, SectionBack, SectionOn, Faster, Slower,
-        NextPattern, NextTab, PreviousTab, NextSong, NextStyle, BandGuitar, BandView, Vr, ControlPanel, ToneWindow, Help, Quit,
+        NextPattern, NextTab, PreviousTab, NextSong, NextStyle, BandGuitar, BandView, Vr, ControlPanel, ToneWindow, Tracks, Help, Quit,
     }
 
     /// <summary>
@@ -100,6 +100,13 @@ namespace GuitarTutor.Runtime.Desktop
             screen = new DesktopScreen();
             root.Add(screen);
             screen.Strip.SeekToBar += bar => Seek(chart.Bars[Mathf.Clamp(bar, 0, chart.Bars.Count - 1)].AtQuarter);
+            // a bar clicked in the tracks overlay: there, with that track's tab (a doubling track's is its twin's)
+            screen.Tracks.BarChosen += (bar, track) =>
+            {
+                SeekBar(bar);
+                screen.ShowTabOf(BandConnections.Played(chart.Song, track));
+                screen.ToggleTracks();
+            };
             foreach (var panel in PanelOrder)
                 screen.SetShown(panel, PlayerPrefs.GetInt("panel." + panel, 1) == 1);
 
@@ -300,11 +307,26 @@ namespace GuitarTutor.Runtime.Desktop
         /// <summary>The engine's song list: the songs the game can open, and the one it has open.</summary>
         void SendSongList() => link.Send(EngineProtocol.Songs(songs.Select(SongName), songIndex));
 
+        /// <summary>Which of the band plays each of the song's tracks, as the tracks overlay names them.</summary>
+        Dictionary<SongTrack, string> Players()
+        {
+            var players = new Dictionary<SongTrack, string>();
+            foreach (var (instrument, name) in new[]
+                     {
+                         (Instrument.RhythmGuitar, "rhythm guitar"), (Instrument.Bass, "bass"), (Instrument.Keys, "keys"),
+                         (Instrument.Drums, "drums"), (Instrument.LeadGuitar, "lead guitar"), (Instrument.Instrument1, "instrument 1"),
+                     })
+                if (connections.TrackFor(chart.Song, instrument) is SongTrack track)
+                    players[track] = players.TryGetValue(track, out var other) ? other + ", " + name : name;
+            return players;
+        }
+
         /// <summary>Writes the band's parts in a style and gives them to the engine (which stops playing).</summary>
         void Arrange(BandStyle style)
         {
             bandStyle = style;
             arrangement = Arranger.Arrange(chart, style, connections);
+            screen.Tracks.SetPlayers(Players());
             var parts = Environment.GetCommandLineArgs().SkipWhile(a => a != "-parts").Skip(1).FirstOrDefault();
             if (parts != null)
             {
@@ -726,8 +748,13 @@ namespace GuitarTutor.Runtime.Desktop
                     if (screen.StepTab(command == Command.NextTab ? 1 : -1) is string shownTab)
                         Debug.Log("GuitarTutor: the TAB panel shows " + shownTab);
                     break;
+                case Command.Tracks: screen.ToggleTracks(); break;
                 case Command.Help: screen.ToggleHelp(); break;
-                case Command.Quit: Application.Quit(); break;
+                case Command.Quit:
+                    // Esc first closes what is open over the chart
+                    if (!screen.CloseOverlays())
+                        Application.Quit();
+                    break;
             }
         }
 
@@ -743,7 +770,7 @@ namespace GuitarTutor.Runtime.Desktop
                 (Key.PageUp, Command.SectionBack), (Key.PageDown, Command.SectionOn),
                 (Key.UpArrow, Command.Faster), (Key.DownArrow, Command.Slower),
                 (Key.P, Command.NextPattern), (Key.L, Command.NextSong), (Key.B, Command.NextStyle), (Key.G, Command.BandGuitar), (Key.V, Command.BandView), (Key.X, Command.Vr),
-                (Key.C, Command.ControlPanel), (Key.T, Command.ToneWindow),
+                (Key.C, Command.ControlPanel), (Key.T, Command.ToneWindow), (Key.M, Command.Tracks),
                 (Key.H, Command.Help), (Key.Escape, Command.Quit),
             };
             foreach (var (key, command) in keys)

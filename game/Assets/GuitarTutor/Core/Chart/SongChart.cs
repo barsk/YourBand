@@ -283,6 +283,25 @@ namespace GuitarTutor.Core.Chart
             }
         }
 
+        /// <summary>
+        /// How much a track plays in each bar, for the track overview: the notes starting in it, or 1 for a bar a note
+        /// started before still sounds through; 0 where the track is silent.
+        /// </summary>
+        public int[] NotesPerBar(SongTrack track)
+        {
+            var counts = new int[bars.Count];
+            foreach (var n in track.Notes)
+            {
+                var first = BarOf(n.AtQuarter);
+                if (first == null)
+                    continue;
+                ++counts[first.Index];
+                for (var b = first.Index + 1; b < bars.Count && bars[b].AtQuarter < n.AtQuarter + n.Quarters - 1e-6; ++b)
+                    counts[b] = Math.Max(counts[b], 1);
+            }
+            return counts;
+        }
+
         /// <summary>A track's tab notes bar by bar, in time order.</summary>
         IReadOnlyList<IReadOnlyList<BarNote>> PerBar(SongTrack track, IEnumerable<(TrackNote track, TabNote tab)> notes)
         {

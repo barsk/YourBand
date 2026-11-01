@@ -106,6 +106,22 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
+        public void NotesPerBar_CountsTheNotesStarting_AndMarksTheBarsAHeldNoteSoundsThrough()
+        {
+            var song = DemoSong.Create();
+            var track = new SongTrack { Index = 0, Name = "Pad", Kind = "keys", Notes =
+            {
+                new TrackNote { AtQuarter = 0, Quarters = 1, Pitch = 60 },
+                new TrackNote { AtQuarter = 1, Quarters = 1, Pitch = 62 },
+                new TrackNote { AtQuarter = 8, Quarters = 8, Pitch = 64 },  // bar 2 held through bar 3, up to bar 4's start
+            } };
+            song.Tracks.Add(track);
+
+            var counts = new SongChart(song).NotesPerBar(track);
+            CollectionAssert.AreEqual(new[] { 2, 0, 1, 1, 0 }, counts.Take(5));
+        }
+
+        [Test]
         public void Tabs_ADrumTrackIsDrumTab_ALinePerDrumInTheKitsOrder()
         {
             var song = DemoSong.Create();

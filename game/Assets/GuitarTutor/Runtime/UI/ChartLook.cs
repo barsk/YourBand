@@ -31,6 +31,9 @@ namespace GuitarTutor.Runtime.UI
             return Faint;
         }
 
+        /// <summary>A colour per track of the song, in its order (the chords' colours).</summary>
+        public static Color ForTrack(int index) => ChordColours[index % ChordColours.Length];
+
         public static Label Label(string text, string className, VisualElement parent = null)
         {
             var label = new Label(text);

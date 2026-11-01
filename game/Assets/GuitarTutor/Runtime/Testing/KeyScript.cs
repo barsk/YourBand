@@ -12,7 +12,8 @@ namespace GuitarTutor.Runtime.Testing
     /// <summary>
     /// Key presses from the command line, fed to the game's own keyboard (never the desktop's), to test the
     /// controls end to end: <c>-keys "1:Space,4:DownArrow,6.5:shot,7:quit"</c>. Each step is seconds after start, then
-    /// a key (a <see cref="Key"/> name), "shot" (a screenshot into the <c>-keyshots</c> folder) or "quit".
+    /// a key (a <see cref="Key"/> name), "click:x:y" (the game's own mouse, at a point in the window's pixels from its
+    /// top left, as a screenshot has them), "shot" (a screenshot into the <c>-keyshots</c> folder) or "quit".
     /// </summary>
     public sealed class KeyScript : MonoBehaviour
     {
@@ -33,7 +34,7 @@ namespace GuitarTutor.Runtime.Testing
             runner.folder = Arg("-keyshots") ?? ".";
             try
             {
-                runner.steps = script.Split(',').Select(s => s.Split(':'))
+                runner.steps = script.Split(',').Select(s => s.Split(new[] { ':' }, 2))
                     .Select(p => (float.Parse(p[0], System.Globalization.CultureInfo.InvariantCulture), p[1].Trim()))
                     .OrderBy(s => s.Item1).ToList();
             }
@@ -69,6 +70,22 @@ namespace GuitarTutor.Runtime.Testing
                     File.WriteAllBytes(file, image.EncodeToPNG());
                     Destroy(image);
                     Debug.Log($"KeyScript: {at:0.0} s screenshot {file}");
+                    continue;
+                }
+                if (what.StartsWith("click:"))
+                {
+                    var xy = what.Split(':');
+                    var mouse = Mouse.current ?? InputSystem.AddDevice<Mouse>();
+                    // the input system counts from the bottom left
+                    var point = new Vector2(float.Parse(xy[1], System.Globalization.CultureInfo.InvariantCulture),
+                                            Screen.height - float.Parse(xy[2], System.Globalization.CultureInfo.InvariantCulture));
+                    InputSystem.QueueStateEvent(mouse, new MouseState { position = point });
+                    yield return null;
+                    InputSystem.QueueStateEvent(mouse, new MouseState { position = point }.WithButton(MouseButton.Left));
+                    yield return null;
+                    yield return null;
+                    InputSystem.QueueStateEvent(mouse, new MouseState { position = point });
+                    Debug.Log($"KeyScript: {at:0.0} s clicked at {xy[1]}, {xy[2]}");
                     continue;
                 }
                 if (!Enum.TryParse(what, true, out Key key))
