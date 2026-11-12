@@ -250,7 +250,8 @@ Binary files that are in git go through Git LFS (`.gitattributes`).
 
 Every third-party asset and library gets an entry in CREDITS.md. Allowed: CC0, CC BY (with credit), MIT,
 BSD, royalty-free store licences. Not allowed: non-commercial (NC), no-derivatives (ND), editorial use,
-models ripped from games. JUCE's licence needs checking before any release.
+models ripped from games. YourBand's own code is under the GPL v3 (decided 2026-11-12); the engine uses JUCE under
+the AGPLv3.
 
 ## Order of work
 
