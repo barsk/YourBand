@@ -53,7 +53,7 @@ What is there now:
   frets and strings, keys pressed down under the fingers.
 - `Runtime/Vr/VrMode.cs`: VR mode (below).
 
-![The desktop screen with the demo song](../docs/images/m1-desktop-intro.png)
+![The desktop screen with the demo song](../docs/images/desktop.png)
 
 ## Building and running
 
