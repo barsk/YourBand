@@ -24,7 +24,7 @@ namespace GuitarTutor.Runtime.Desktop
     public enum Command
     {
         PlayPause, Restart, Home, BarBack, BarOn, SectionBack, SectionOn, Faster, Slower,
-        NextPattern, NextTab, PreviousTab, NextSong, NextStyle, BandGuitar, BandView, Vr, ControlPanel, ToneWindow, Tracks, Help, Quit,
+        NextPattern, NextTab, PreviousTab, NextSong, NextStyle, BandView, Vr, ControlPanel, ToneWindow, Tracks, Help, Quit,
     }
 
     /// <summary>
@@ -79,11 +79,10 @@ namespace GuitarTutor.Runtime.Desktop
         double? hold;      // screenshots: keep the music here
         double? resumeFrom;  // where playing again goes, when not where the music stopped
         bool countInNext = true;  // the next play starts somewhere new: count in
-        bool bandGuitarPlays;     // the band guitarist plays the rhythm, as the engine last said
         BandStage band;           // the 3D band, once the band view has been shown
         bool bandView;            // the 3D band behind the chart (V)
         string closeUp;           // screenshots: one musician framed (-cam)
-        bool guitarForShots;      // screenshots: the band guitarist plays (-guitarplays; no engine to say so)
+        bool guitarForShots;      // screenshots: the band guitarist plays (-guitarplays; there is no engine)
         VrMode vr;
         float vrToggledAt = -10;  // when VR mode was last switched with a key
         bool bandViewBeforeVr;    // the band view as it was on the desktop
@@ -276,16 +275,18 @@ namespace GuitarTutor.Runtime.Desktop
         }
 
         /// <summary>
-        /// An instrument's track as chosen in the control panel (-1: its default part): kept in the song's band file, and
-        /// the band arranged again (which gives the engine the new parts and the tracks).
+        /// An instrument's track as chosen in the control panel (-1: its default part, <see cref="TrackRef.NoneIndex"/>:
+        /// out of the band): kept in the song's band file, and the band arranged again (which gives the engine the new
+        /// parts and the tracks).
         /// </summary>
         void Connect(string id, int trackIndex)
         {
             var instrument = BandConnections.InstrumentOf(id);
             if (instrument == null)
                 return;
+            var none = trackIndex == TrackRef.NoneIndex;
             var track = trackIndex < 0 ? null : chart.Song.Tracks.FirstOrDefault(t => t.Index == trackIndex);
-            connections.Choose(instrument.Value, TrackRef.Of(track));
+            connections.Choose(instrument.Value, none ? TrackRef.None : TrackRef.Of(track));
             if (songPath != null)
                 try
                 {
@@ -295,7 +296,7 @@ namespace GuitarTutor.Runtime.Desktop
                 {
                     Debug.LogWarning($"GuitarTutor: could not keep the choice in the band file of {songPath}: {e.Message}");
                 }
-            Debug.Log($"GuitarTutor: {BandConnections.Names[instrument.Value]} plays " + (track != null ? $"the track {track.Name}" : "its default part"));
+            Debug.Log($"GuitarTutor: {BandConnections.Names[instrument.Value]} plays " + (none ? "nothing: it is out of the band" : track != null ? $"the track {track.Name}" : "its default part"));
             Arrange(bandStyle);
         }
 
@@ -463,12 +464,6 @@ namespace GuitarTutor.Runtime.Desktop
                     engine.SetSpeed(local.Speed);
                 Debug.Log($"GuitarTutor: the band has {chart.Song.Info.Title} ({(int)message["notes"]} notes, keys {(string)message["keys"]})");
             }
-            else if (type == "bandGuitar")
-            {
-                // the engine's answer to G (and its remembered setting, after hello)
-                bandGuitarPlays = (bool?)message["plays"] ?? false;
-                Debug.Log("GuitarTutor: the band guitarist " + (bandGuitarPlays ? "plays the rhythm" : "rests"));
-            }
             else if (type == "openSong")
             {
                 // chosen in the engine's song list
@@ -523,14 +518,15 @@ namespace GuitarTutor.Runtime.Desktop
                 transport.Pause();
                 transport.Seek(chart.EndQuarter - 1e-6);
             }
-            var status = link == null ? "" : engineReady ? $"band: {bandStyle.Name}" + (bandGuitarPlays ? ", guitarist strums" : "") : engineConnected ? "band: loading"
+            var status = link == null ? "" : engineReady ? $"band: {bandStyle.Name}" : engineConnected ? "band: loading"
                 : startingEngine ? "band: starting the engine" : "no band (engine not running)";
             if (vr.Active)
                 status += (status == "" ? "" : "   ") + vr.Status;
             screen.Show(quarter, CountInAt(quarter), new TransportState(transport.Playing, transport.Speed, chart.Song.Tempo.SecondsAt(Math.Max(0, quarter)), status), pattern);
             if (bandView && band != null)
             {
-                band.GuitarPlays = bandGuitarPlays || guitarForShots;
+                // the guitarist plays with the band (an engine there to hear it), unless the rhythm guitar is out of it
+                band.GuitarPlays = (engineConnected && !connections.IsOut(Instrument.RhythmGuitar)) || guitarForShots;
                 band.Show(quarter, chart.Song.Tempo.SecondsAt(Math.Max(0, quarter)));
                 if (closeUp != null && Camera.main != null && !vr.Active)
                     band.Frame(Camera.main, closeUp);
@@ -717,11 +713,6 @@ namespace GuitarTutor.Runtime.Desktop
                     if (playing)
                         local.Play(Math.Max(0, at), 0);
                     break;
-                case Command.BandGuitar:
-                    // the engine keeps the setting (the control panel has it too) and answers with it
-                    if (engineConnected)
-                        link.Send(EngineProtocol.BandGuitar(!bandGuitarPlays));
-                    break;
                 case Command.ControlPanel:
                 case Command.ToneWindow:
                     if (engineConnected)
@@ -768,7 +759,7 @@ namespace GuitarTutor.Runtime.Desktop
                 (Key.LeftArrow, Command.BarBack), (Key.RightArrow, Command.BarOn),
                 (Key.PageUp, Command.SectionBack), (Key.PageDown, Command.SectionOn),
                 (Key.UpArrow, Command.Faster), (Key.DownArrow, Command.Slower),
-                (Key.P, Command.NextPattern), (Key.L, Command.NextSong), (Key.B, Command.NextStyle), (Key.G, Command.BandGuitar), (Key.V, Command.BandView), (Key.X, Command.Vr),
+                (Key.P, Command.NextPattern), (Key.L, Command.NextSong), (Key.B, Command.NextStyle), (Key.V, Command.BandView), (Key.X, Command.Vr),
                 (Key.C, Command.ControlPanel), (Key.T, Command.ToneWindow), (Key.M, Command.Tracks),
                 (Key.H, Command.Help), (Key.Escape, Command.Quit),
             };

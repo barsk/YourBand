@@ -14,15 +14,23 @@ namespace GuitarTutor.Core.Band
     /// <summary>A track of a song, as a choice stores it: its place in the file and its name (either finds it after a reimport).</summary>
     public sealed class TrackRef
     {
-        /// <summary>The track's <see cref="SongTrack.Index"/>; -1: none, the instrument plays its default (generated) part.</summary>
+        /// <summary>
+        /// The track's <see cref="SongTrack.Index"/>; -1: no track, the instrument plays its default (generated) part (a
+        /// lead has none: it plays nothing); <see cref="NoneIndex"/>: the instrument is left out of the band.
+        /// </summary>
         public int Index { get; set; } = -1;
         public string Name { get; set; } = "";
         // (until 2026-11-01 the rhythm guitar's choice also said how it played its track: "picked" or "stringKeys"; it plays
         // every track one way now, and an older file's flags are passed over)
 
+        public const int NoneIndex = -2;
+
         public static TrackRef Default => new TrackRef();
+        /// <summary>The instrument is out of the band in this song: it plays no part, made up or from a track.</summary>
+        public static TrackRef None => new TrackRef { Index = NoneIndex };
         public static TrackRef Of(SongTrack track) => track == null ? Default : new TrackRef { Index = track.Index, Name = track.Name };
-        [JsonIgnore] public bool IsDefault => Index < 0;
+        [JsonIgnore] public bool IsDefault => Index == -1;
+        [JsonIgnore] public bool IsNone => Index == NoneIndex;
     }
 
     /// <summary>
@@ -61,14 +69,21 @@ namespace GuitarTutor.Core.Band
         public void Choose(Instrument instrument, TrackRef track) => Chosen[Ids[instrument]] = track ?? TrackRef.Default;
 
         /// <summary>
+        /// Whether the instrument is left out of the band in this song (chosen "None"): it plays nothing, not even a part
+        /// the band makes up. A lead with no track plays nothing either, but that is its default.
+        /// </summary>
+        public bool IsOut(Instrument instrument) => Chosen.TryGetValue(Ids[instrument], out var chosen) && chosen != null && chosen.IsNone;
+
+        /// <summary>
         /// The track an instrument plays in the song (one with notes: a doubling track's twin), or null for its default
-        /// part: your choice if you made one and the track is still there, else the automatic connection.
+        /// part (or none, for an instrument that is out: <see cref="IsOut"/>): your choice if you made one and the track
+        /// is still there, else the automatic connection.
         /// </summary>
         public SongTrack TrackFor(Song song, Instrument instrument)
         {
             if (Chosen.TryGetValue(Ids[instrument], out var chosen) && chosen != null)
             {
-                if (chosen.IsDefault)
+                if (chosen.IsDefault || chosen.IsNone)
                     return null;
                 var track = Find(song, chosen);
                 if (track != null)

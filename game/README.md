@@ -33,7 +33,7 @@ What is there now:
 - `Core/Band/Arranger.cs`: the band's parts from the chart, in a style (Ballad, Rock, Pop). Drums with crashes
   at section starts and a fill into each new section, bass on the roots walking into changes, keys voiced
   close and moving as little as they can, and the guitarist strumming the song's patterns on its chord
-  shapes (the engine plays it while the band guitarist is on). With a capo, the band plays that much higher.
+  shapes (the rhythm guitar's row in the control panel can take it out: "None"). With a capo, the band plays that much higher.
 - `Core/Engine/EngineProtocol.cs`, `Runtime/Engine/`: the connection to the audio engine
   ([../schema/engine-protocol.md](../schema/engine-protocol.md)): messages over TCP, and the engine's clock
   read from shared memory each frame, so the chart moves with the sound.
@@ -81,8 +81,6 @@ Keys:
 - 1-4: the panels, in their order on screen: song, chords, strumming, tab.
 - P: the next strumming pattern.
 - B: the next band style.
-- G: the band guitarist plays the rhythm, or rests. The guitarist rests on a computer where G has not been pressed (the
-  engine keeps the choice in its settings); the control panel has no switch for it.
 - V: the band view: the band in 3D behind the chart (the chart alone is the default).
 - X: VR mode on or off (below).
 - L: the next song.
@@ -115,8 +113,7 @@ Controllers:
   turns them), to fit the band into your room. A ring shows their station on the floor, red where it crowds
   another's.
 - Grip, held, aimed at a musician: the whole band goes with the beam the same way.
-- Right stick click: the band and the board back in front of you. Left stick click: the band guitarist plays the
-  rhythm, or rests (he strums only while he is on; the game starts with him resting).
+- Right stick click: the band and the board back in front of you.
 - X: the next key colour (magenta, green, blue, black). Y, with the left controller resting on the floor: the
   floor's height.
 

@@ -647,12 +647,9 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
                 continue;
             if (note.part == guitar)
             {
-                if (guitarPlays.load())  // (the tab is the guitarist's part: it is the player's when the band's guitarist is off)
-                {
-                    auto tab = note;
-                    tab.part = lead1;
-                    emit (tab, note.at, offsetOf (note.at), midi);
-                }
+                auto tab = note;  // (the tab's single notes go to the lead 1 plugin)
+                tab.part = lead1;
+                emit (tab, note.at, offsetOf (note.at), midi);
                 continue;
             }
             emit (note, note.at, offsetOf (note.at), midi);
@@ -722,17 +719,16 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
                 strumModeOn = true;
                 singleActive = false;
                 ++spanCursor;
-                if (guitarPlays.load())
-                    for (size_t i = 0; i < s->voicings.size(); ++i)
+                for (size_t i = 0; i < s->voicings.size(); ++i)
+                {
+                    const auto& v = s->voicings[i];
+                    if (v.at < sp.to - 1.0e-9 && v.at + v.length > sp.to + 1.0e-9 && ! repeats (i))
                     {
-                        const auto& v = s->voicings[i];
-                        if (v.at < sp.to - 1.0e-9 && v.at + v.length > sp.to + 1.0e-9 && ! repeats (i))
-                        {
-                            const auto pitch = guitarPluginPitch (v.pitch);
-                            midi.addEvent (juce::MidiMessage::noteOn (channelOf (guitar), pitch, (juce::uint8) 96), juce::jmin (n - 1, at + 2));
-                            addOff ({ guitar, pitch, -1, v.at + v.length - early - 0.001 });
-                        }
+                        const auto pitch = guitarPluginPitch (v.pitch);
+                        midi.addEvent (juce::MidiMessage::noteOn (channelOf (guitar), pitch, (juce::uint8) 96), juce::jmin (n - 1, at + 2));
+                        addOff ({ guitar, pitch, -1, v.at + v.length - early - 0.001 });
                     }
+                }
             }
         }
         // the per-string notes, for the built-in guitar and the non-strum plugins; in strumming mode the
@@ -740,7 +736,7 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         while (guitarCursor < s->guitar.size() && s->notes[s->guitar[guitarCursor]].at - early < q1)
         {
             const auto& note = s->notes[s->guitar[guitarCursor++]];
-            if (note.at < q0 - 1.0e-9 || (countingIn && note.at < countInUntil - 1.0e-9) || ! guitarPlays.load())
+            if (note.at < q0 - 1.0e-9 || (countingIn && note.at < countInUntil - 1.0e-9))
                 continue;
             if (strums && ! note.single)
                 continue;  // (single-string notes are played as notes in the strumming mode too: it is let go for them)
@@ -776,7 +772,7 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
                 strumModeOn = true;
             }
             // the held voicing, a hair before its time: the plugin must know the chord before a strum at the
-            // same moment (the cursors walk on while the guitarist is off, to catch up with him)
+            // same moment (the cursors walk on over what is skipped, a count-in's or a restart's, to catch up)
             while (voicingCursor < s->voicings.size() && s->voicings[voicingCursor].at - early < q1)
             {
                 const auto& v = s->voicings[voicingCursor];
@@ -785,7 +781,7 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
                     continue;  // (the chord held when the single-string stretch ends is struck up again then)
                 // a chord over before this block is skipped; one begun before it (a restart in the middle of a chord)
                 // is held from the block's start
-                if (v.at + v.length <= q0 + 1.0e-9 || (countingIn && v.at < countInUntil - 1.0e-9) || ! guitarPlays.load())
+                if (v.at + v.length <= q0 + 1.0e-9 || (countingIn && v.at < countInUntil - 1.0e-9))
                     continue;
                 const auto at = juce::jmax (0, offsetOf (v.at - early) - 4);
                 const auto pitch = guitarPluginPitch (v.pitch);
@@ -804,7 +800,7 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
                 const auto& st = s->strokes[strokeCursor++];
                 if (singleActive)
                     continue;
-                if (st.at < q0 - 1.0e-9 || (countingIn && st.at < countInUntil - 1.0e-9) || ! guitarPlays.load())
+                if (st.at < q0 - 1.0e-9 || (countingIn && st.at < countInUntil - 1.0e-9))
                     continue;
                 const double atSec = st.at - early;
                 const auto at = offsetOf (atSec);
@@ -845,7 +841,7 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
                 const auto& p = s->picks[pickCursor++];
                 if (singleActive)
                     continue;
-                if (p.at < q0 - 1.0e-9 || (countingIn && p.at < countInUntil - 1.0e-9) || ! guitarPlays.load())
+                if (p.at < q0 - 1.0e-9 || (countingIn && p.at < countInUntil - 1.0e-9))
                     continue;
                 const auto key = firstStringKey + p.rank;
                 const double keyEnd = p.at + p.length - early;

@@ -70,10 +70,6 @@ private:
     void refreshPresets();
     void stepPreset (int step);
     void selectPreset (int index);
-    /** Whether the band guitarist plays the rhythm: from the game (its G key), kept for next time and told to the
-        game. */
-    void setBandGuitarPlays (bool on);
-    void sendBandGuitar();
     /** The import window (made the first time), and a song it has written: the game is asked to open it. */
     void showImport();
     void songImported (const juce::File& song);

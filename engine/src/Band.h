@@ -113,15 +113,12 @@ public:
     bool usesPluginFor (Part part) const { return onPlugin[(size_t) part].load(); }
     /** A part whose fader is all the way down: a lead that is off does not take the tab's single notes (the guitar plays them). */
     void setPartMuted (Part part, bool muted) { partMuted[(size_t) part].store (muted); }
-    /** Whether the band's guitarist plays (the rhythm: the song's strumming on its chords). */
-    void setGuitarPlays (bool on) { guitarPlays.store (on); }
     /** How early (seconds) the guitar's notes go to its plugin, when it plays on one: a plugin whose sound builds
         slowly (Kontakt's strummed guitars) is heard late by about that much. */
     void setGuitarAdvance (double seconds) { guitarAdvance.store (juce::jlimit (0.0, 0.2, seconds)); }
     /** The guitar plays on a strum-capable plugin (Shreddage's strumming mode): its strokes go to it as strum
         keyswitches on its held voicing, instead of its per-string notes. */
     void setStrummingMode (bool on) { if (strummingMode.exchange (on) != on) guitarResync.store (true); }
-    bool guitarIsPlaying() const { return guitarPlays.load(); }
     /** The drum notes the drum plugin plays, for one that does not play every General MIDI drum (MONSTER Drums,
         measured with plugin_probe --map); empty: all of them. A drum the kit in use (the plugin's, or the built-in one)
         does not have is played on the nearest one it has, or left out (kitNote). */
@@ -179,7 +176,6 @@ private:
     std::atomic<double> outputLatency { 0.0 };
     std::array<std::atomic<bool>, numParts> onPlugin {};  // per part; the keys are always on their plugin
     std::array<std::atomic<bool>, numParts> partMuted {};  // per part: its fader is down
-    std::atomic<bool> guitarPlays { false };
     std::atomic<double> guitarAdvance { 0.0 };
     std::atomic<bool> strummingMode { false };
     std::atomic<bool> guitarResync { false };  // the guitar's sound changed: drop what it holds, start from now

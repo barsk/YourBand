@@ -81,14 +81,11 @@ public:
     bool usesBandInstrument (Slot slot) const;
     /** A band instrument plugin's sound level in the mix, used instead of the part's while the band plays on it. */
     void setBandPluginLevel (Slot, float gain);
-    /** Whether the band's guitarist plays the rhythm (the song's strumming on its chords). */
-    void setBandGuitarPlays (bool on) { bandProcessor->setGuitarPlays (on); }
     /** The band guitar's notes go to its plugin this early (seconds), to make up for a sound that builds slowly. */
     void setBandGuitarAdvance (double seconds) { bandProcessor->setGuitarAdvance (seconds); }
     /** The band guitar's plugin is strum-capable (Shreddage's strumming mode): its strokes go to it as strum
         keyswitches on its held voicing, instead of its per-string notes. */
     void setBandGuitarStrummingMode (bool on) { bandProcessor->setStrummingMode (on); }
-    bool bandGuitarPlays() const { return bandProcessor->guitarIsPlaying(); }
     juce::AudioProcessor* plugin (Slot) const;
     /** A plugin's state; while it takes a new one (setPluginState: paused until it has settled), that one, without
         asking the plugin (the engine stopped in MONSTER Drums when asked for its state as it loaded the kit it was given). */

@@ -3,7 +3,7 @@
   python lead_session.py <out-folder> [--seconds 16] [--lead1 "Numa Player"] [--lead2 "Kontakt 8"] [--tab]
 
 With --tab the song instead has the tab's single-string notes (the guitarist's, flagged single) and no lead parts:
-they are played by the lead 1 plugin, while the band's guitarist plays (the engine's "Band guitarist plays" setting).
+they are played by the lead 1 plugin, while the band's guitarist plays (it always does since 2026-11-12).
 
 Starts the engine silently with a recording and the given plugins on the lead channels, loads a short song
 whose only notes are a C major scale on lead 1 (part 4, bars 1-2) and an A minor scale on lead 2 (part 5,

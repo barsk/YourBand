@@ -82,10 +82,14 @@ sends the game `importedSong`, which reads its song list again and opens the new
 Below, a row per band instrument: **Rhythm guitar**, **Bass**, **Keyboards**, **Drums**, **Lead guitar** and
 **Instrument 1** (docs/instrument-tracks.md). Each row's first list is the song's track the instrument plays, from the
 game (`tracks`): "Band playstyle", the part the band makes up in its playstyle (the lead guitar and instrument 1 have
-none: "None", they play no track), then a Guitar Pro song's tracks (a doubled track is one choice, named with its twin).
-The game connects them automatically for a new song; choosing one here tells the game (`connect`), which keeps the
-choice in a file next to the song (`<song>.band.json`) and arranges the band again. A song from Ultimate Guitar pages
-has no tracks: the lists only offer the first. Then, for an instrument playing a track (the leads always), the row's
+none: their first choice is "None", they play no track), "None" (the instrument is out of the band in this song: no part,
+made up or from a track; the lead guitar's and instrument 1's first choice does the same), then a Guitar Pro song's
+tracks (a doubled track is one choice, named with its twin). The game connects them automatically for a new song;
+choosing one here tells the game (`connect`: `track` -1 the playstyle's part, -2 none), which keeps the choice in a file
+next to the song (`<song>.band.json`) and arranges the band again. A song from Ultimate Guitar pages has no tracks: the
+lists offer "Band playstyle" and "None". The band guitarist always plays, from a fresh install on: "None" on the rhythm
+guitar's row is how the band leaves the rhythm to you (the game's old G key and the engine's `bandGuitarPlays` setting
+are gone). The drums' count-in sticks play whatever the drums' choice. Then, for an instrument playing a track (the leads always), the row's
 plugin and its window ("..."): the sound it plays the track on in this song. On "Band playstyle" they are hidden: the
 playstyle's sound plays, set in the Band playstyle defaults window. The keyboards and the leads have no built-in sound,
 so their first choice is "Off". Every instrument plays its track as the file has it (its velocities, no made-up fills).
@@ -165,7 +169,7 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   had one), the cowbell 56 and ride 2 59, and nothing above (`plugin_probe --map`, 2026-10-29 and 2026-11-01); any
   other drum plugin is taken to play them all. This matters most for a song's own drum track (docs/instrument-tracks.md),
   which uses whatever drums the file has.
-- The band guitarist (switched on and off with G in the game; remembered) strums the song's strumming pattern for each section on the chord shapes the chart shows (the
+- The band guitarist (always on; "None" on the rhythm guitar's row takes it out) strums the song's strumming pattern for each section on the chord shapes the chart shows (the
   game writes it: `Arranger.Strum`): a stroke crosses the strings 12 ms apart down, 9 ms up (the top four
   strings), and each string rings until it is struck again or the chord changes. It plays on the built-in
   guitar (picked strings built from their harmonics, `GuitarVoice`, a DI sound straight to the mixer) or a

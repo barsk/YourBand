@@ -91,6 +91,47 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
+        public void AnInstrumentChosenNone_IsOutOfTheBand_AndTheChoiceIsKept()
+        {
+            var song = GuitarProSong();
+            var chart = new SongChart(song);
+            var connections = new BandConnections();
+            var all = Arranger.Arrange(chart, BandStyle.Named("Ballad"), connections);
+            Assert.IsTrue(all.Part(BandPart.Drums).Any() && all.Part(BandPart.Bass).Any() && all.Part(BandPart.Keys).Any()
+                          && all.Part(BandPart.Guitar).Any() && all.Picks.Count > 0);  // (the guitar plays its track: its string keys)
+            Assert.IsFalse(connections.IsOut(Instrument.Bass));
+
+            // out: no track, no part made up, nothing connected automatically (the song has a bass track, and the piano is
+            // too short for the keys to play it, so the keys' part would be made up)
+            foreach (var instrument in new[] { Instrument.Drums, Instrument.Bass, Instrument.Keys, Instrument.RhythmGuitar })
+                connections.Choose(instrument, TrackRef.None);
+            Assert.IsTrue(connections.IsOut(Instrument.Bass));
+            Assert.IsNull(connections.TrackFor(song, Instrument.Bass));
+            Assert.IsNull(connections.TrackFor(song, Instrument.RhythmGuitar));
+            var out_ = Arranger.Arrange(chart, BandStyle.Named("Ballad"), connections);
+            Assert.AreEqual(0, out_.Part(BandPart.Drums).Count());
+            Assert.AreEqual(0, out_.Part(BandPart.Bass).Count());
+            Assert.AreEqual(0, out_.Part(BandPart.Keys).Count());
+            Assert.AreEqual(0, out_.Part(BandPart.Guitar).Count());
+            Assert.AreEqual(0, out_.Strokes.Count + out_.Voicings.Count + out_.Picks.Count + out_.SingleSpans.Count);
+            Assert.AreEqual(25, out_.Part(BandPart.Lead1).Count());  // the others play on (the lead guitar's track)
+
+            // back in, on its track (the others stay out)
+            connections.Choose(Instrument.Bass, TrackRef.Of(song.Tracks[5]));
+            Assert.IsFalse(connections.IsOut(Instrument.Bass));
+            Assert.AreEqual(60, Arranger.Arrange(chart, BandStyle.Named("Ballad"), connections).Part(BandPart.Bass).Count());
+
+            // the choice is in the band file, and the engine is told it (-2)
+            var read = BandConnections.Read(BandConnections.Write(connections));
+            Assert.IsTrue(read.IsOut(Instrument.RhythmGuitar));
+            Assert.IsFalse(read.IsOut(Instrument.Bass));
+            var (_, tracks) = EngineProtocol.Read(EngineProtocol.Tracks(song, read));
+            var rhythm = ((JArray)tracks["instruments"]).Single(i => (string)i["id"] == "rhythm");
+            Assert.AreEqual(TrackRef.NoneIndex, (int)rhythm["track"]);
+            Assert.AreEqual(5, (int)((JArray)tracks["instruments"]).Single(i => (string)i["id"] == "bass")["track"]);  // its track again
+        }
+
+        [Test]
         public void Leads_PlayTheirConnectedTracks()
         {
             var song = GuitarProSong();

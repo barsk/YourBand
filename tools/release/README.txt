@@ -14,10 +14,8 @@ control panel, H the game's help.
 
 Windows 10 or 11, 64-bit. Nothing else needs installing for the game and the engine themselves.
 
-The band guitarist rests until you switch the band guitarist on: press G in the game (the header then says
-"guitarist strums"). The band is meant to leave the rhythm to you, and the engine remembers the choice, so a new
-computer starts with the guitarist resting: bass, drums and keys play, the rhythm guitar is silent whatever sound or
-track it has, and Solo on its row stays quiet.
+The whole band plays from the start, the rhythm guitar too. To leave the rhythm to yourself, or to take any other
+instrument out of a song, choose "None" in the first list of its row in the control panel (C); the song remembers it.
 
 The plugins
 -----------

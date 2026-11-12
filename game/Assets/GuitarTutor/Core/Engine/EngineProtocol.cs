@@ -110,14 +110,12 @@ namespace GuitarTutor.Core.Engine
         /// or "bandGuitar" (the band's plugins).</summary>
         public static string ShowWindow(string which) => Line(new JObject { ["type"] = "window", ["show"] = which });
 
-        /// <summary>Whether the band's guitarist plays the rhythm (the engine answers with the same message).</summary>
-        public static string BandGuitar(bool plays) => Line(new JObject { ["type"] = "bandGuitar", ["plays"] = plays });
-
         public static string Quit() => Line(new JObject { ["type"] = "quit" });
 
         /// <summary>
         /// The song's tracks the band's instruments can play (one per doubled pair: its label names both) and, per
-        /// instrument, the track it plays (-1: its default part), and whether that was chosen or connected automatically.
+        /// instrument, the track it plays (-1: its default part; <see cref="TrackRef.NoneIndex"/>: it is out of the band) and
+        /// whether that was chosen or connected automatically.
         /// </summary>
         public static string Tracks(Song song, BandConnections connections)
         {
@@ -134,7 +132,7 @@ namespace GuitarTutor.Core.Engine
                 {
                     ["id"] = BandConnections.Ids[i],
                     ["name"] = BandConnections.Names[i],
-                    ["track"] = connections.TrackFor(song, i)?.Index ?? -1,
+                    ["track"] = connections.IsOut(i) ? TrackRef.NoneIndex : connections.TrackFor(song, i)?.Index ?? -1,
                     ["chosen"] = connections.IsChosen(i),
                 });
             return Line(new JObject { ["type"] = "tracks", ["tracks"] = tracks, ["instruments"] = instruments });

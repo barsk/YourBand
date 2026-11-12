@@ -108,7 +108,6 @@ def main():
           "tempos": [[0, BPM]], "meters": [[0, 4, 4]],
           "notes": notes, "voicings": voicings, "strokes": strokes, "keys": ""})
     print("loaded:", receive())
-    send({"type": "bandGuitar", "plays": True})
     send({"type": "play", "from": 0, "countIn": 4})
     print("playing; the first strum lands %g s after play (count-in + 1 beat)" % (5 * QUARTER))
 

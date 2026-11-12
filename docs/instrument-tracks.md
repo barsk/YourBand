@@ -19,7 +19,7 @@ plays them as it does today.
 |---|---|
 | Instruments | Six, as today: rhythm guitar, bass, keyboards, drums, lead guitar, instrument 1 (was Lead 2). More later |
 | Tracks | A Guitar Pro import keeps every track: notes with pitch, string and fret, ties, dynamics and techniques |
-| Connection | Each instrument has a track dropdown in the control panel. The first choice, "Band playstyle", is today's playing (the lead guitar and instrument 1: "None", they have no part of their own). A new song is connected automatically (best effort); you fine-tune it. A drums, bass or keys track that plays in under a third of the song's bars is not connected automatically (a piano in a few bars): the band's own part plays |
+| Connection | Each instrument has a track dropdown in the control panel. The first choice, "Band playstyle", is today's playing (the lead guitar and instrument 1: "None", they have no part of their own). The second, "None" (2026-11-12), takes the instrument out of the band in this song: it plays no part at all, made up or from a track (kept in the song's band file; the lead guitar's and instrument 1's one "None" is that too). The band guitarist is always on: "None" on the rhythm guitar leaves the rhythm to you, in place of the game's old G key and the engine's setting. A new song is connected automatically (best effort); you fine-tune it. A drums, bass or keys track that plays in under a third of the song's bars is not connected automatically (a piano in a few bars): the band's own part plays |
 | Duplicate tracks | Tracks with identical notes (Wicked Game's left and right rhythm guitars) are one choice |
 | Vocals | A vocal track is a choice like any other, for instance instrument 1 on Numa Player's synth voice |
 | Where choices live | In a file of its own next to the song (`<song>.band.json`), so a reimport keeps them |
@@ -42,7 +42,7 @@ instrument:
 
 | Instrument | Track | Plugin | | | | | |
 |---|---|---|---|---|---|---|---|
-| Rhythm guitar | Band playstyle, or a track | its plugin | ... (its window) | M | S | volume | pan |
+| Rhythm guitar | Band playstyle, None, or a track | its plugin | ... (its window) | M | S | volume | pan |
 
 Switching to a song or playstyle with other plugins or sounds loads them; the game shows its loading ring meanwhile.
 The "Band playstyle defaults..." window: a row per band member (rhythm guitar, bass, keyboards, drums), a column per

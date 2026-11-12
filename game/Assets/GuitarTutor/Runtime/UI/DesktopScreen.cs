@@ -111,9 +111,9 @@ namespace GuitarTutor.Runtime.UI
 
             Strip = new ChartStrip();
             Add(Strip);
-            hint = ChartLook.Label(string.Join("   ·   ", "Space play / pause", "R restart", "Left / Right bar", "PgUp / PgDn section", "Up / Down speed", "1-4 panels", "Tab track's tab", "M tracks", "P pattern", "B band style", "G band guitarist", "V band view", "X VR", "C control panel", "T tone", "H help"),
+            hint = ChartLook.Label(string.Join("   ·   ", "Space play / pause", "R restart", "Left / Right bar", "PgUp / PgDn section", "Up / Down speed", "1-4 panels", "Tab track's tab", "M tracks", "P pattern", "B band style", "V band view", "X VR", "C control panel", "T tone", "H help"),
                 "gt-hint", this);
-            vrHint = ChartLook.Label(string.Join("   ·   ", "A play / pause", "B restart", "right stick: bar, speed", "left stick: section", "trigger: move the chart or a musician, grip: the band", "right stick click: in front of you", "left stick click: band guitarist", "left stick up: help"),
+            vrHint = ChartLook.Label(string.Join("   ·   ", "A play / pause", "B restart", "right stick: bar, speed", "left stick: section", "trigger: move the chart or a musician, grip: the band", "right stick click: in front of you", "left stick up: help"),
                 "gt-hint", this);
             vrHint.AddToClassList("gt-hidden");
 
@@ -129,7 +129,6 @@ namespace GuitarTutor.Runtime.UI
                          ("Tab", "the TAB panel shows another track's tab (Guitar Pro songs); Shift+Tab the one before"),
                          ("P", "next strumming pattern"),
                          ("B", "next band style"),
-                         ("G", "band guitarist plays the rhythm, or rests"),
                          ("V", "band view: the band in 3D behind the chart, or the chart alone"),
                          ("X", "VR mode: the band in your room, in the headset (Virtual Desktop)"),
                          ("L", "next song"),
@@ -149,7 +148,6 @@ namespace GuitarTutor.Runtime.UI
                          ("Grip", "hold, aimed at a musician, to move the whole band"),
                          ("", "meanwhile the stick sizes the chart; or pushes, pulls and turns what you hold"),
                          ("Right stick click", "the band and the chart back in front of you"),
-                         ("Left stick click", "the band guitarist plays the rhythm, or rests"),
                          ("X", "next key colour for the passthrough (magenta, green, blue, black)"),
                          ("Y", "with the left controller resting on the floor: the floor's height"),
                          ("Keyboard X", "back to the desktop"),

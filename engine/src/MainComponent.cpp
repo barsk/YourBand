@@ -112,6 +112,10 @@ namespace
     // a band part's dropdown: its built-in sound, then its plugins (ids from 2), then these
     constexpr int builtInId = 1, newSoundId = 900, otherPluginId = 901;
 
+    // an instrument row's track list: its first choice (id 1: the band playstyle's part, for a lead None), then, for a
+    // band member, "None" (it is out of the band: this id, and -2 to the game), then the song's tracks (ids from 2)
+    constexpr int noTrackId = 999, noTrackIndex = -2;
+
     constexpr int mixerWidth = 28 + 4 + 28 + 4 + 40 + 4 + 40;  // an instrument row's mixer channel: mute, solo, volume, pan
 
     /** The mixer's knobs: a ring with the setting as an arc (from the left for a volume, from the middle for a pan, the
@@ -431,7 +435,6 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
     setUpBandPart (EngineCore::Slot::bandLead1);
     setUpBandPart (EngineCore::Slot::bandLead2);
     setUpInstrumentRows();
-    engine.setBandGuitarPlays (settings->getBoolValue ("bandGuitarPlays", false));  // (the game's G switches it)
 
     for (auto* c : std::initializer_list<juce::Component*> { &guitarButton, &presetBox })
         addAndMakeVisible (*c);
@@ -614,7 +617,6 @@ void MainComponent::handle (const juce::var& message)
         answer->setProperty ("sampleRate", engine.latency().sampleRate);
         answer->setProperty ("clock", "Local\\GuitarTutorClock");
         game.send (juce::var (answer));
-        sendBandGuitar();  // the game shows whether the band guitarist plays
     }
     else if (type == "load")
     {
@@ -694,8 +696,6 @@ void MainComponent::handle (const juce::var& message)
         else
             log ("The game asked for a bass plugin not found: " + plugin);
     }
-    else if (type == "bandGuitar")
-        setBandGuitarPlays ((bool) message["plays"]);
     else if (type == "stage")
     {
         // where the musicians stand: the instruments not panned by hand follow them
@@ -784,13 +784,15 @@ void MainComponent::setUpInstrumentRows()
             auto& r = instrumentRows[i];
             if (! game.isConnected() || r.track.getSelectedId() <= 0)
                 return;
+            const auto id = r.track.getSelectedId();
             auto* message = new juce::DynamicObject();
             message->setProperty ("type", "connect");
             message->setProperty ("instrument", r.id);
-            message->setProperty ("track", r.track.getSelectedId() - 2);  // -1: the default part
+            message->setProperty ("track", id == noTrackId ? noTrackIndex : id - 2);  // -1: the default part
             game.send (juce::var (message));
-            log (r.label.getText() + " plays " + (r.track.getSelectedId() != 1 ? r.track.getText()
-                                                  : r.lead ? juce::String ("no track") : juce::String ("the band playstyle's part")));
+            log (id == noTrackId ? r.label.getText() + " is out of the band"
+                                 : r.label.getText() + " plays " + (id != 1 ? r.track.getText()
+                                                                           : r.lead ? juce::String ("no track") : juce::String ("the band playstyle's part")));
         };
         addAndMakeVisible (row.label);
         addAndMakeVisible (row.track);
@@ -806,6 +808,8 @@ void MainComponent::showTracks (const juce::var& message)
     {
         row.track.clear (juce::dontSendNotification);
         row.track.addItem (row.lead ? "None" : "Band playstyle", 1);  // (a lead has no part of its own)
+        if (! row.lead)
+            row.track.addItem ("None", noTrackId);  // out of the band in this song
         if (tracks != nullptr)
             for (const auto& t : *tracks)
                 row.track.addItem (t["name"].toString(), (int) t["index"] + 2);
@@ -814,10 +818,11 @@ void MainComponent::showTracks (const juce::var& message)
             for (const auto& i : *instruments)
                 if (i["id"].toString() == row.id)
                     playing = (int) i["track"];
-        row.track.setSelectedId (playing + 2, juce::dontSendNotification);
+        // (a lead has one "None", for no track and for out of the band alike)
+        row.track.setSelectedId (playing == noTrackIndex ? (row.lead ? 1 : noTrackId) : playing + 2, juce::dontSendNotification);
         if (row.track.getSelectedId() == 0)
             row.track.setSelectedId (1, juce::dontSendNotification);
-        row.track.setEnabled (tracks != nullptr && ! tracks->isEmpty());
+        row.track.setEnabled (tracks != nullptr);  // (once the game has sent a song: even one with no tracks has "None")
         // a band member on its playstyle part plays the playstyle's sound (Band playstyle defaults...): its plugin is
         // chosen here only when it plays a track (a lead always does)
         row.playsTrack = ! row.lead && playing >= 0;
@@ -1554,23 +1559,6 @@ void MainComponent::refreshPresets()
         presetBox.addItem (juce::String (p.index + 1) + ": " + p.name, p.index + 1);
     presetBox.setTextWhenNothingSelected (presetList.empty() ? "No presets saved in TONE3000 yet" : "Choose a preset");
     presetBox.setSelectedId (engine.currentPreset() + 1, juce::dontSendNotification);
-}
-
-void MainComponent::setBandGuitarPlays (bool on)
-{
-    engine.setBandGuitarPlays (on);
-    log (on ? "The band guitarist plays the rhythm" : "The band guitarist rests");
-    if (! engine.isSilent())
-        settings->setValue ("bandGuitarPlays", on);
-    sendBandGuitar();
-}
-
-void MainComponent::sendBandGuitar()
-{
-    auto* message = new juce::DynamicObject();
-    message->setProperty ("type", "bandGuitar");
-    message->setProperty ("plays", engine.bandGuitarPlays());
-    game.send (juce::var (message));
 }
 
 void MainComponent::selectPreset (int index)
