@@ -237,75 +237,7 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
-        public void TheRhythmGuitar_StrumsWhereItsTrackStrumsAndPicksWhereItPicks()
-        {
-            var song = GuitarProSong();
-            var rhythm = song.Tracks[3];  // Guitar 2, the song's own tab's track
-            rhythm.Notes.Clear();
-            void Strike(double at, int[] strings, string technique = "")
-            {
-                foreach (var s in strings)
-                    rhythm.Notes.Add(new TrackNote { AtQuarter = at, Quarters = 0.5, Pitch = 40 + 5 * s, StringIndex = s, Fret = 0, Velocity = 95, Technique = technique });
-            }
-            var top = new[] { 2, 3, 4, 5 };
-            Strike(0, top);
-            Strike(0.5, top);
-            Strike(1, top);
-            Strike(1.5, top, "x");  // dead strings: a muted stroke
-            foreach (var at in new[] { 2.0, 2.5, 3.0 })  // picked, one string at a time
-                rhythm.Notes.Add(new TrackNote { AtQuarter = at, Quarters = 0.5, Pitch = 62, StringIndex = 3, Fret = 7, Velocity = 79 });
-            Strike(3.5, new[] { 0, 1 });  // two strings: a stroke too (a bass note and a pinch)
-            Strike(4, top, "U");  // the file records an upstroke
-            var a = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"), new BandConnections());
-
-            CollectionAssert.AreEqual(new[] { (0.0, false, false), (0.5, true, false), (1.0, false, false), (1.5, true, true), (3.5, true, false), (4.0, true, false) },
-                                      a.Strokes.Select(s => (s.AtQuarter, s.Up, s.Muted)));  // down on the beat, up off it
-            CollectionAssert.AreEqual(new[] { (2.0, 3.5) }, a.SingleSpans);  // the picked stretch: no strumming over it
-            var guitar = a.Part(BandPart.Guitar).ToList();
-            Assert.AreEqual(3, guitar.Count(n => n.Single));
-            Assert.AreEqual(18, guitar.Count(n => !n.Single));  // the struck strings (the dead strum sounds none)
-            // the chord held is each stroke's strings: the three strokes on the top four strings are one chord (until the muted
-            // stroke), the two-string stroke its own, then the top four again (a bar on)
-            CollectionAssert.AreEqual(new[] { (0.0, 1.5, 4), (3.5, 0.5, 2), (4.0, 4.0, 4) },
-                                      a.Voicings.GroupBy(v => (v.AtQuarter, v.Quarters)).Select(g => (g.Key.AtQuarter, g.Key.Quarters, g.Count())));
-        }
-
-        [Test]
-        public void ATrackChosenPicked_IsPlayedNoteByNote()
-        {
-            var song = GuitarProSong();
-            var rhythm = song.Tracks[3];
-            rhythm.Notes.Clear();
-            // Redbud Tree's way: a bass note, then a pinch on the top strings; never five strings at once
-            for (int bar = 0; bar < 8; ++bar)
-            {
-                var at = bar * 4.0;
-                rhythm.Notes.Add(new TrackNote { AtQuarter = at, Quarters = 0.5, Pitch = 45, StringIndex = 1, Fret = 0, Velocity = 90, Technique = "r" });
-                foreach (var s in new[] { 3, 4, 5 })
-                    rhythm.Notes.Add(new TrackNote { AtQuarter = at + 0.5, Quarters = 0.5, Pitch = 50 + 5 * s, StringIndex = s, Fret = 0, Velocity = 80 });
-                rhythm.Notes.Add(new TrackNote { AtQuarter = at + 1, Quarters = 0.5, Pitch = 40, StringIndex = 0, Fret = 0, Velocity = 80, Technique = "x" });  // dead
-            }
-            // connected automatically it is strummed: a pinch a bar is a stroke, the bass notes single notes
-            var connections = new BandConnections();
-            Assert.IsFalse(connections.PlaysPicked(song, Instrument.RhythmGuitar));
-            Assert.AreEqual(8, Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"), connections).Strokes.Count);
-
-            // chosen picked: every note as a note
-            connections.Choose(Instrument.RhythmGuitar, TrackRef.Of(rhythm, picked: true));
-            Assert.IsTrue(connections.PlaysPicked(song, Instrument.RhythmGuitar));
-            var a = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"), connections);
-            Assert.AreEqual(0, a.Strokes.Count);  // no strumming: the guitar stays out of its strumming mode
-            Assert.AreEqual(0, a.Voicings.Count);
-            Assert.AreEqual(0, a.SingleSpans.Count);
-            var guitar = a.Part(BandPart.Guitar).ToList();
-            Assert.AreEqual(40, guitar.Count);  // every note, the dead ones short clicks
-            Assert.IsTrue(guitar.All(n => !n.Single));
-            var bass = guitar.Where(n => n.Pitch == 45).OrderBy(n => n.AtQuarter).ToList();
-            Assert.AreEqual(3.99, bass[0].Quarters, 1e-6);  // let ring: until the next note on its string, a bar on
-        }
-
-        [Test]
-        public void ATrackChosenStringByString_HoldsTheChordAndRingsEachString()
+        public void TheRhythmGuitarsTrack_HoldsTheChordAndRingsEachString()
         {
             var song = GuitarProSong();
             song.Chords.Clear();
@@ -327,12 +259,10 @@ namespace GuitarTutor.Core.Tests
             Play(4, (1, 3), (3, 0), (4, 0), (5, 0));  // the next chord, C3 in the bass
             Play(6, (3, 2), (4, 0));  // A3 on the G string: off the chord held, a new one from here
             var connections = new BandConnections();
-            connections.Choose(Instrument.RhythmGuitar, TrackRef.Of(rhythm, stringKeys: true));
-            Assert.IsTrue(connections.PlaysStringKeys(song, Instrument.RhythmGuitar));
-            Assert.IsFalse(connections.PlaysPicked(song, Instrument.RhythmGuitar));
+            connections.Choose(Instrument.RhythmGuitar, TrackRef.Of(rhythm));
             var a = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"), connections);
 
-            Assert.AreEqual(0, a.Strokes.Count);  // no strums: every note is its string picked
+            Assert.AreEqual(0, a.Strokes.Count);  // no strum keys: every note is its string struck
             Assert.AreEqual(0, a.SingleSpans.Count);
             CollectionAssert.AreEqual(new[] { (0.0, 4.0, "45 55 59 64"), (4.0, 2.0, "48 55 59 64"), (6.0, 2.0, "48 57 59 64") },
                                       a.Voicings.GroupBy(v => (v.AtQuarter, v.Quarters))
@@ -351,6 +281,63 @@ namespace GuitarTutor.Core.Tests
             // the other guitars play the same notes, ringing as long
             CollectionAssert.AreEqual(a.Picks.Select(p => (p.AtQuarter, p.Quarters)).OrderBy(x => x),
                                       a.Part(BandPart.Guitar).Select(n => (n.AtQuarter, n.Quarters)).OrderBy(x => x));
+        }
+
+        [Test]
+        public void TheRhythmGuitarsTrack_StrumsStringByString_WithItsTechniques()
+        {
+            var song = GuitarProSong();
+            song.Chords.Clear();
+            song.Chords.Add(new ChordEvent { Name = "Em", AtQuarter = 0, Quarters = 8 });
+            var rhythm = song.Tracks[3];
+            rhythm.Notes.Clear();
+            void Strike(double at, int[] strings, string technique = "")
+            {
+                foreach (var s in strings)
+                    rhythm.Notes.Add(new TrackNote { AtQuarter = at, Quarters = 0.5, Pitch = 40 + 5 * s, StringIndex = s, Fret = 0, Velocity = 79, Technique = technique });
+            }
+            TrackNote Single(double at, int str, int pitch, string technique = "", double quarters = 0.5)
+            {
+                var n = new TrackNote { AtQuarter = at, Quarters = quarters, Pitch = pitch, StringIndex = str, Fret = 0, Velocity = 79, Technique = technique };
+                rhythm.Notes.Add(n);
+                return n;
+            }
+            var top = new[] { 2, 3, 4, 5 };
+            Strike(0, top);  // down, on the beat
+            Strike(0.5, top);  // up, off it
+            Strike(1.5, top, "x");  // dead strings: a chuck
+            Single(2, 3, 55, "m");  // palm-muted
+            Single(2.5, 4, 60, "h");  // hammered on to the next note on its string
+            Single(3, 4, 62);
+            var bent = Single(4, 4, 62, "b", 1);
+            bent.BendPoints = new List<double[]> { new[] { 0.0, 0.0 }, new[] { 0.5, 1.0 }, new[] { 1.0, 1.0 } };
+            Single(6, 5, 64, "x");  // a dead note alone
+            var connections = new BandConnections();
+            connections.Choose(Instrument.RhythmGuitar, TrackRef.Of(rhythm));
+            var a = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"), connections);
+            var perSecond = song.Tempo.BpmAt(0) / 60.0;
+
+            Assert.AreEqual(0, a.Strokes.Count);
+            CollectionAssert.AreEqual(new[] { 0, 1, 2, 3 }, a.Picks.Where(p => p.AtQuarter < 0.25).Select(p => p.Rank));  // down: low to high
+            CollectionAssert.AreEqual(new[] { 3, 2, 1, 0 }, a.Picks.Where(p => p.AtQuarter >= 0.5 && p.AtQuarter < 0.75).Select(p => p.Rank));  // up: high to low
+            var chuck = a.Picks.Where(p => p.AtQuarter >= 1.5 && p.AtQuarter < 1.75).ToList();
+            Assert.AreEqual(4, chuck.Count);  // the dead strum strikes the held strings, briefly
+            Assert.IsTrue(chuck.All(p => p.Quarters <= 0.08 + 1e-9));
+            // the palm mute: shorter and softer, with its controller around it
+            var muted = a.Picks.Single(p => Math.Abs(p.AtQuarter - 2) < 1e-6);
+            Assert.IsTrue(muted.Quarters <= 0.25 + 1e-9);
+            CollectionAssert.AreEqual(new[] { (2.0, 127), (2.0 + muted.Quarters, 0) },
+                                      a.Controls.Where(c => c.Part == BandPart.Guitar && c.Controller == Arranger.PalmMuteController).Select(c => (c.AtQuarter, c.Value)));
+            // after a hammer-on the next note on its string is softer: it is not picked
+            var hammered = a.Picks.Single(p => Math.Abs(p.AtQuarter - 3) < 1e-6);
+            Assert.AreEqual(a.Picks.Single(p => Math.Abs(p.AtQuarter - 2.5) < 1e-6).Velocity - 25, hammered.Velocity);
+            // the bend: it rings for its own length, what rings before it lets go as it is struck, and the wheel bends it
+            Assert.AreEqual(1.0, a.Picks.Single(p => Math.Abs(p.AtQuarter - 4) < 1e-6).Quarters, 1e-6);
+            Assert.IsTrue(a.Picks.Where(p => p.AtQuarter < 4).All(p => p.AtQuarter + p.Quarters <= 4 + 1e-9));
+            Assert.IsTrue(a.Wheel.Any(w => w.Part == BandPart.Guitar && w.AtQuarter > 4 && w.AtQuarter < 5 && w.Semitones > 0.9));
+            // the dead note alone: a click for the guitars that play notes, no string key
+            Assert.IsFalse(a.Picks.Any(p => Math.Abs(p.AtQuarter - 6) < 1e-6));
+            Assert.IsTrue(a.Part(BandPart.Guitar).Any(n => Math.Abs(n.AtQuarter - 6) < 1e-6 && n.Velocity <= 30 && n.Quarters <= 0.06 * perSecond + 1e-9));
         }
 
         [Test]

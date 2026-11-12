@@ -117,8 +117,7 @@ namespace GuitarTutor.Core.Engine
 
         /// <summary>
         /// The song's tracks the band's instruments can play (one per doubled pair: its label names both) and, per
-        /// instrument, the track it plays (-1: its default part), whether it plays it picked or string by string (the rhythm guitar), and
-        /// whether that was chosen or connected automatically.
+        /// instrument, the track it plays (-1: its default part), and whether that was chosen or connected automatically.
         /// </summary>
         public static string Tracks(Song song, BandConnections connections)
         {
@@ -136,8 +135,6 @@ namespace GuitarTutor.Core.Engine
                     ["id"] = BandConnections.Ids[i],
                     ["name"] = BandConnections.Names[i],
                     ["track"] = connections.TrackFor(song, i)?.Index ?? -1,
-                    ["picked"] = connections.PlaysPicked(song, i),
-                    ["strings"] = connections.PlaysStringKeys(song, i),
                     ["chosen"] = connections.IsChosen(i),
                 });
             return Line(new JObject { ["type"] = "tracks", ["tracks"] = tracks, ["instruments"] = instruments });

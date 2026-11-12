@@ -365,11 +365,7 @@ namespace GuitarTutor.Core.Band
                             notes.Add(new BandNote(part, n.Pitch, n.AtQuarter, Math.Max(0.05, n.Quarters), n.Velocity));
             if (bassTrack != null)
                 PlayTrack(bassTrack, BandPart.Bass, false, arrangement, chart.Song.Tempo);
-            if (rhythmTrack != null && connections.PlaysPicked(chart.Song, Instrument.RhythmGuitar))
-                PickedRhythm(rhythmTrack, arrangement, chart.Song.Tempo);
-            else if (rhythmTrack != null && connections.PlaysStringKeys(chart.Song, Instrument.RhythmGuitar))
-                StringKeyRhythm(chart, rhythmTrack, arrangement);
-            else if (rhythmTrack != null)
+            if (rhythmTrack != null)
                 TrackRhythm(chart, rhythmTrack, arrangement);
             else
                 Strum(chart, chords, arrangement, Humanise);
@@ -713,147 +709,6 @@ namespace GuitarTutor.Core.Band
             }
         }
 
-        /// <summary>
-        /// The band guitarist's rhythm from a track played picked (a fingerpicked part, Redbud Tree's): every note as a
-        /// note, as the file has it, and no strokes, so a strum-capable guitar stays out of its strumming mode. A note rings
-        /// for its length, or with let ring until the next note on its string (a bar at most), and a string sounds one
-        /// note at a time; each with its techniques (<see cref="Play"/>, <see cref="Wheel"/>).
-        /// </summary>
-        static void PickedRhythm(SongTrack track, Arrangement arrangement, TempoMap tempo)
-        {
-            const double ringAtMost = 4.0;  // quarters a let-ring note rings on, at most
-            var played = new List<Played>();
-            foreach (var onString in track.Notes.GroupBy(n => n.StringIndex >= 0 ? n.StringIndex : -1 - n.Pitch))
-            {
-                var list = onString.OrderBy(n => n.AtQuarter).ToList();
-                for (int k = 0; k < list.Count; ++k)
-                {
-                    var n = list[k];
-                    var next = k + 1 < list.Count ? list[k + 1].AtQuarter : double.PositiveInfinity;
-                    var end = n.Technique.Contains('r') ? Math.Min(next, n.AtQuarter + ringAtMost) : Math.Min(next, n.AtQuarter + n.Quarters);
-                    Play(arrangement, BandPart.Guitar, n, k > 0 ? list[k - 1] : null, n.AtQuarter, Math.Max(0.05, end - n.AtQuarter - 0.01),
-                         GuitarVelocity(n.Velocity), false, tempo, played);
-                }
-            }
-            Wheel(arrangement, BandPart.Guitar, played, false, tempo);
-        }
-
-        /// <summary>
-        /// The band guitarist's rhythm from a track of the song (docs/instrument-tracks.md), as the engine's two ways of
-        /// playing a guitar take it, and as the guitarist's made-up part does. Where the track strikes two strings or more
-        /// at once it strums: each strum is a stroke, down or up as the file records it (else down on the beat and up off
-        /// it, as the importer's strumming has it), as hard as its notes, muted where the strings are dead or palm-muted.
-        /// The chord held for a strum-capable guitar to strum is the strings each stroke strikes (kept while the strokes
-        /// strike the same ones): a fingerpicked part's pinches are light strums on three or four strings, not full strums
-        /// of the whole chord. The other guitars get the struck
-        /// strings one by one, a stroke's width apart, each ringing for its note. Where the track plays one string at a
-        /// time (a riff, a solo) the notes play as notes, with no strumming over them, as the song's own tab's
-        /// single-string notes do.
-        /// </summary>
-        static void TrackRhythm(SongChart chart, SongTrack track, Arrangement arrangement)
-        {
-            const double together = 0.02;  // notes this close are struck together
-            const double longRest = 2.0;   // a picked stretch with a rest this long (quarters) ends before it
-            var song = chart.Song;
-            var notes = arrangement.Notes;
-            var onsets = new List<List<TrackNote>>();
-            foreach (var n in track.Notes.OrderBy(n => n.AtQuarter))
-            {
-                if (onsets.Count > 0 && n.AtQuarter - onsets[onsets.Count - 1][0].AtQuarter < together)
-                    onsets[onsets.Count - 1].Add(n);
-                else
-                    onsets.Add(new List<TrackNote> { n });
-            }
-            bool Dead(TrackNote n) => n.Technique.Contains('x');
-            int StringOf(TrackNote n) => n.StringIndex >= 0 ? n.StringIndex : n.Pitch;
-
-            // the picked stretches (single strings), and the strums between them
-            var strums = new List<List<TrackNote>>();
-            double? from = null;
-            var end = 0.0;
-            var picked = new List<TrackNote>();
-            void Close(double to)
-            {
-                if (from == null)
-                    return;
-                arrangement.SingleSpans.Add((from.Value, Math.Max(from.Value + 0.05, to)));
-                foreach (var n in picked)
-                    notes.Add(new BandNote(BandPart.Guitar, n.Pitch, n.AtQuarter, Math.Max(0.05, Math.Min(n.Quarters, to - n.AtQuarter)), GuitarVelocity(n.Velocity), single: true));
-                from = null;
-                picked.Clear();
-            }
-            foreach (var onset in onsets)
-            {
-                var at = onset[0].AtQuarter;
-                if (onset.Count >= 2)
-                {
-                    Close(Math.Min(at, end));
-                    strums.Add(onset);
-                    continue;
-                }
-                if (Dead(onset[0]))
-                    continue;  // a scratch on a dead string, not a note
-                if (from != null && at - end > longRest)
-                    Close(end);
-                from = from ?? at;
-                picked.Add(onset[0]);
-                end = Math.Max(end, at + onset[0].Quarters);
-            }
-            Close(end);
-
-            var slots = StrumSlots(chart, strums);
-            var strikes = new List<(double at, int str, int pitch, int velocity, bool muted, double end)>();
-            foreach (var strum in strums)
-            {
-                var at = strum[0].AtQuarter;
-                var sounding = strum.Where(n => !Dead(n)).OrderBy(StringOf).ToList();
-                var (down, velocity, muted) = StrumOf(chart, strum, slots);
-                arrangement.Strokes.Add(new BandStroke(at, !down, velocity, muted));
-                // the strings one by one, as a hand crosses them (down: low to high; up: high to low)
-                var order = down ? sounding : Enumerable.Reverse(sounding).ToList();
-                var perString = (down ? DownSpread : UpSpread) * song.Tempo.BpmAt(at) / 60.0;  // in quarter notes
-                for (int k = 0; k < order.Count; ++k)
-                    strikes.Add((at + k * perString, StringOf(order[k]), order[k].Pitch, velocity, muted, order[k].AtQuarter + order[k].Quarters));
-            }
-
-            // the held chords, stroke by stroke: each stroke holds the strings it strikes (a pinch three or four, a bass note
-            // with one more two), until the next stroke, a picked stretch, or a bar on; a stroke on the same strings keeps
-            // the chord held, and a muted one the chord before. (Experiment, 2026-10-30: one chord per chord of the chart,
-            // on every string struck in it, made each stroke a full strum, stronger than the song.)
-            var held = new List<(double From, double To, List<TrackNote> Chord)>();
-            for (int i = 0; i < strums.Count; ++i)
-            {
-                var sounding = strums[i].Where(n => !Dead(n)).ToList();
-                if (sounding.Count == 0)
-                    continue;
-                var at = strums[i][0].AtQuarter;
-                var next = i + 1 < strums.Count ? strums[i + 1][0].AtQuarter : double.PositiveInfinity;
-                var stretch = arrangement.SingleSpans.Where(sp => sp.From > at).Select(sp => sp.From).DefaultIfEmpty(double.PositiveInfinity).Min();
-                var to = Math.Min(Math.Min(next, stretch), at + 4);
-                if (held.Count > 0 && SameChord(held[held.Count - 1].Chord, sounding) && Math.Abs(held[held.Count - 1].To - at) < 1e-6)
-                    held[held.Count - 1] = (held[held.Count - 1].From, to, held[held.Count - 1].Chord);
-                else
-                    held.Add((at, to, sounding));
-            }
-            foreach (var (chordFrom, chordTo, chord) in held)
-                foreach (var n in chord)
-                    arrangement.Voicings.Add(new VoicingNote(n.Pitch, chordFrom, Math.Max(0.05, chordTo - chordFrom)));
-
-            // each string rings for its note's length, or until it is struck again
-            foreach (var onString in strikes.GroupBy(s => s.str))
-            {
-                var list = onString.OrderBy(s => s.at).ToList();
-                for (int k = 0; k < list.Count; ++k)
-                {
-                    var s = list[k];
-                    var stop = k + 1 < list.Count ? Math.Min(s.end, list[k + 1].at) : s.end;
-                    var length = s.muted ? Math.Min(0.08, stop - s.at) : stop - s.at - 0.01;
-                    if (length > 0.01)
-                        notes.Add(new BandNote(BandPart.Guitar, s.pitch, s.at, length, s.velocity));
-                }
-            }
-        }
-
         /// <summary>Per bar, the sixteenths where strums start: whether a bar strums in eighths or sixteenths, for the down-up rule.</summary>
         static Dictionary<int, HashSet<int>> StrumSlots(SongChart chart, IEnumerable<List<TrackNote>> strums)
         {
@@ -900,22 +755,33 @@ namespace GuitarTutor.Core.Band
         }
 
         /// <summary>
-        /// The band guitarist's rhythm from a track played string by string (an experiment, 2026-10-30, beside strumming
-        /// it): the chord of the chart is held as the track strikes it (on each string the pitch it strikes there most),
-        /// and each note is its string picked on its own, a strum-capable guitar's string key, so a string rings until
-        /// it is struck again and the bass rings under the pinches (a strum cuts the strings it does not strike: Shreddage
-        /// damps a strum when its key is let go). Strings struck together are crossed as a hand does (down: low to high;
-        /// up: high to low, as <see cref="StrumOf"/> tells), a stroke's width apart. A note off its string's held pitch
-        /// holds a new chord from there. The other guitars get the same notes, as notes.
+        /// The band guitarist's rhythm from a track of the song (docs/instrument-tracks.md): every note its string struck
+        /// on the chord held, as a guitar is played, strummed or fingerpicked alike. The chord of the chart is held as the
+        /// track strikes it (on each string the pitch it strikes there most), and a strum-capable guitar strikes each
+        /// string with its string key (Shreddage's), so a string rings until it is struck again, or a moment before its
+        /// chord ends (a bar at most): a bass note rings under the pinches. A note off its string's held pitch holds a new
+        /// chord from there. Strings struck together are crossed as a hand does (down: low to high; up: high to low, as
+        /// <see cref="StrumOf"/> tells), a stroke's width apart, as hard as a strum; a muted strum (dead or palm-muted
+        /// strings) is a short chuck on the held strings. With the techniques, as <see cref="Play"/> plays them: softer
+        /// after a hammer-on, a pull-off or a legato slide on its string; a palm-muted note shorter and softer, with the
+        /// palm mute's controller; a staccato one half as long; tremolo picking repeated; a dead note alone a click for
+        /// the other guitars (a string key would sound it in full); a bent or sliding note rings for its own length, and
+        /// the strings ringing as it is struck let go, so the pitch wheel bends it alone (<see cref="Wheel"/>). The other
+        /// guitars get the same notes, as notes. (Until 2026-11-01 there were three ways to choose from: strummed with
+        /// the strum keys, which hold only the strings a strum strikes, so the next pinch cut Redbud Tree's bass; picked,
+        /// every note a plain note; and this one, as an experiment. It needs Shreddage's Strumming Mode off, Keyswitchable
+        /// on and voices enough: 32 and 16.)
         /// </summary>
-        static void StringKeyRhythm(SongChart chart, SongTrack track, Arrangement arrangement)
+        static void TrackRhythm(SongChart chart, SongTrack track, Arrangement arrangement)
         {
             const double together = 0.02;  // notes this close are struck together
             const double ringAtMost = 4.0;  // quarters a string rings on, at most
             var song = chart.Song;
             int StringOf(TrackNote n) => n.StringIndex >= 0 ? n.StringIndex : -1 - n.Pitch;
+            bool Dead(TrackNote n) => n.Technique.Contains('x');
+            bool Glides(TrackNote n) => (n.BendPoints != null && n.BendPoints.Count > 0) || n.SlideOut != "" || n.SlideIn != "";
             var onsets = new List<List<TrackNote>>();
-            foreach (var n in track.Notes.Where(n => !n.Technique.Contains('x')).OrderBy(n => n.AtQuarter))
+            foreach (var n in track.Notes.OrderBy(n => n.AtQuarter))
             {
                 if (onsets.Count > 0 && n.AtQuarter - onsets[onsets.Count - 1][0].AtQuarter < together)
                     onsets[onsets.Count - 1].Add(n);
@@ -923,6 +789,8 @@ namespace GuitarTutor.Core.Band
                     onsets.Add(new List<TrackNote> { n });
             }
             var slots = StrumSlots(chart, onsets.Where(o => o.Count >= 2));
+            // the notes that sound, onset by onset (a dead note is a scratch on its string, not a pitch of the chord)
+            var sounding = onsets.ToDictionary(o => o, o => o.Where(n => !Dead(n)).ToList());
 
             // the stretches a chord is held for: the chart's chords, and the gaps between them
             var cuts = song.Chords.SelectMany(c => new[] { c.AtQuarter, c.AtQuarter + c.Quarters })
@@ -931,12 +799,12 @@ namespace GuitarTutor.Core.Band
             var heldOf = new Dictionary<List<TrackNote>, int>();  // an onset's held chord
             for (int c = 0; c + 1 < cuts.Count; ++c)
             {
-                var inside = onsets.Where(o => o[0].AtQuarter >= cuts[c] - 1e-6 && o[0].AtQuarter < cuts[c + 1] - 1e-6).ToList();
+                var inside = onsets.Where(o => sounding[o].Count > 0 && o[0].AtQuarter >= cuts[c] - 1e-6 && o[0].AtQuarter < cuts[c + 1] - 1e-6).ToList();
                 if (inside.Count == 0)
                     continue;
                 var from = double.IsInfinity(cuts[c]) ? inside[0][0].AtQuarter : cuts[c];
                 var to = double.IsInfinity(cuts[c + 1]) ? inside.Max(o => o.Max(n => n.AtQuarter + n.Quarters)) : cuts[c + 1];
-                var strings = inside.SelectMany(o => o).GroupBy(StringOf)
+                var strings = inside.SelectMany(o => sounding[o]).GroupBy(StringOf)
                     .ToDictionary(g => g.Key, g => g.GroupBy(n => n.Pitch).OrderByDescending(p => p.Count()).ThenBy(p => p.Key).First().Key);
                 // a chord that goes on from the one before on no other pitch of a string (the chart's same chord again, a
                 // change on the and of four in Redbud Tree) is that one held on: its strings ring on through the change
@@ -953,7 +821,7 @@ namespace GuitarTutor.Core.Band
                 foreach (var onset in inside)
                 {
                     var current = held[held.Count - 1];
-                    var off = onset.Where(n => current.Strings[StringOf(n)] != n.Pitch).ToList();
+                    var off = sounding[onset].Where(n => current.Strings[StringOf(n)] != n.Pitch).ToList();
                     if (off.Count > 0)
                     {
                         // a note off its string's held pitch: the chord held from here has it
@@ -971,44 +839,135 @@ namespace GuitarTutor.Core.Band
                     heldOf[onset] = held.Count - 1;
                 }
             }
+            // a strum on dead strings only: a chuck on the strings of the chord held then
+            foreach (var onset in onsets.Where(o => sounding[o].Count == 0 && o.Count >= 2))
+            {
+                var h = held.FindLastIndex(x => x.From <= onset[0].AtQuarter + 1e-6);
+                if (h >= 0 && onset[0].AtQuarter < held[h].To - 1e-6)
+                    heldOf[onset] = h;
+            }
             foreach (var (from, to, strings) in held)
                 foreach (var pitch in strings.Values.Distinct())
                     arrangement.Voicings.Add(new VoicingNote(pitch, from, Math.Max(0.05, to - from)));
 
             // the strings struck, one by one
-            var strikes = new List<(double At, int Str, int Pitch, int Rank, int Velocity, bool Muted, int Held)>();
+            var strikes = new List<(double At, int Str, int Pitch, int Rank, int Velocity, bool Muted, int Held, TrackNote Note)>();
             foreach (var onset in onsets)
             {
                 var at = onset[0].AtQuarter;
-                var h = heldOf[onset];
-                var pitches = held[h].Strings.Values.Distinct().OrderBy(p => p).ToList();
-                var sounding = onset.OrderBy(StringOf).ToList();
+                if (onset.Count == 1 && Dead(onset[0]))
+                {
+                    // a dead note alone: a click, for the guitars that play notes (a string key sounds a string in full)
+                    var perSecondHere = song.Tempo.BpmAt(at) / 60.0;
+                    arrangement.Notes.Add(new BandNote(BandPart.Guitar, onset[0].Pitch, at, Math.Max(0.02, Math.Min(onset[0].Quarters, 0.06 * perSecondHere)),
+                                                       Math.Min(30, GuitarVelocity(onset[0].Velocity))));
+                    continue;
+                }
+                if (!heldOf.TryGetValue(onset, out var h))
+                    continue;
+                var strings = held[h].Strings;
+                var pitches = strings.Values.Distinct().OrderBy(p => p).ToList();
+                var deadOnly = sounding[onset].Count == 0;
+                var struck = (deadOnly ? onset : sounding[onset]).Where(n => strings.ContainsKey(StringOf(n))).OrderBy(StringOf).ToList();
+                if (struck.Count == 0)
+                    continue;
                 var (down, velocity, muted) = onset.Count >= 2 ? StrumOf(chart, onset, slots)
                     : (true, GuitarVelocity(onset[0].Velocity), onset[0].Technique.Contains('m'));
-                var order = down ? sounding : Enumerable.Reverse(sounding).ToList();
+                var order = down ? struck : Enumerable.Reverse(struck).ToList();
                 var perString = (down ? DownSpread : UpSpread) * song.Tempo.BpmAt(at) / 60.0;  // in quarter notes
                 for (int k = 0; k < order.Count; ++k)
-                    strikes.Add((at + k * perString, StringOf(order[k]), order[k].Pitch, pitches.IndexOf(order[k].Pitch), velocity, muted, h));
+                {
+                    var pitch = strings[StringOf(order[k])];  // (a dead string's: the chord's, muted)
+                    strikes.Add((at + k * perString, StringOf(order[k]), pitch, pitches.IndexOf(pitch), velocity, muted, h, order[k]));
+                }
             }
-            // each string rings until it is struck again, or a moment before its held chord ends (the hand moves to the
-            // next), a bar at most; a palm-muted one briefly
-            foreach (var onString in strikes.GroupBy(s => s.Str))
+
+            // how long each rings: until it is struck again, or a moment before its held chord ends (the hand moves to the
+            // next), a bar at most; a muted one briefly; and as its techniques play it
+            var lengths = new double[strikes.Count];
+            var velocities = new int[strikes.Count];
+            var index = Enumerable.Range(0, strikes.Count).ToList();
+            foreach (var onString in index.GroupBy(i => strikes[i].Str))
             {
-                var list = onString.OrderBy(s => s.At).ToList();
+                var list = onString.OrderBy(i => strikes[i].At).ToList();
                 for (int k = 0; k < list.Count; ++k)
                 {
-                    var s = list[k];
+                    var s = strikes[list[k]];
+                    var n = s.Note;
                     var perSecond = song.Tempo.BpmAt(s.At) / 60.0;
                     var stop = Math.Min(held[s.Held].To - ChordGap * perSecond, s.At + ringAtMost);
                     if (k + 1 < list.Count)
-                        stop = Math.Min(stop, list[k + 1].At - RestrikeGap * perSecond);
-                    var length = s.Muted ? Math.Min(0.08, stop - s.At) : stop - s.At;
-                    length = Math.Max(0.05, length);
-                    arrangement.Picks.Add(new BandPick(s.At, length, s.Rank, s.Velocity));
-                    arrangement.Notes.Add(new BandNote(BandPart.Guitar, s.Pitch, s.At, length, s.Velocity));
+                        stop = Math.Min(stop, strikes[list[k + 1]].At - RestrikeGap * perSecond);
+                    var length = stop - s.At;
+                    var velocity = s.Velocity;
+                    var before = k > 0 ? strikes[list[k - 1]].Note : null;
+                    if (before != null && (before.Technique.Contains('h') || before.SlideOut == "legato"))
+                        velocity -= 25;  // hammered or slid to: not picked
+                    if (Glides(n))
+                        length = Math.Min(length, n.Quarters);  // the wheel bends it for its own length
+                    if (s.Muted)
+                        length = Math.Min(length, 0.08);
+                    else if (n.Technique.Contains('m'))
+                    {
+                        length = Math.Min(length, Math.Min(n.Quarters * 0.5, 0.25 * perSecond));
+                        velocity -= 12;
+                    }
+                    if (n.Technique.Contains('.'))
+                        length = Math.Min(length, n.Quarters * 0.5);
+                    lengths[list[k]] = Math.Max(0.05, length);
+                    velocities[list[k]] = Math.Max(1, Math.Min(127, velocity));
                 }
             }
+            // a bent or sliding note: the strings ringing as it is struck let go then, so the wheel bends it alone
+            for (int b = 0; b < strikes.Count; ++b)
+            {
+                if (!Glides(strikes[b].Note) || Dead(strikes[b].Note))
+                    continue;
+                var gap = RestrikeGap * song.Tempo.BpmAt(strikes[b].At) / 60.0;
+                for (int i = 0; i < strikes.Count; ++i)
+                    if (strikes[i].Str != strikes[b].Str && strikes[i].At < strikes[b].At - together
+                        && strikes[i].At + lengths[i] > strikes[b].At)
+                        lengths[i] = Math.Max(0.05, strikes[b].At - gap - strikes[i].At);
+            }
+
+            // six string keys (F#6 to B6): a chord of more pitches (a track not written as tab, a piano's) has no key for
+            // the ones above, whose notes only the guitars that play notes play (C7 and up are keyswitches)
+            const int stringKeys = 6;
+            var played = new List<Played>();
+            for (int i = 0; i < strikes.Count; ++i)
+            {
+                var s = strikes[i];
+                var n = s.Note;
+                var (at, length, velocity) = (s.At, lengths[i], velocities[i]);
+                var keyed = s.Rank < stringKeys;
+                if (n.Technique.Contains('m'))
+                {
+                    arrangement.Controls.Add(new ControlPoint(BandPart.Guitar, at, PalmMuteController, 127));
+                    arrangement.Controls.Add(new ControlPoint(BandPart.Guitar, at + length, PalmMuteController, 0));
+                }
+                if (n.TremoloQuarters > 0 && !s.Muted && length > n.TremoloQuarters * 1.5)
+                {
+                    var k = 0;
+                    for (var q = at; q < at + length - 1e-6; q += n.TremoloQuarters, ++k)
+                    {
+                        var each = Math.Min(n.TremoloQuarters * 0.9, at + length - q);
+                        var v = Math.Max(1, velocity - (k % 2) * 10);
+                        if (keyed)
+                            arrangement.Picks.Add(new BandPick(q, each, s.Rank, v));
+                        arrangement.Notes.Add(new BandNote(BandPart.Guitar, s.Pitch, q, each, v));
+                    }
+                }
+                else
+                {
+                    if (keyed)
+                        arrangement.Picks.Add(new BandPick(at, length, s.Rank, velocity));
+                    arrangement.Notes.Add(new BandNote(BandPart.Guitar, s.Pitch, at, length, velocity));
+                }
+                if (!s.Muted && !Dead(n))
+                    played.Add(new Played(n, at, at + length));
+            }
             arrangement.Picks.Sort((a, b) => a.AtQuarter.CompareTo(b.AtQuarter));
+            Wheel(arrangement, BandPart.Guitar, played, false, song.Tempo);
         }
 
         /// <summary>
@@ -1023,10 +982,6 @@ namespace GuitarTutor.Core.Band
         /// made-up part plays in (p 80, mp 88, mf 96, f 104): a plugin guitar is faint and choked at the file's soft ones.
         /// </summary>
         static int GuitarVelocity(int fileVelocity) => Math.Max(1, Math.Min(127, 64 + (fileVelocity - 15) / 2));
-
-        /// <summary>Whether two strums sound the same chord: the same pitches.</summary>
-        static bool SameChord(List<TrackNote> a, List<TrackNote> b) =>
-            a.Select(n => n.Pitch).OrderBy(p => p).SequenceEqual(b.Select(n => n.Pitch).OrderBy(p => p));
 
         /// <summary>
         /// The single-string notes of the song's tab (the notes of a riff's onsets that have just one note) and the

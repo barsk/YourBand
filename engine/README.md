@@ -89,13 +89,17 @@ has no tracks: the lists only offer the first. Then, for an instrument playing a
 plugin and its window ("..."): the sound it plays the track on in this song. On "Band playstyle" they are hidden: the
 playstyle's sound plays, set in the Band playstyle defaults window. The keyboards and the leads have no built-in sound,
 so their first choice is "Off". Every instrument plays its track as the file has it (its velocities, no made-up fills).
-The rhythm guitar plays its track through the guitar's two ways of playing: where two strings or more are struck at
-once it strums (a stroke each time, down or up as the file records it, else down on the beat and up off it, muted on dead
-or palm-muted strings; the chord held is the chart's chord on the strings the track strikes in it, one per chord), and
-where one is it plays the notes as a single-note stretch (a truly fingerpicked part's notes, apart in time, are single
-notes anyway). The rhythm row also offers each guitar track picked ("..., picked note by note"): every note as a note
-with no strokes, so the guitar never enters its strumming mode. A
-song strummed from an Ultimate Guitar page keeps its guitarist on that strumming (Default) unless you choose the track.
+The rhythm guitar plays its track one way, strummed or fingerpicked alike: the chart's chord is held as the track
+strikes it, and every note is its string struck on Shreddage with a string key, so each string rings until it is
+struck again, or until a moment before its chord ends (the bass rings under Redbud Tree's pinches). Strings struck
+together are crossed as a hand does (down low to high, up high to low, a stroke's width apart; down or up as the file
+records it, else down on the beat and up off it), and a strum on dead or palm-muted strings is a short chuck; with the
+file's techniques (below). It needs Shreddage's Strumming Mode off, Keyswitchable on and its voice limits raised (32
+and 16, in Kontakt's instrument options): too few voices left Wicked Game's D chords silent. A string key's velocity
+changes its level only 2-3 dB, so a track's accents are fainter than a strum keyswitch's. (Until 2026-11-01 the row
+offered three ways: strummed with the strum keyswitches, which hold only the strings a strum strikes, so the next pinch
+cut the bass; picked note by note; and string by string, as an experiment.) A song strummed from an Ultimate Guitar
+page keeps its guitarist on that strumming (Default) unless you choose the track.
 
 Play from the game (Space) or the footswitch. Playing from the start, or from wherever you moved to, begins
 with a bar of count-in on sticks; after a pause the band plays on from where it stopped.
@@ -145,7 +149,8 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   style line, after its list of the game's playstyles: choosing one asks the game to play the song in it, `style`) shows the song's table, a plugin dropdown and its "..." per playstyle and band member: "..." puts the
   instrument on that playstyle's sound while its window is open; closed, the sound is kept and the instrument goes back
   to what it plays. The game sends `tracks` before `load`, so the engine knows which instruments play a track. "Save defaults" saves the table as
-  the defaults; "Ok" closes it. The game names the song and lists the playstyles in `load`; the engine loads only what
+  the defaults; "Load defaults" gives the song the saved ones in place of its own (it asks first; the sounds its
+  tracks play and its mix stay); "Ok" closes it. The game names the song and lists the playstyles in `load`; the engine loads only what
   differs from what plays, then answers `loaded` (the game shows its loading ring if that takes a moment). A silent
   engine reads the kept sounds but writes none (`src/SoundStore.*`). `--playstyles-test` opens the table 8 s after
   the start (with `--snapshot`, a picture of it).
@@ -175,8 +180,8 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   automatically (let go on pause, seek or a new score). Where the song's tab has single-string notes (an onset
   of one note: the load message's `spans` say where, the notes carry a sixth element, 1) the strumming mode is
   let go for the stretch (the chord's strings and the strum key first, then F#5), the notes play as ordinary
-  notes, and at the stretch's end F#5 goes down again and the chord held then is re-sent. A rhythm track played
-  string by string (an experiment, 2026-10-30) sends `picks` instead of strokes: each note is a string key, F#6
+  notes, and at the stretch's end F#5 goes down again and the chord held then is re-sent. The rhythm guitar playing
+  a track sends `picks` instead of strokes: each note is a string key, F#6
   (90) plus the note's place in the held chord (`rank`, 0 its lowest note), held as long as the string rings
   (until it is struck again, 10 ms before, or until 70 ms before its chord ends). Measured with plugin_probe on
   Redbud Tree's ten chords, also after a chord change: key 90 + k plays the k-th lowest held note (the manual
@@ -229,11 +234,13 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   kick is 15 dB quieter at p (47) than at f (95), its snare 23 and its hi-hat 14; Ample Bass P Lite 6, MONSTER Bass 10.
   Louder only, not choked or faint as Shreddage was at soft velocities (the rhythm guitar has a mapping for that), so
   they get none.
-- Techniques (step 9.3): the lead guitar, instrument 1, the bass and the rhythm guitar played picked bend as the file
+- Techniques (step 9.3): the lead guitar, instrument 1, the bass and the rhythm guitar playing a track bend as the file
   draws it, wobble on a vibrato (about 5.5 times a second, a quarter semitone, half one wide), glide on a slide (2
   semitones at most), and play a hammer-on's, pull-off's or legato slide's next note softer, a palm mute shorter and
   softer, a staccato note half as long, a dead note as a short soft click and tremolo picking as repeated notes. The
-  bass and the rhythm guitar bend only where nothing else of theirs rings (the wheel bends a whole channel). A palm
+  bass bends only where nothing else of it rings (the wheel bends a whole channel); the rhythm guitar lets go of the
+  strings ringing as a bent or sliding note is struck, and that note rings for its own length. A dead note alone is a
+  click on the guitars that play notes, and left out on Shreddage (a string key sounds its string in full). A palm
   mute also sends controller 20 (127 as the note starts, 0 as it ends): the free Shreddage has the Mute articulation
   but not its keyswitch, so in its window's Articulations, Map tab, give Mute the rule "CC20 64-127" (and keep it on)
   for the real palm-muted samples; without it the controller does nothing. The rule is kept in Kontakt's state, which is

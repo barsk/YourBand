@@ -119,8 +119,6 @@ private:
         juce::Slider volume, pan;
     };
     std::array<InstrumentRow, 6> instrumentRows;
-    static constexpr int pickedTrackIds = 1000;  // a track list's ids from here: the track picked note by note (the rhythm guitar)
-    static constexpr int stringTrackIds = 2000;  // and from here: the track string by string on its held chord (an experiment)
     void setUpInstrumentRows();
     /** The game's "tracks": the song's tracks to choose from in each row, and the one each instrument plays; without a
         game, or for a song with no tracks, only the band's playstyle part (a lead: none) and no choosing. */
@@ -166,6 +164,8 @@ private:
     void editPlaystyleSound (const InstrumentRow&, const juce::String& style);
     /** The song's playstyle sounds as the ones a song gets the first time it is opened. */
     void savePlaystyleDefaults();
+    /** The saved playstyle defaults as the song's playstyle sounds (its tracks' sounds and its mix stay its own). */
+    void loadPlaystyleDefaults();
     /** In the playstyle window: a MONSTER plugin's playstyle sound on a new instance, its window open to pick another
         sound (a MONSTER plugin shows its sound picker only while it has none); closed, as editPlaystyleSound. */
     void pickPlaystyleSound (const InstrumentRow&, const juce::String& style);

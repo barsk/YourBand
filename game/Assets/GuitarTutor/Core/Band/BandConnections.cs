@@ -17,19 +17,11 @@ namespace GuitarTutor.Core.Band
         /// <summary>The track's <see cref="SongTrack.Index"/>; -1: none, the instrument plays its default (generated) part.</summary>
         public int Index { get; set; } = -1;
         public string Name { get; set; } = "";
-        /// <summary>The rhythm guitar plays the track picked, every note as a note, instead of strumming it.</summary>
-        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
-        public bool Picked { get; set; }
-        /// <summary>
-        /// The rhythm guitar plays the track string by string on its held chord (Shreddage's string keys), each string
-        /// ringing until it is struck again: an experiment (2026-10-30), beside strumming it.
-        /// </summary>
-        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
-        public bool StringKeys { get; set; }
+        // (until 2026-11-01 the rhythm guitar's choice also said how it played its track: "picked" or "stringKeys"; it plays
+        // every track one way now, and an older file's flags are passed over)
 
         public static TrackRef Default => new TrackRef();
-        public static TrackRef Of(SongTrack track, bool picked = false, bool stringKeys = false) =>
-            track == null ? Default : new TrackRef { Index = track.Index, Name = track.Name, Picked = picked, StringKeys = stringKeys && !picked };
+        public static TrackRef Of(SongTrack track) => track == null ? Default : new TrackRef { Index = track.Index, Name = track.Name };
         [JsonIgnore] public bool IsDefault => Index < 0;
     }
 
@@ -84,22 +76,6 @@ namespace GuitarTutor.Core.Band
             }
             return AutoConnect(song).TryGetValue(instrument, out var auto) ? auto : null;
         }
-
-        /// <summary>
-        /// Whether the rhythm guitar plays its track picked, every note as a note, instead of strumming where it strums:
-        /// only when chosen so. A track connected automatically is strummed: strings struck together are a strum, and a
-        /// fingerpicked part's notes, apart in time, are single notes anyway.
-        /// </summary>
-        public bool PlaysPicked(Song song, Instrument instrument) => ChosenRhythm(song, instrument)?.Picked == true;
-
-        /// <summary>Whether the rhythm guitar plays its track string by string (<see cref="TrackRef.StringKeys"/>): only when chosen so.</summary>
-        public bool PlaysStringKeys(Song song, Instrument instrument) => ChosenRhythm(song, instrument)?.StringKeys == true;
-
-        /// <summary>The rhythm guitar's choice of a track that is in the song, else null.</summary>
-        TrackRef ChosenRhythm(Song song, Instrument instrument) =>
-            instrument == Instrument.RhythmGuitar && TrackFor(song, instrument) != null
-            && Chosen.TryGetValue(Ids[instrument], out var chosen) && chosen != null && !chosen.IsDefault && Find(song, chosen) != null
-                ? chosen : null;
 
         /// <summary>The track a choice names: the one with its place and name, else the one with its name.</summary>
         public static SongTrack Find(Song song, TrackRef track) =>

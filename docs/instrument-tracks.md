@@ -76,6 +76,10 @@ Each step leaves "Default" playing exactly as today, and is checked before the n
    string keys, so the bass rings under Redbud Tree's pinches (the strummed version cuts it 5-20 dB within 1.5 beats).
    It needs Shreddage set to Strumming Mode off, Keyswitchable on, and voices enough (Rhythm, Polyphonic and the voice
    limits raised to 32/16 did it).
+   On 2026-11-01 the three ways (strummed, picked note by note, string by string) became one: every track is played
+   string by string, strums as their strings struck one after another, with the techniques of step 9. Strummed with the
+   strum keys, a strum holds only the strings it strikes and cuts the others; picked, Shreddage chose the strings and
+   choked fast repeats; and a track does not say which of them it needs (Redbud Tree's bass notes are written short).
 7. **Sounds per song.** The plugin and sound per instrument, playstyle and song, the Band playstyle defaults window,
    saving when the plugin window closes, loading on song and playstyle change. In detail (done 2026-10-31, after a
    redesign the same day):
@@ -95,7 +99,8 @@ Each step leaves "Default" playing exactly as today, and is checked before the n
      window too.
    - "Band playstyle defaults...": the song's table (band members x playstyles), a plugin dropdown and "..." per cell.
      A cell's "..." puts the band instrument on that sound while its window is open; closed, the sound is kept and the
-     instrument goes back to what it plays. "Save defaults" saves the table as the defaults; "Ok" closes.
+     instrument goes back to what it plays. "Save defaults" saves the table as the defaults; "Load defaults"
+     (2026-11-01) gives the song the saved ones, after asking; "Ok" closes.
    - A silent engine (tests) writes none of these files.
 8. **Mixer.** Mute, solo, volume and pan knobs, pan from the stage, saved per song. (Done 2026-10-31.) Each
    instrument row ends with M, S, a volume knob and a pan knob, in place of the six faders; volume, pan and mute are
@@ -123,8 +128,9 @@ Each step leaves "Default" playing exactly as today, and is checked before the n
      range (±2 for Shreddage; Numa Player, Ample Bass and MONSTER Bass are measured in this step), and puts the
      wheel back in the middle at stop, seek and a new song.
    - **9.3 What each technique becomes.** (Done 2026-10-31. The palm mute's controller is 20: in Shreddage's Map tab,
-     Mute with the rule "CC20 64-127" plays real palm mutes; without that rule only the shorter, softer note.) For the lead guitar, instrument 1, the bass, and the rhythm guitar played
-     picked or string by string; strummed chords keep their strokes:
+     Mute with the rule "CC20 64-127" plays real palm mutes; without that rule only the shorter, softer note.) For the lead guitar, instrument 1, the bass, and the rhythm guitar (playing a
+     track: since 2026-11-01 its one way, string by string, takes them too; a bent or sliding note lets go of the strings
+     ringing as it is struck, and rings for its own length):
 
      | Technique | Played as |
      |---|---|
@@ -137,7 +143,7 @@ Each step leaves "Default" playing exactly as today, and is checked before the n
      | Dead note (x) | A short, very soft note (today it is left out) |
      | Ghost (g), accent (a) | Softer, louder (already, from the importer) |
      | Staccato (.) | Half its length |
-     | Let ring (r) | Rings until the next note on its string (already, for a track played picked) |
+     | Let ring (r) | Rings until the next note on its string (the rhythm guitar's every note does) |
      | Harmonic (n) | Its sounding pitch, plainly |
      | Tremolo picking (z) | Repeated notes at the written speed, every other one a little softer |
      | Tapping (t), grace note (q) | Plainly (a grace note is already a short note before the main one) |

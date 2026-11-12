@@ -276,17 +276,16 @@ namespace GuitarTutor.Runtime.Desktop
         }
 
         /// <summary>
-        /// An instrument's track as chosen in the control panel (-1: its default part; picked: the rhythm guitar plays it
-        /// note by note, not strummed; strings: string by string on its held chord): kept in the song's band file, and
+        /// An instrument's track as chosen in the control panel (-1: its default part): kept in the song's band file, and
         /// the band arranged again (which gives the engine the new parts and the tracks).
         /// </summary>
-        void Connect(string id, int trackIndex, bool picked, bool strings)
+        void Connect(string id, int trackIndex)
         {
             var instrument = BandConnections.InstrumentOf(id);
             if (instrument == null)
                 return;
             var track = trackIndex < 0 ? null : chart.Song.Tracks.FirstOrDefault(t => t.Index == trackIndex);
-            connections.Choose(instrument.Value, TrackRef.Of(track, picked, strings));
+            connections.Choose(instrument.Value, TrackRef.Of(track));
             if (songPath != null)
                 try
                 {
@@ -296,7 +295,7 @@ namespace GuitarTutor.Runtime.Desktop
                 {
                     Debug.LogWarning($"GuitarTutor: could not keep the choice in the band file of {songPath}: {e.Message}");
                 }
-            Debug.Log($"GuitarTutor: {BandConnections.Names[instrument.Value]} plays " + (track != null ? $"the track {track.Name}" + (picked ? ", picked" : strings ? ", string by string" : "") : "its default part"));
+            Debug.Log($"GuitarTutor: {BandConnections.Names[instrument.Value]} plays " + (track != null ? $"the track {track.Name}" : "its default part"));
             Arrange(bandStyle);
         }
 
@@ -480,7 +479,7 @@ namespace GuitarTutor.Runtime.Desktop
             else if (type == "importedSong")
                 OpenImported((string)message["path"]);
             else if (type == "connect")
-                Connect((string)message["instrument"], (int?)message["track"] ?? -1, (bool?)message["picked"] ?? false, (bool?)message["strings"] ?? false);
+                Connect((string)message["instrument"], (int?)message["track"] ?? -1);
             else if (type == "style")
             {
                 // a band playstyle chosen in the control panel

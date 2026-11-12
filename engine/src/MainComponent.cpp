@@ -197,7 +197,8 @@ namespace
 
     /** The band playstyle window: the open song's sound per playstyle (a column each) for each band member (a row
         each), a plugin dropdown and its window ("...") in every cell, as in the control panel's rows. "Save defaults"
-        keeps them for the songs opened the first time; "Ok" closes (the song keeps them either way). */
+        keeps them for the songs opened the first time, "Load defaults" gives the song the saved ones; "Ok" closes (the
+        song keeps them either way). */
     class PlaystyleView final : public juce::Component
     {
     public:
@@ -208,7 +209,7 @@ namespace
         };
         std::function<void (int row, int column)> onPick;    // a cell's dropdown changed
         std::function<void (int row, int column)> onWindow;  // a cell's "..." pressed
-        std::function<void()> onSave, onOk;
+        std::function<void()> onLoad, onSave, onOk;
 
         PlaystyleView (const juce::StringArray& rowNames, const juce::StringArray& columnNames)
             : columns (columnNames)
@@ -229,8 +230,10 @@ namespace
                     addAndMakeVisible (cell->window);
                 }
             }
+            load.onClick = [this] { if (onLoad) onLoad(); };
             save.onClick = [this] { if (onSave) onSave(); };
             ok.onClick = [this] { if (onOk) onOk(); };
+            addAndMakeVisible (load);
             addAndMakeVisible (save);
             addAndMakeVisible (ok);
             setSize (120 + 250 * columns.size() + 20, 130 + 32 * rowNames.size());
@@ -252,6 +255,8 @@ namespace
             ok.setBounds (buttons.removeFromRight (90));
             buttons.removeFromRight (8);
             save.setBounds (buttons.removeFromRight (130));
+            buttons.removeFromRight (8);
+            load.setBounds (buttons.removeFromRight (130));
             r.removeFromTop (4);
             const auto column = (r.getWidth() - 120) / juce::jmax (1, columns.size());
             auto row = r.removeFromTop (24);
@@ -276,7 +281,7 @@ namespace
         juce::Label note;
         juce::OwnedArray<juce::Label> heads, names;
         juce::OwnedArray<Cell> cells;
-        juce::TextButton save { "Save defaults" }, ok { "Ok" };
+        juce::TextButton load { "Load defaults" }, save { "Save defaults" }, ok { "Ok" };
     };
 
     class PlaystyleWindow final : public juce::DocumentWindow
@@ -779,15 +784,10 @@ void MainComponent::setUpInstrumentRows()
             auto& r = instrumentRows[i];
             if (! game.isConnected() || r.track.getSelectedId() <= 0)
                 return;
-            const auto id = r.track.getSelectedId();
-            const auto strings = id >= stringTrackIds;
-            const auto picked = ! strings && id >= pickedTrackIds;
             auto* message = new juce::DynamicObject();
             message->setProperty ("type", "connect");
             message->setProperty ("instrument", r.id);
-            message->setProperty ("track", (strings ? id - stringTrackIds : picked ? id - pickedTrackIds : id) - 2);  // -1: the default part
-            message->setProperty ("picked", picked);
-            message->setProperty ("strings", strings);
+            message->setProperty ("track", r.track.getSelectedId() - 2);  // -1: the default part
             game.send (juce::var (message));
             log (r.label.getText() + " plays " + (r.track.getSelectedId() != 1 ? r.track.getText()
                                                   : r.lead ? juce::String ("no track") : juce::String ("the band playstyle's part")));
@@ -809,28 +809,12 @@ void MainComponent::showTracks (const juce::var& message)
         if (tracks != nullptr)
             for (const auto& t : *tracks)
                 row.track.addItem (t["name"].toString(), (int) t["index"] + 2);
-        // the rhythm guitar can also play a guitar track picked, note by note (a fingerpicked part), not strummed, or
-        // string by string on its held chord (an experiment: the strings ring until struck again)
-        if (tracks != nullptr && row.id == "rhythm")
-            for (const auto& t : *tracks)
-                if (t["kind"].toString() == "guitar")
-                {
-                    const auto name = t["name"].toString().upToFirstOccurrenceOf (" (", false, false);
-                    row.track.addItem (name + ", picked note by note", pickedTrackIds + (int) t["index"] + 2);
-                    row.track.addItem (name + ", string by string (experiment)", stringTrackIds + (int) t["index"] + 2);
-                }
         auto playing = -1;
-        auto picked = false, strings = false;
         if (instruments != nullptr)
             for (const auto& i : *instruments)
                 if (i["id"].toString() == row.id)
-                {
                     playing = (int) i["track"];
-                    picked = (bool) i["picked"];
-                    strings = (bool) i["strings"];
-                }
-        const auto ids = playing < 0 ? 0 : strings ? stringTrackIds : picked ? pickedTrackIds : 0;
-        row.track.setSelectedId (ids + playing + 2, juce::dontSendNotification);
+        row.track.setSelectedId (playing + 2, juce::dontSendNotification);
         if (row.track.getSelectedId() == 0)
             row.track.setSelectedId (1, juce::dontSendNotification);
         row.track.setEnabled (tracks != nullptr && ! tracks->isEmpty());
@@ -1250,7 +1234,8 @@ void MainComponent::showPlaystyles()
     refreshPlaystyles = [this, view, members, columns]
     {
         view->setNote ("The sounds of " + currentSong + " in each band playstyle (" + currentStyle + " plays now). "
-                       "\"Save defaults\" keeps them for the songs you open the first time; the song keeps them either way.");
+                       "\"Save defaults\" keeps them for the songs you open the first time, \"Load defaults\" gives this "
+                       "song the saved ones; the song keeps them either way.");
         for (int i = 0; i < (int) members.size(); ++i)
         {
             const auto& row = instrumentRows[(size_t) members[(size_t) i]];
@@ -1304,6 +1289,18 @@ void MainComponent::showPlaystyles()
     view->onWindow = [this, members, columns] (int i, int c)
     {
         editPlaystyleSound (instrumentRows[(size_t) members[(size_t) i]], columns[c]);
+    };
+    view->onLoad = [this, view]
+    {
+        // (the song's own sounds are replaced: asked first)
+        juce::AlertWindow::showAsync (juce::MessageBoxOptions()
+                                          .withIconType (juce::MessageBoxIconType::QuestionIcon)
+                                          .withTitle ("Load defaults")
+                                          .withMessage ("Give " + currentSong + " the saved band playstyle defaults, in place of its own sounds in each playstyle?")
+                                          .withButton ("Load")
+                                          .withButton ("Cancel")
+                                          .withAssociatedComponent (view),
+                                      [this] (int result) { if (result == 1) loadPlaystyleDefaults(); });
     };
     view->onSave = [this] { savePlaystyleDefaults(); };
     view->onOk = [this] { playstyleWindow->setVisible (false); };
@@ -1376,6 +1373,23 @@ void MainComponent::savePlaystyleDefaults()
         log ("Band playstyle defaults: " + currentSong + "'s sounds are the ones a song gets the first time it is opened");
     else
         log ("Could not save the band playstyle defaults in " + sounds->defaultsFile().getFullPathName());
+}
+
+void MainComponent::loadPlaystyleDefaults()
+{
+    const auto defaults = SoundStore::read (sounds->defaultsFile());
+    if (currentSong.isEmpty() || defaults.styles.empty())
+    {
+        log ("Band playstyle defaults: none saved yet (\"Save defaults\" keeps a song's)");
+        return;
+    }
+    // the playstyles' sounds only: what the song's tracks play, and its mix, stay the song's
+    for (const auto& [style, members] : defaults.styles)
+        for (const auto& [id, sound] : members)
+            songSounds.styles[style][id] = sound;
+    saveSongSounds();
+    log ("Band playstyle defaults: loaded for " + currentSong);
+    applySounds (currentSong, currentStyle);  // the band on them now (and the window shows them)
 }
 
 int MainComponent::addPluginChoice (EngineCore::Slot slot, const juce::File& plugin)
