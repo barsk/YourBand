@@ -1,7 +1,7 @@
 # GuitarTutor game (Unity)
 
-The game client: Unity 6.6 (6000.6.7f1) with URP, decided in experiment E4
-([../experiments/e4-renderer/README.md](../experiments/e4-renderer/README.md)). See
+The game client: Unity 6.6 (6000.6.7f1) with URP, decided in experiment E4 (2026-10-21: see docs/plan.md; the
+experiments are no longer in the repository, only in its history). See
 [../docs/plan.md](../docs/plan.md) for the whole design; the audio engine is a separate program in
 [../engine](../engine).
 
@@ -98,8 +98,9 @@ The band in your room and the chart on a board in front of you, in the Quest thr
 (docs/plan.md, "VR mode"). Start the game with `-vr`, or press X. The game starts OpenXR itself, with Virtual
 Desktop's runtime (VDXR) when it is installed, so it never starts SteamVR; without a headset it shows the room
 on the desktop and says "VR: no headset". The camera clears to a key colour (magenta, #FF00FF) with nothing
-blended into it; in Virtual Desktop, turn on passthrough by chroma key with that colour (experiment E2's
-settings: `../experiments/e2-passthrough/README.md`). The board is opaque, so it needs no key.
+blended into it; in Virtual Desktop, turn on passthrough by chroma key with that colour (RGB 255, 0, 255) and
+raise similarity and smoothness until the thin magenta outline round the musicians is gone (experiment E2, 2026-10-21;
+its app is no longer in the repository, see its history). The board is opaque, so it needs no key.
 
 The first time, the band and the board go in front of wherever you are; after that they stay where you put
 them (in `vr-settings.json` in the game's data folder, `%USERPROFILE%\AppData\LocalLow\GuitarTutor\GuitarTutor`).

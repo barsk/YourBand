@@ -296,7 +296,7 @@ to recordings.
 - 2026-10-21: Numa Player checked with `plugin_probe` (engine/tools): plays when hosted once given a state
   with a sound; grand, upright, Rhodes and rock B3 rendered; 1-3 % mean audio CPU, peaks 6-18 %.
   Unity 6.6 (6000.6.7f1) and the Unity CLI (1.0.0-beta.13) installed.
-- 2026-10-21: E4 run (`experiments/e4-renderer/`): one guitarist at Quest 3 stereo resolution takes 1.5 ms in
+- 2026-10-21: E4 run (`experiments/e4-renderer/`, removed from the repository 2026-11-12: in its history): one guitarist at Quest 3 stereo resolution takes 1.5 ms in
   URP and 2.1-2.7 ms in HDRP; HDRP's skin looks clearly better; Unity keeps HDRP in maintenance mode and develops
   URP. Unity MCP server registered for Claude Code (`unity-editor-mcp`).
 - 2026-10-21: URP chosen. `game/` created (Unity 6.6, URP, agent package): `GuitarTutor.Core` assembly without
@@ -306,7 +306,7 @@ to recordings.
   `tools/songtool`. Wicked Game from both pages: 133 bars, 4:45 against the album's ~4:49; the intro's guessed
   0:34 matches the tabs page's 0:00-0:34; all lyric lines matched, 25 riffs placed. 20 tests pass. Imported songs
   and saved pages live in `songs-local/` (not in git).
-- 2026-10-21: E2 app built (`experiments/e2-passthrough/`): musician on an exact #FF00FF background, no post or
+- 2026-10-21: E2 app built (`experiments/e2-passthrough/`, removed from the repository 2026-11-12: in its history): musician on an exact #FF00FF background, no post or
   anti-aliasing, cutout hair; controller placement, floor calibration, key colour switching; XR started by the app.
   Desktop check: background exact, no edge pixel tinted towards the key. Headset test with Virtual Desktop: yours.
 - 2026-10-21: M1 done: the desktop screen in UI Toolkit (`game/`, see its README). Chart strip (section map,

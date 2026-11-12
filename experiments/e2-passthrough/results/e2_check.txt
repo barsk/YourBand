@@ -1,1 +1,0 @@
-key #FF00FF: 1937574 key pixels, 130030 musician pixels, 2440 edge pixels, 0 edge pixels near the key colour
