@@ -1,7 +1,7 @@
 <#
 Makes a release: one folder, zipped, that runs on another computer (tools\release\README.txt says what is in it).
 
-  tools\make_release.cmd [-Build] [-WithSongs] [-WithSettings] [-Out <folder>]
+  tools\make_release.cmd [-Build] [-WithBand] [-WithSongs] [-WithSettings] [-Out <folder>]
 
 The program only: the game and the engine as last built (-Build builds both first: game\build_desktop.cmd,
 engine\build.cmd), with songtool beside the engine, published self-contained (the control panel's Import... runs it;
@@ -10,9 +10,15 @@ vcruntime140_1), so nothing needs installing; the plugins are installed on their
 (songs-local), -WithSettings the band's sounds (%APPDATA%\YourBand: band-defaults.sounds, songs\*.sounds); the
 engine's own settings never go: they name the plugins by where they are on this computer. Written to
 Documents\YourBand-releases\YourBand-<date>-<commit>.zip (and the folder it zips).
+
+The 3D band is an optional download, the band pack (game\Builds\BandPack\Band\band.bundle, made by the game's
+build): by default it goes in a zip of its own, YourBand-band-pack-<date>-<commit>.zip, to unzip into the release's
+folder (the one with Game and Engine; it holds Game\Band\band.bundle and a NOTICE.txt with the licences of what is inside). -WithBand puts it in
+the release's own zip instead.
 #>
 param(
     [switch]$Build,
+    [switch]$WithBand,
     [switch]$WithSongs,
     [switch]$WithSettings,
     [string]$Out = (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'YourBand-releases')
@@ -21,6 +27,7 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 $game = Join-Path $repo 'game\Builds\Desktop'
 $engine = Join-Path $repo 'engine\build\Release\gt_engine_artefacts\Release\YourBand Engine.exe'
+$pack = Join-Path $repo 'game\Builds\BandPack\Band\band.bundle'
 
 if ($Build) {
     & (Join-Path $repo 'engine\build.cmd')
@@ -49,7 +56,23 @@ function Copy-Tree($from, $to, [string[]]$excludeDirs = @()) {
 }
 
 Write-Host "Game..."
-Copy-Tree $game (Join-Path $folder 'Game') @('YourBand_BackUpThisFolder_ButDontShipItWithYourGame')
+# (the game's own Band folder is a pack copied there to try it: the pack is a download of its own)
+Copy-Tree $game (Join-Path $folder 'Game') @('YourBand_BackUpThisFolder_ButDontShipItWithYourGame', (Join-Path $game 'Band'))
+
+# the band pack's folder (Game\Band: band.bundle and the licences of what is in it), in a release or in a zip of its own
+function Write-BandPack($gameFolder) {
+    $band = Join-Path $gameFolder 'Band'
+    New-Item -ItemType Directory -Force $band | Out-Null
+    Copy-Item $pack $band
+    $notice = (Get-Content (Join-Path $PSScriptRoot 'release\band-pack-NOTICE.txt') -Raw) + "`r`n" +
+        (Get-Content (Join-Path $repo 'docs\licenses\Microsoft-Rocketbox-LICENSE.txt') -Raw)
+    Set-Content (Join-Path $band 'NOTICE.txt') $notice -Encoding UTF8
+}
+if ($WithBand) {
+    if (-not (Test-Path $pack)) { throw "No band pack: $pack (the game's build makes it from game\Assets\External; docs\band-assets.md)" }
+    Write-Host "Band pack (in the release)..."
+    Write-BandPack (Join-Path $folder 'Game')
+}
 
 Write-Host "Engine..."
 $engineDir = Join-Path $folder 'Engine'
@@ -91,3 +114,19 @@ if (Test-Path $zip) { Remove-Item $zip -Force }
 tar.exe -a -c -f $zip -C $Out $name  # (Windows' own tar writes a zip by its extension; faster than Compress-Archive)
 if ($LASTEXITCODE -ne 0) { throw 'The zip failed.' }
 Write-Host ("Made {0} ({1:N0} MB)" -f $zip, ((Get-Item $zip).Length / 1MB))
+
+if (-not $WithBand -and (Test-Path $pack)) {
+    Write-Host "Band pack zip..."
+    $packName = $name -replace '^YourBand-', 'YourBand-band-pack-'
+    $stage = Join-Path $Out "$packName-stage"
+    if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+    Write-BandPack (Join-Path $stage 'Game')
+    $packZip = Join-Path $Out "$packName.zip"
+    if (Test-Path $packZip) { Remove-Item $packZip -Force }
+    tar.exe -a -c -f $packZip -C $stage Game
+    if ($LASTEXITCODE -ne 0) { throw 'The band pack zip failed.' }
+    Remove-Item $stage -Recurse -Force
+    Write-Host ("Made {0} ({1:N0} MB)" -f $packZip, ((Get-Item $packZip).Length / 1MB))
+} elseif (-not $WithBand) {
+    Write-Host "No band pack built (game\Builds\BandPack): the release has no 3D band."
+}

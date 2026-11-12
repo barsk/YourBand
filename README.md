@@ -12,6 +12,7 @@ on real instrument plugins, in front of you on the screen or in your own room in
 ![JUCE](https://img.shields.io/badge/audio%20engine-C%2B%2B%20%2F%20JUCE%209-8DC63F)
 ![Plugins](https://img.shields.io/badge/band%20plugins-free-orange)
 ![VR](https://img.shields.io/badge/VR-Quest%203%20via%20Virtual%20Desktop-7B61FF)
+![Licence](https://img.shields.io/badge/licence-GPL%20v3-blue)
 
 <img src="docs/images/band-view.png" alt="The band view: a guitarist, a drummer, a bassist and a keyboardist playing behind the chart" width="900">
 
@@ -40,8 +41,9 @@ amp simulation in the same program, so you hear yourself and the band together w
   around, practice speed in 5 % steps, and an overview (`M`) of which track plays in which bar.
 - **Your guitar, your amp.** The engine hosts the [TONE3000](https://www.tone3000.com/plugin/download) amp plugin
   for your guitar and switches its presets from a footswitch (any USB game controller, or an Arduino pedal).
-- **A 3D band.** Press `V` and four musicians play every note on their instruments: the drummer's sticking on
-  the drums and cymbals, the guitarist's fingers on the real frets, the bassist's plucks, the keyboardist's keys.
+- **A 3D band** (an optional download). Press `V` and four musicians play every note on their instruments: the
+  drummer's sticking on the drums and cymbals, the guitarist's fingers on the real frets, the bassist's plucks, the
+  keyboardist's keys.
 - **Mixed reality.** In VR (Quest 3 through Virtual Desktop) the band stands in your room and the chart hangs
   on a board like a music stand; you place them with the controllers.
 - **A real mixer.** Mute, solo, volume and pan per instrument (pan follows the musicians' places on stage),
@@ -73,6 +75,11 @@ Get the latest zip from the [Releases](https://github.com/barsk/YourBand/release
 unzip it anywhere, for example to `Documents\YourBand`, and start `Game\YourBand.exe`. The game starts its audio
 engine (`Engine\YourBand Engine.exe`) by itself and closes it when it closes. Nothing else needs installing for
 the game and the engine; the band plays on plugins you install yourself.
+
+**The 3D band is a separate, optional download** (about 100 MB): the same Releases page has a *band pack* zip.
+Unzip it into the release folder (the one with `Game` and `Engine` in it); it adds `Game\Band\band.bundle`, and `V`
+shows the band.
+Without it the game is exactly the same, minus the band view: the music, the chart and the audio band do not need it.
 
 Without any plugins the band plays its built-in sounds: a synthesized drum kit, bass and guitar. The keyboards
 have no built-in sound, so they are silent until Numa Player is installed. The plugins are what make it sound
@@ -236,7 +243,7 @@ flowchart LR
 <details>
 <summary>What you need, and the commands</summary>
 
-You need Git with [Git LFS](https://git-lfs.com/) (the screenshots are LFS files), the Unity Editor **6000.6.7f1**,
+You need Git with [Git LFS](https://git-lfs.com/) (the screenshots are LFS files, a few MB), the Unity Editor **6000.6.7f1**,
 the Visual Studio Build Tools with the C++ workload (CMake and Ninja come with them), the .NET 8 SDK (for the
 song importer) and Python 3.
 
@@ -255,14 +262,15 @@ dotnet build tools\songtool -c Release
 game\build_desktop.cmd               # game\Builds\Desktop\YourBand.exe
 game\run_tests.cmd                   # the EditMode tests
 
-# a release zip, as in step 2
+# a release zip, as in step 2 (and the band pack's zip, if the pack is built)
 tools\make_release.cmd -Build
 ```
 
-The **3D musicians are not in the repository**: they are made from downloads with their own licences (Microsoft
-Rocketbox avatars, Mixamo animations, instrument models; see [CREDITS.md](CREDITS.md)). A build from source shows the
-chart without the band view until you run the asset pipeline in `tools/band_assets/`; the release zips include
-them. The audio band works either way.
+The **3D musicians are not in the repository**: they have their own licences and are big (Microsoft Rocketbox
+avatars, Mixamo animations, instrument models). The game loads them from the optional *band pack*
+(`Band\band.bundle` next to the game). To see the band in a build from source, download the pack from
+[Releases](https://github.com/barsk/YourBand/releases) and unzip it into `game\Builds\Desktop` (or `game\` for the
+Unity Editor); [docs/band-assets.md](docs/band-assets.md) also tells how to make the pack yourself.
 
 JUCE is used under the AGPLv3 while the project is personal; a commercial JUCE licence may be required before
 publishing a product (see [CREDITS.md](CREDITS.md)).
@@ -277,7 +285,7 @@ publishing a product (see [CREDITS.md](CREDITS.md)).
 | [`engine/`](engine/README.md) | The C++ audio engine and its control panel: devices, plugins, the band's playback, the mixer |
 | [`tools/`](tools/songtool/README.md) | `songtool` (importers for Guitar Pro and Ultimate Guitar pages, MIDI export), the release script, the 3D band's asset pipeline |
 | [`schema/`](schema/engine-protocol.md) | The messages between the game and the engine |
-| [`docs/`](docs/plan.md) | The game plan, the instrument-tracks design, venue ideas, and the hand-capture experiment |
+| [`docs/`](docs/plan.md) | The game plan, the instrument-tracks design, the band's 3D assets, venue ideas, and the hand-capture experiment |
 | [`capture/`](docs/capture.md), `markers/`, `mockup/` | Python and Blender work behind the hand capture and the 3D instruments |
 
 Design and background: [docs/plan.md](docs/plan.md) (the whole plan),
@@ -299,4 +307,8 @@ YourBand stands on other people's work: JUCE, TONE3000, the plugins above, Micro
 asset and library, its source and its licence is in [CREDITS.md](CREDITS.md). YourBand is not affiliated with or
 endorsed by Native Instruments, Impact Soundworks, Studiologic, Ample Sound, Monster DAW or TONE3000.
 
-The project's own licence has not been chosen yet.
+## 📜 Licence
+
+YourBand's source code is licensed under the **[GNU General Public License v3.0](LICENSE)**. The third-party assets
+and libraries it uses keep their own licences, listed in [CREDITS.md](CREDITS.md); the audio engine includes JUCE
+under the AGPLv3.

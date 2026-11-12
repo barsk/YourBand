@@ -2,8 +2,11 @@
 
   python band_assets.py [--no-instruments]
 
+Needs Pillow (pip install pillow) for the textures.
+
 - Avatars: the mockup's Rocketbox musicians (mockup/avatars/<name>/Export and Textures, with the mockup's
-  look and hair maps), one per band role.
+  look and hair maps), one per band role. Rocketbox's 2K TGA textures become lossless PNGs (a third of the size);
+  its specular maps are left out, the game does not use them (the look maps give the materials' mask).
 - Mo-cap: the Mixamo clips the mockup used (mockup/mocap/).
 - Instruments: exported from the mockup's processed models by Blender (export_instruments.py): an FBX and the
   playing geometry as JSON for each.
@@ -15,6 +18,8 @@ import os
 import shutil
 import subprocess
 import sys
+
+from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.normpath(os.path.join(HERE, "..", ".."))
@@ -29,6 +34,13 @@ CLIPS = ["playing_drums_113820901.fbx", "guitar_playing_111430901.fbx", "guitar_
          "piano_playing_112170902.fbx"]
 
 
+def tga_to_png(src, dst):
+    """The same pixels, lossless (colour, normal and hair maps; the hair's alpha is kept)."""
+    with Image.open(src) as image:
+        image.load()
+        image.save(dst, "PNG")
+
+
 def copy_avatars():
     for role, name in AVATARS.items():
         src = os.path.join(MOCKUP, "avatars", name)
@@ -36,7 +48,12 @@ def copy_avatars():
         os.makedirs(dst, exist_ok=True)
         shutil.copy2(os.path.join(src, "Export", name + ".fbx"), os.path.join(dst, name + ".fbx"))
         for f in os.listdir(os.path.join(src, "Textures")):
-            shutil.copy2(os.path.join(src, "Textures", f), os.path.join(dst, f))
+            if "_specular" in f:
+                continue  # (unused: the look maps give the materials' mask)
+            if f.lower().endswith(".tga"):
+                tga_to_png(os.path.join(src, "Textures", f), os.path.join(dst, os.path.splitext(f)[0] + ".png"))
+            else:
+                shutil.copy2(os.path.join(src, "Textures", f), os.path.join(dst, f))
         print("avatar %-11s %s" % (role, name))
 
 

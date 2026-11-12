@@ -1,3 +1,4 @@
+using System.Linq;
 using System.IO;
 using YourBand.Runtime.Desktop;
 using UnityEditor;
@@ -56,7 +57,8 @@ namespace YourBand.EditorTools
 
             if (rebuildScene || !File.Exists(ScenePath))
                 BuildScene();
-            BandSetup.Run();  // the 3D band, if its assets are there (tools/band_assets)
+            BandSetup.Run();  // the 3D band, if its assets are there (tools/band_assets), and its pack
+            KeepShadersInPlayer("Universal Render Pipeline/Lit");
             VrSetup.Run();
             ConfigurePlayer();
             AssetDatabase.SaveAssets();
@@ -93,6 +95,25 @@ namespace YourBand.EditorTools
             PlayerSettings.defaultScreenHeight = 1080;
             PlayerSettings.resizableWindow = true;
             PlayerSettings.runInBackground = true;
+        }
+
+        /// <summary>
+        /// Shaders the game looks up by name (Shader.Find) belong in every player: the band's code does, and its
+        /// prefabs are in the band pack, not the player.
+        /// </summary>
+        static void KeepShadersInPlayer(params string[] names)
+        {
+            var settings = new SerializedObject(UnityEngine.Rendering.GraphicsSettings.GetGraphicsSettings());
+            var list = settings.FindProperty("m_AlwaysIncludedShaders");
+            foreach (var name in names)
+            {
+                var shader = Shader.Find(name);
+                if (shader == null || Enumerable.Range(0, list.arraySize).Any(i => list.GetArrayElementAtIndex(i).objectReferenceValue == shader))
+                    continue;
+                list.InsertArrayElementAtIndex(list.arraySize);
+                list.GetArrayElementAtIndex(list.arraySize - 1).objectReferenceValue = shader;
+            }
+            settings.ApplyModifiedProperties();
         }
 
         /// <summary>Batch mode: sets up the project and builds the desktop player; exits with 1 if the build fails.</summary>

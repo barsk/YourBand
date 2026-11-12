@@ -11,14 +11,17 @@ namespace YourBand.EditorTools
     /// <summary>
     /// Makes the band's musicians from the assets tools/band_assets gathered into Assets/External/Band (not in
     /// git): each Rocketbox avatar as a humanoid with the mockup's skin and hair maps (as in E2), its Mixamo
-    /// clip, its instrument with the playing geometry, as a prefab in Assets/External/Band/Resources/Band for
-    /// BandStage. Without the assets it does nothing (the game then has no band view).
+    /// clip, its instrument with the playing geometry, as a prefab in Assets/External/Band/Prefabs; and builds
+    /// them into the band pack (Builds/BandPack/Band/band.bundle) that BandStage loads at run time, so that the
+    /// band is an optional download and not in the player. Without the assets it does nothing (the game then has
+    /// no band view).
     /// </summary>
     public static class BandSetup
     {
         const string Root = "Assets/External/Band";
         const string Generated = Root + "/Generated/";
-        const string Prefabs = Root + "/Resources/Band/";
+        const string Prefabs = Root + "/Prefabs/";
+        public const string PackFolder = "Builds/BandPack/Band";
 
         // role, avatar, clip, instrument (tools/band_assets/band_assets.py has the same casting)
         static readonly (BandRole role, string avatar, string clip, string instrument)[] Cast =
@@ -46,13 +49,13 @@ namespace YourBand.EditorTools
             {
                 var folder = Root + "/Avatars/" + role + "/";
                 var fbx = folder + avatar + ".fbx";
-                var prefix = Path.GetFileName(Directory.GetFiles(folder, "*_body_color.tga").First()).Split('_')[0];
+                var prefix = Path.GetFileName(Directory.GetFiles(folder, "*_body_color.png").First()).Split('_')[0];
                 ConfigureTextures(folder);
-                var body = Lit(role + " body", Tex(folder, prefix + "_body_color.tga"), Tex(folder, prefix + "_body_normal.tga"), Mask(folder, prefix, "body", role), false);
-                var head = Lit(role + " head", Tex(folder, prefix + "_head_color.tga"), Tex(folder, prefix + "_head_normal.tga"), Mask(folder, prefix, "head", role), false);
+                var body = Lit(role + " body", Tex(folder, prefix + "_body_color.png"), Tex(folder, prefix + "_body_normal.png"), Mask(folder, prefix, "body", role), false);
+                var head = Lit(role + " head", Tex(folder, prefix + "_head_color.png"), Tex(folder, prefix + "_head_normal.png"), Mask(folder, prefix, "head", role), false);
                 var cards = (TextureImporter)AssetImporter.GetAtPath(folder + prefix + "_opacity_cards4.png");
                 var hair = Lit(role + " hair", cards != null && cards.DoesSourceTextureHaveAlpha()
-                    ? Tex(folder, prefix + "_opacity_cards4.png") : Tex(folder, prefix + "_opacity_color.tga"), null, null, true);
+                    ? Tex(folder, prefix + "_opacity_cards4.png") : Tex(folder, prefix + "_opacity_color.png"), null, null, true);
                 ConfigureAvatar(fbx, prefix, body, head, hair);
                 var clipPath = Root + "/Mocap/" + clip + ".fbx";
                 ConfigureClip(clipPath);
@@ -62,12 +65,39 @@ namespace YourBand.EditorTools
             }
             AssetDatabase.SaveAssets();
             Debug.Log("YourBand band: " + Cast.Length + " musicians in " + Prefabs);
+            BuildPack();
+        }
+
+        /// <summary>The musicians' prefabs, with everything they use, as one asset bundle in Builds/BandPack/Band.</summary>
+        [MenuItem("YourBand/Build band pack")]
+        public static void BuildPack()
+        {
+            var names = Cast.Select(c => Prefabs + c.role + ".prefab").ToArray();
+            if (names.Any(n => !File.Exists(n)))
+            {
+                Debug.Log("YourBand band: no prefabs to put in a band pack (run YourBand > Set up band)");
+                return;
+            }
+            if (Directory.Exists(PackFolder))
+                Directory.Delete(PackFolder, true);
+            Directory.CreateDirectory(PackFolder);
+            var manifest = BuildPipeline.BuildAssetBundles(PackFolder,
+                new[] { new AssetBundleBuild { assetBundleName = "band.bundle", assetBundleVariant = "", assetNames = names } },
+                BuildAssetBundleOptions.ChunkBasedCompression, BuildTarget.StandaloneWindows64);
+            if (manifest == null)
+            {
+                Debug.LogError("YourBand band: the band pack did not build");
+                return;
+            }
+            foreach (var extra in Directory.GetFiles(PackFolder).Where(f => Path.GetFileName(f) != "band.bundle").ToList())
+                File.Delete(extra);  // (the build's manifests: the game loads band.bundle alone)
+            Debug.Log($"YourBand band: pack {PackFolder}/band.bundle, {new FileInfo(PackFolder + "/band.bundle").Length / 1048576} MB");
         }
 
         // ------------------------------------------------------------------ avatars (as in E2)
         static void ConfigureTextures(string folder)
         {
-            foreach (var path in Directory.GetFiles(folder).Where(p => p.EndsWith(".tga") || p.EndsWith(".png")))
+            foreach (var path in Directory.GetFiles(folder).Where(p => p.EndsWith(".png")))
             {
                 var importer = (TextureImporter)AssetImporter.GetAtPath(path.Replace('\\', '/'));
                 if (importer == null)

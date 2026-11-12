@@ -235,7 +235,9 @@ tools/     offline Python tools
 docs/      this plan, venues
 ```
 
-Large third-party downloads are not in git; [CREDITS.md](../CREDITS.md) lists their sources and licences.
+The 3D band (avatars, instruments, Mixamo clips) is not in git either: the game loads it from an optional band
+pack (`Band/band.bundle`, a Unity asset bundle) that is a separate download with each release
+([band-assets.md](band-assets.md)). Large third-party downloads are not in git; [CREDITS.md](../CREDITS.md) lists their sources and licences.
 Binary files that are in git go through Git LFS (`.gitattributes`).
 
 ## Testing

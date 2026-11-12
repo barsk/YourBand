@@ -48,7 +48,8 @@ What is there now:
   plays each hit), the guitarist's grips (fingers on frets, barres) and strokes read back from the strummed
   notes, the bassist's strings and frets (a hand that moves as little as it can), the keyboardist's fingers.
 - `Runtime/Band/`: the band as 3D musicians (Rocketbox avatars on the Mixamo playing clips, made by
-  `tools/band_assets` and YourBand > Set up project; not in git). The clips are locked to the beat; arms
+  `tools/band_assets` and YourBand > Set up project; not in git, and loaded at run time from the optional band
+  pack, `Band/band.bundle` next to the game: `BandStage`). The clips are locked to the beat; arms
   and fingers go onto the real targets by IK in `LateUpdate`: sticks onto the drums and cymbals, fingers onto
   frets and strings, keys pressed down under the fingers.
 - `Runtime/Vr/VrMode.cs`: VR mode (below).

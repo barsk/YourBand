@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using YourBand.Core.Band;
 using YourBand.Core.Chart;
 using UnityEngine;
@@ -98,17 +99,39 @@ namespace YourBand.Runtime.Band
             return pans;
         }
 
-        /// <summary>The band, or null (and why) if its assets have not been made (tools/band_assets).</summary>
+        /// <summary>
+        /// The band pack (Band/band.bundle, made by YourBand > Build band pack) is optional: it sits in a Band folder
+        /// next to the game (Game\Band in a release; game/Band in the Editor), and without it the game has no
+        /// band view. In the Editor the musicians' prefabs are used from the project when they have been made.
+        /// </summary>
+        public static string PackPath => Path.Combine(Path.GetDirectoryName(Application.dataPath), "Band", "band.bundle");
+
+        static AssetBundle pack;
+
+        static GameObject LoadPrefab(BandRole role)
+        {
+#if UNITY_EDITOR
+            var made = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/External/Band/Prefabs/" + role + ".prefab");
+            if (made != null)
+                return made;
+#endif
+            if (pack == null && File.Exists(PackPath))
+                pack = AssetBundle.LoadFromFile(PackPath);
+            return pack != null ? pack.LoadAsset<GameObject>(role.ToString()) : null;
+        }
+
+        /// <summary>The band, or null (and why) if the band pack is not there (docs/band-assets.md).</summary>
         public static BandStage Create(out string missing)
         {
             missing = null;
             var prefabs = new Dictionary<BandRole, GameObject>();
             foreach (var (role, _, _) in Layout)
             {
-                var prefab = Resources.Load<GameObject>("Band/" + role);
+                var prefab = LoadPrefab(role);
                 if (prefab == null)
                 {
-                    missing = $"no {role} (make the band with tools/band_assets, then YourBand > Set up band)";
+                    missing = File.Exists(PackPath) ? $"the band pack has no {role}"
+                        : "the optional band pack is not installed (unzip it next to the game: " + PackPath + ")";
                     return null;
                 }
                 prefabs[role] = prefab;

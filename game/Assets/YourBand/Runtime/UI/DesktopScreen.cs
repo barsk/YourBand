@@ -186,6 +186,16 @@ namespace YourBand.Runtime.UI
         /// <summary>Covers the window with a circling ring and this line (the mouse is blocked meanwhile), or uncovers it (null).</summary>
         public void SetLoading(string message) => loading.Show(message);
 
+        string hintText;
+
+        /// <summary>A message in place of the key hints for a few seconds.</summary>
+        public void Notice(string message)
+        {
+            hintText ??= hint.text;
+            hint.text = message;
+            hint.schedule.Execute(() => hint.text = hintText).StartingIn(6000);
+        }
+
         /// <summary>
         /// The tracks the band's instruments play: the Tab key steps through the song's own tab and these tracks' tabs only
         /// (<see cref="SongChart.TabsOf"/>). Called again whenever an instrument is given another track.

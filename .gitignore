@@ -29,8 +29,11 @@ engine/third_party/*/
 !engine/third_party/README.md
 
 # Unity (game/ is a Unity project)
+# The band's 3D assets (game/Assets/External: avatars, instruments, Mixamo clips) are not in git: they have their own
+# licences and are big. The game loads them from the optional band pack (Releases); docs/band-assets.md.
 game/Assets/External/
 game/Assets/External.meta
+game/Band/
 game/[Ll]ibrary/
 game/[Tt]emp/
 game/[Oo]bj/

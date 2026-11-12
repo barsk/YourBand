@@ -544,6 +544,7 @@ namespace YourBand.Runtime.Desktop
                 if (band == null)
                 {
                     Debug.LogWarning("YourBand: no band view: " + missing);
+                    screen.Notice("No band view: the 3D band is an optional download (the band pack, with the release).");
                     return;
                 }
                 band.SetSong(chart, arrangement);

@@ -1,0 +1,20 @@
+YourBand band pack: what is inside, and under which terms
+==========================================================
+
+Band\band.bundle holds the game's four 3D musicians, their instruments and their animations. It is an optional
+part of YourBand (https://github.com/barsk/YourBand); the game works without it, minus the band view (V).
+
+  The musicians       Microsoft Rocketbox avatars (https://github.com/microsoft/Microsoft-Rocketbox),
+                      MIT licence: the notice is at the end of this file.
+  Their playing       Animations from Adobe Mixamo (https://www.mixamo.com), used under Mixamo's terms as part of
+                      an application: they are not offered on their own.
+  The instruments     3D models from GrabCAD's community library (https://grabcad.com/library): an Eric Clapton
+                      Stratocaster, a Precision Bass, a Sonor drum set and a Yamaha EZ-220 keyboard, modified for
+                      the game; none came with licence terms, or the terms were permissive.
+
+The full list with sources is CREDITS.md in the repository. The pack's own parts (materials, animator controllers,
+the way the musicians play) are part of YourBand, under the GNU General Public License v3.
+
+Microsoft Rocketbox licence
+---------------------------
+

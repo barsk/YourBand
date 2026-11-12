@@ -3,6 +3,9 @@
 Every third-party asset and library used by YourBand, with its source and licence. Large downloads are not
 in git; the "Local path" column says where they are expected, so a fresh checkout knows what to fetch.
 
+YourBand's own code is under the [GNU General Public License v3](LICENSE). The assets and libraries below keep
+their own licences. The audio engine uses JUCE under the AGPLv3 (GPLv3 and AGPLv3 may be combined).
+
 Allowed licences: CC0, CC BY (with credit), MIT, BSD, royalty-free store licences. Not allowed: NC
 (non-commercial), ND (no derivatives), editorial use, models ripped from games. See [docs/plan.md](docs/plan.md).
 
@@ -12,9 +15,8 @@ An asset's name links to its source. The notes under the table say what a licenc
 
 | Asset | Author | Licence | Used for | Local path |
 |---|---|---|---|---|
-| [Microsoft Rocketbox avatars](https://github.com/microsoft/Microsoft-Rocketbox) | Microsoft | MIT | Musicians | `mockup/avatars/` |
-| [Mixamo animations](https://www.mixamo.com): Guitar Playing (2 clips), Piano Playing (2), Playing Drums | Adobe | Mixamo terms (1) | Musicians' motion | `mockup/mocap/` |
-| [Home Studio](https://sketchfab.com/3d-models/home-studio-6d1a0713efc543a99d33e11e67099ef2) | R-LAB | CC BY 4.0 (we modify it) | First desktop venue | `model_images/venues/home_studio/` |
+| [Microsoft Rocketbox avatars](https://github.com/microsoft/Microsoft-Rocketbox) | Microsoft | MIT ([notice](docs/licenses/Microsoft-Rocketbox-LICENSE.txt)) | Musicians | `game/Assets/External/Band/Avatars/` (not in git; inside the band pack, see [docs/band-assets.md](docs/band-assets.md)) |
+| [Mixamo animations](https://www.mixamo.com): Guitar Playing (2 clips), Piano Playing (2), Playing Drums | Adobe | Mixamo terms (1) | Musicians' motion | `game/Assets/External/Band/Mocap/` (not in git; inside the band pack) |
 | [TONE3000 plugin](https://github.com/tone-3000/tone3000-plugin) | TONE3000 | MIT | Guitar tone | Installed plugin (VST3/CLAP), not bundled |
 | [JUCE 9.0.4](https://github.com/juce-framework/JUCE) | Raw Material Software | AGPLv3 (2) | Audio engine | `engine/third_party/JUCE/` |
 | [Numa Player 2.2.2](https://www.studiologic-music.com) | Studiologic | Free, no licence text (3) | Keyboardist's sounds | Installed plugin (VST3), not bundled |
@@ -27,7 +29,8 @@ An asset's name links to its source. The notes under the table say what a licenc
 | [alphaTab 1.8.4](https://www.alphatab.net/) | Danielku15 and contributors | MPL-2.0 | Reading Guitar Pro files (`songtool`, bundled with it) | NuGet package, not in git |
 | [Json.NET (Newtonsoft.Json)](https://www.newtonsoft.com/json), through Unity's package `com.unity.nuget.newtonsoft-json` 3.2.2 | James Newton-King | MIT (the Unity package: Unity Companion License) | Song, band and message files (JSON) | Unity package, not in git |
 
-1. Adobe Mixamo terms: use in projects; the raw files are not redistributed.
+1. Adobe Mixamo terms: use in projects; the raw files are not redistributed, so the four clips are not in the
+   repository; they travel only compiled into the band pack (an asset bundle), as part of the application.
 2. AGPLv3 while the project is personal; a commercial JUCE licence may be required before publishing.
 3. No licence text was found in the download or on the site (MONSTER plugins are also listed on
    [KVR](https://www.kvraudio.com/developer/monster-daw)). Installed or downloaded by you, not bundled; check the
@@ -42,7 +45,8 @@ An asset's name links to its source. The notes under the table say what a licenc
 ## GrabCAD models
 
 The instruments' 3D models are from GrabCAD's community library. None of them came with licence terms, or the terms
-were permissive; the project owner checked this when each was added.
+were permissive; the project owner checked this when each was added. They are not in the repository: the ones the
+band uses are in the optional band pack, which carries these credits.
 
 | Asset | Source | Licence | Local path | Used for |
 |---|---|---|---|---|
@@ -65,6 +69,10 @@ Used to make assets and run the capture experiment ([docs/capture.md](docs/captu
 
 ## Candidates
 
+Venues for the desktop view ([docs/venues.md](docs/venues.md)): downloaded, not used by the game yet, and not in the
+repository.
+
 | Asset | Author | Source | Licence | Local path |
 |---|---|---|---|---|
+| Home Studio | R-LAB | https://sketchfab.com/3d-models/home-studio-6d1a0713efc543a99d33e11e67099ef2 | CC BY 4.0 (we would modify it) | `model_images/venues/home_studio/` |
 | Office Studio | R-LAB | https://sketchfab.com/3d-models/office-studio-8fc5286645384538a7c405b4457f562a | CC BY 4.0 | `model_images/venues/office_studio/` |
