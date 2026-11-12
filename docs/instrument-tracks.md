@@ -57,7 +57,7 @@ Each step leaves "Default" playing exactly as today, and is checked before the n
    played, the way TuxGuitar plays it. Every track depends on this.
 2. **All tracks imported.** (Done 2026-10-29: `tracks` in the song file.) The song model gets the tracks (notes with pitch, string, fret, velocity and
    technique; tuning, capo, program, kind); identical tracks are merged. Nothing plays them yet.
-3. **TAB panel shortcut.** (Done 2026-10-29.) The first visible result: Tab cycles the TAB panel through the tracks with tab data.
+3. **TAB panel shortcut.** (Done 2026-10-29; narrowed 2026-11-12.) The first visible result: Tab cycles the TAB panel through the tracks with tab data, since 2026-11-12 only through the song's own tab and the tracks the band's instruments play (a track chosen or connected for one; the tracks overlay, M, still shows any track's tab when you click it, and Tab then goes on to the next one the band plays).
 4. **Connections.** (Done 2026-10-29. `BandConnections` in Core; the lead guitar and instrument 1 already play their
    tracks, as the song's lead parts did before; a lead with no track plays nothing.) The per-song connection file, the automatic connection (from the track's instrument
    number, name, strings, tuning and whether it is drums), the track dropdowns in the control panel, and the

@@ -43,6 +43,7 @@ namespace GuitarTutor.Runtime.UI
         public TrackMatrix Tracks { get; }
         readonly LoadingOverlay loading = new LoadingOverlay();
         int tabIndex;  // which of the chart's tabs the TAB panel shows
+        List<int> cycle = new List<int> { 0 };  // the tabs the Tab key steps through (indexes into the chart's tabs): the song's own, and the tracks the band plays
 
         readonly Label title, artist, status, hint, vrHint;
         readonly VisualElement help, vrHelp;
@@ -126,7 +127,7 @@ namespace GuitarTutor.Runtime.UI
                          ("PgUp / PgDn", "the section before / after"),
                          ("Up / Down", "speed up / slow down by 5%"),
                          ("1  2  3  4", "song, chords, strumming, tab panels"),
-                         ("Tab", "the TAB panel shows another track's tab (Guitar Pro songs); Shift+Tab the one before"),
+                         ("Tab", "the TAB panel shows the tab of the next track the band plays (Guitar Pro songs); Shift+Tab the one before"),
                          ("P", "next strumming pattern"),
                          ("B", "next band style"),
                          ("V", "band view: the band in 3D behind the chart, or the chart alone"),
@@ -186,43 +187,73 @@ namespace GuitarTutor.Runtime.UI
         public void SetLoading(string message) => loading.Show(message);
 
         /// <summary>
-        /// The TAB panel to the next of the song's tabs (or the one before): the song's own, then the Guitar Pro file's
-        /// other tracks written as tab. Shows the panel if it was hidden. Returns the tab's name, or null if the song has
-        /// only its own.
+        /// The tracks the band's instruments play: the Tab key steps through the song's own tab and these tracks' tabs only
+        /// (<see cref="SongChart.TabsOf"/>). Called again whenever an instrument is given another track.
         /// </summary>
-        public string StepTab(int step)
+        public void SetTabTracks(IEnumerable<string> trackNames)
         {
-            if (chart == null || chart.Tabs.Count < 2)
-                return null;
-            tabIndex = ((tabIndex + step) % chart.Tabs.Count + chart.Tabs.Count) % chart.Tabs.Count;
-            tab.SetTab(chart.Tabs[tabIndex]);
+            if (chart == null)
+                return;
+            cycle = chart.TabsOf(trackNames).ToList();
             ShowTabTitle();
-            if (!IsShown(Panel.Tab))
-                SetShown(Panel.Tab, true);
-            var shown = chart.Tabs[tabIndex];
-            return shown.Name != "" ? shown.Name : "the song's tab";
-        }
-
-        /// <summary>"TAB", the track's name, and which of the song's tabs it is when there are more.</summary>
-        void ShowTabTitle()
-        {
-            var shown = chart.Tabs[tabIndex];
-            panelTitles[Panel.Tab].text = "TAB" + (shown.Name != "" ? " · " + shown.Name : "")
-                                        + (chart.Tabs.Count > 1 ? $"  ({tabIndex + 1} of {chart.Tabs.Count}, Tab for the next)" : "");
         }
 
         /// <summary>
-        /// The TAB panel to a track's tab, if it has one (shown if it was hidden). Returns the tab's name, or null if the
-        /// track has none.
+        /// The TAB panel to the next of the tabs the band plays (or the one before): the song's own, then the tabs of the
+        /// tracks its instruments play. From a tab the band does not play (one clicked in the tracks overlay) it goes to
+        /// the next one it plays. Shows the panel if it was hidden. Returns the tab's name, or null if there is only the
+        /// song's own to show.
+        /// </summary>
+        public string StepTab(int step)
+        {
+            if (chart == null || cycle.Count == 0)
+                return null;
+            var at = cycle.IndexOf(tabIndex);
+            if (at >= 0 && cycle.Count < 2)
+                return null;
+            int next;
+            if (at >= 0)
+                next = cycle[((at + step) % cycle.Count + cycle.Count) % cycle.Count];
+            else
+            {
+                var after = step > 0 ? cycle.Where(i => i > tabIndex).Cast<int?>().FirstOrDefault() : cycle.Where(i => i < tabIndex).Cast<int?>().LastOrDefault();
+                next = after ?? (step > 0 ? cycle[0] : cycle[cycle.Count - 1]);
+            }
+            return SelectTab(next);
+        }
+
+        /// <summary>The TAB panel shows one of the chart's tabs (shown if it was hidden); its name.</summary>
+        string SelectTab(int index)
+        {
+            tabIndex = index;
+            tab.SetTab(chart.Tabs[index]);
+            ShowTabTitle();
+            if (!IsShown(Panel.Tab))
+                SetShown(Panel.Tab, true);
+            var shown = chart.Tabs[index];
+            return shown.Name != "" ? shown.Name : "the song's tab";
+        }
+
+        /// <summary>"TAB", the track's name, and which of the tabs the band plays it is (or that the band does not play it).</summary>
+        void ShowTabTitle()
+        {
+            var shown = chart.Tabs[tabIndex];
+            var at = cycle.IndexOf(tabIndex);
+            panelTitles[Panel.Tab].text = "TAB" + (shown.Name != "" ? " · " + shown.Name : "")
+                                        + (at < 0 ? "  (not played by the band, Tab for the next)"
+                                           : cycle.Count > 1 ? $"  ({at + 1} of {cycle.Count}, Tab for the next)" : "");
+        }
+
+        /// <summary>
+        /// The TAB panel to a track's tab, if it has one (shown if it was hidden), whether the band plays it or not.
+        /// Returns the tab's name, or null if the track has none.
         /// </summary>
         public string ShowTabOf(SongTrack track)
         {
             if (chart == null)
                 return null;
             var index = chart.Tabs.ToList().FindIndex(t => t.Name == track.Name && t.Name != "");
-            if (index < 0)
-                return null;
-            return StepTab(index - tabIndex) ?? track.Name;
+            return index < 0 ? null : SelectTab(index);
         }
 
         public void ToggleHelp() => (vr ? vrHelp : help).ToggleInClassList("gt-hidden");
@@ -265,6 +296,7 @@ namespace GuitarTutor.Runtime.UI
             Tracks.SetSong(chart);
             tab.SetSong(chart);
             tabIndex = 0;
+            cycle = new List<int> { 0 };  // (the band's tracks come with its arrangement: SetTabTracks)
             ShowTabTitle();
             cards.Clear();
             chordRow.Clear();

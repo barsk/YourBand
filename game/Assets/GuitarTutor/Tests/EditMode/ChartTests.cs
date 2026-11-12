@@ -106,6 +106,25 @@ namespace GuitarTutor.Core.Tests
         }
 
         [Test]
+        public void TabsOf_AreTheSongsOwnAndThoseOfTheTracksNamed()
+        {
+            var song = DemoSong.Create();
+            var standard = new[] { "E2", "A2", "D3", "G3", "B3", "E4" };
+            var bassTuning = new[] { "E1", "A1", "D2", "G2" };
+            TrackNote Note(int str) => new TrackNote { AtQuarter = 0, Quarters = 1, Pitch = 40, StringIndex = str, Fret = 0 };
+            song.Tracks.Add(new SongTrack { Index = 0, Name = "Rhythm", Kind = "guitar", Tuning = standard.ToList(), Notes = { Note(1) } });
+            song.Tracks.Add(new SongTrack { Index = 1, Name = "Bass", Kind = "bass", Tuning = bassTuning.ToList(), Notes = { Note(1) } });
+            song.Tracks.Add(new SongTrack { Index = 2, Name = "Vocal", Kind = "voice", Tuning = standard.ToList(), Notes = { Note(1) } });
+            song.Tracks.Add(new SongTrack { Index = 3, Name = "Drums", Kind = "drums", Notes = { new TrackNote { AtQuarter = 0, Quarters = 0.5, Pitch = 36 } } });
+            var chart = new SongChart(song);
+            CollectionAssert.AreEqual(new[] { "", "Rhythm", "Bass", "Vocal", "Drums" }, chart.Tabs.Select(t => t.Name));
+
+            CollectionAssert.AreEqual(new[] { 0 }, chart.TabsOf(new string[0]));  // nothing played: the song's own alone
+            CollectionAssert.AreEqual(new[] { 0, 2, 4 }, chart.TabsOf(new[] { "Drums", "Bass", "Not a track" }));  // in the tabs' order
+            CollectionAssert.AreEqual(new[] { 0, 1, 2, 3, 4 }, chart.TabsOf(new[] { "Rhythm", "Bass", "Vocal", "Drums" }));
+        }
+
+        [Test]
         public void PatternMeter_IsTheSectionsMostCommonMeterThePatternFills()
         {
             var song = DemoSong.Create();

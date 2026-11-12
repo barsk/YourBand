@@ -326,7 +326,9 @@ namespace GuitarTutor.Runtime.Desktop
         {
             bandStyle = style;
             arrangement = Arranger.Arrange(chart, style, connections);
-            screen.Tracks.SetPlayers(Players());
+            var players = Players();
+            screen.Tracks.SetPlayers(players);
+            screen.SetTabTracks(players.Keys.Select(t => t.Name));  // the Tab key: the tracks the band plays
             var parts = Environment.GetCommandLineArgs().SkipWhile(a => a != "-parts").Skip(1).FirstOrDefault();
             if (parts != null)
             {

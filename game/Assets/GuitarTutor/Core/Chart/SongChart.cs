@@ -284,6 +284,20 @@ namespace GuitarTutor.Core.Chart
         }
 
         /// <summary>
+        /// The indexes (into <see cref="Tabs"/>) of the tabs the TAB panel cycles through: the song's own, and the tab of
+        /// each of the named tracks (the ones the band's instruments play), in the order of <see cref="Tabs"/>.
+        /// </summary>
+        public IReadOnlyList<int> TabsOf(IEnumerable<string> trackNames)
+        {
+            var names = new HashSet<string>(trackNames);
+            var result = new List<int>();
+            for (int i = 0; i < tabs.Count; ++i)
+                if (i == 0 || (tabs[i].Name != "" && names.Contains(tabs[i].Name)))
+                    result.Add(i);
+            return result;
+        }
+
+        /// <summary>
         /// How much a track plays in each bar, for the track overview: the notes starting in it, or 1 for a bar a note
         /// started before still sounds through; 0 where the track is silent.
         /// </summary>
