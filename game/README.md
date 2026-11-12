@@ -81,7 +81,8 @@ Keys:
 - 1-4: the panels, in their order on screen: song, chords, strumming, tab.
 - P: the next strumming pattern.
 - B: the next band style.
-- G: the band guitarist plays the rhythm, or rests (the same as the control panel's checkbox).
+- G: the band guitarist plays the rhythm, or rests. The guitarist rests on a computer where G has not been pressed (the
+  engine keeps the choice in its settings); the control panel has no switch for it.
 - V: the band view: the band in 3D behind the chart (the chart alone is the default).
 - X: VR mode on or off (below).
 - L: the next song.
