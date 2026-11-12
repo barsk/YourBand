@@ -22,4 +22,4 @@ if not exist "%HERE%third_party\JUCE\CMakeLists.txt" (
 cmake -G Ninja -S "%HERE%." -B "%HERE%build\%CONFIG%" -DCMAKE_BUILD_TYPE=%CONFIG% || exit /b 1
 cmake --build "%HERE%build\%CONFIG%" || exit /b 1
 echo.
-echo Built: %HERE%build\%CONFIG%\gt_engine_artefacts\%CONFIG%\GuitarTutor Engine.exe
+echo Built: %HERE%build\%CONFIG%\gt_engine_artefacts\%CONFIG%\YourBand Engine.exe

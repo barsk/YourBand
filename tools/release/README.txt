@@ -1,8 +1,8 @@
-GuitarTutor
-===========
+YourBand
+========
 
-Unzip this folder anywhere (for example Documents\GuitarTutor) and start Game\GuitarTutor.exe. The game starts
-its audio engine (Engine\GuitarTutor Engine.exe) by itself and closes it when it closes. C opens the engine's
+Unzip this folder anywhere (for example Documents\YourBand) and start Game\YourBand.exe. The game starts
+its audio engine (Engine\YourBand Engine.exe) by itself and closes it when it closes. C opens the engine's
 control panel, H the game's help.
 
   Game\          the game
@@ -42,11 +42,11 @@ to other songs).
 The settings
 ------------
 A release made with settings has settings\: the band's sounds of every song and the playstyle defaults (the plugins'
-own settings, Shreddage's among them). To start with them, run settings\copy-settings.cmd once: it copies them to %APPDATA%\GuitarTutor and
+own settings, Shreddage's among them). To start with them, run settings\copy-settings.cmd once: it copies them to %APPDATA%\YourBand and
 never overwrites a file that is already there. Without them each song starts from the built-in sounds.
 
 The engine's own settings (your audio interface, TONE3000, the plugins you added) are not included: choose your
 audio device and the plugins in the control panel on this computer. A plugin's sound refers to its library where it
 was on the other computer; if a MONSTER plugin is silent, choose its sound again in its window.
 
-To remove GuitarTutor, delete this folder, and %APPDATA%\GuitarTutor for its settings.
+To remove YourBand, delete this folder, and %APPDATA%\YourBand for its settings.

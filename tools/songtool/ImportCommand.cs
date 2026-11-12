@@ -7,10 +7,10 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
-using GuitarTutor.Core.Import.UltimateGuitar;
-using GuitarTutor.Core.Songs;
+using YourBand.Core.Import.UltimateGuitar;
+using YourBand.Core.Songs;
 
-namespace GuitarTutor.SongTool
+namespace YourBand.SongTool
 {
     /// <summary>
     /// <c>songtool import</c>: one song from a Guitar Pro file and/or Ultimate Guitar page URLs, as the control

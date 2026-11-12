@@ -5,13 +5,13 @@ The game (`game/`) and the audio engine (`engine/`) run as two programs on the s
 
 - **Messages**: TCP on `127.0.0.1:47800`. The engine listens and the game connects. Each message is one JSON
   object on one line (UTF-8, `\n` at the end). One game at a time.
-- **Clock**: shared memory named `Local\GuitarTutorClock`. The engine writes it after every audio block;
+- **Clock**: shared memory named `Local\YourBandClock`. The engine writes it after every audio block;
   the game reads it every frame. Messages are too late and too jittery for drawing in time with the music.
 
 Positions are in quarter notes from the start of the song, as in the song file. The engine owns the transport
 (it is the music); the game only asks.
 
-Implemented by hand on both sides for now: `game/Assets/GuitarTutor/Core/Engine/EngineProtocol.cs` and
+Implemented by hand on both sides for now: `game/Assets/YourBand/Core/Engine/EngineProtocol.cs` and
 `engine/src/GameLink.cpp`, `engine/src/Band.cpp`. The plan is to generate both from one definition here once
 the message set settles.
 

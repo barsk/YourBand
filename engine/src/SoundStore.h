@@ -4,8 +4,8 @@
 // file) or its built-in sound, and the plugin's state. A song keeps, per band playstyle (Ballad, Rock, Pop), the sound
 // each band member ("rhythm", "bass", "keys", "drums") plays its playstyle part on, and one sound per instrument for
 // playing one of the song's tracks (the two leads, "lead" and "instrument1", only ever play a track).
-//   %APPDATA%\GuitarTutor\songs\<song>.sounds      a song's sounds (JSON)
-//   %APPDATA%\GuitarTutor\band-defaults.sounds     the playstyles' sounds a song starts with ("Save defaults")
+//   %APPDATA%\YourBand\songs\<song>.sounds      a song's sounds (JSON)
+//   %APPDATA%\YourBand\band-defaults.sounds     the playstyles' sounds a song starts with ("Save defaults")
 
 #include <juce_core/juce_core.h>
 

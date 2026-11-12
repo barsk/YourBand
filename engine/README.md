@@ -1,4 +1,4 @@
-# GuitarTutor audio engine
+# YourBand audio engine
 
 The C++ audio engine (see [../docs/plan.md](../docs/plan.md)). It owns the audio interface, hosts the TONE3000
 plugin for your guitar and the band guitarist's, plays the band, and will grow the listener and the recorder.
@@ -21,7 +21,7 @@ Needs the Visual Studio Build Tools (C++ workload; CMake and Ninja come with the
 engine\build.cmd            (Release; or: build.cmd Debug)
 ```
 
-The program is `build\Release\gt_engine_artefacts\Release\GuitarTutor Engine.exe`.
+The program is `build\Release\gt_engine_artefacts\Release\YourBand Engine.exe`.
 
 ## Trying experiment E1
 
@@ -38,8 +38,10 @@ Tone switching uses TONE3000's presets: it builds the new model in the backgroun
 the swap (25 ms fades), so a switch in a pause between phrases is not heard. An instance runs its amp model
 whether you play or not, which is why there is one guitar instance rather than one per tone.
 
-Device settings and the TONE3000 instance (with its tone) are remembered in `%APPDATA%\GuitarTutor\GuitarTutor Engine.settings`;
-the log is kept in `engine.log` in the same folder.
+Device settings and the TONE3000 instance (with its tone) are remembered in `%APPDATA%\YourBand\YourBand Engine.settings`;
+the log is kept in `engine.log` in the same folder. The program was called GuitarTutor until 2026-11-12: the first
+start under the new name copies the old `%APPDATA%\GuitarTutor` folder (settings, every song's sounds, the playstyle
+defaults) to `%APPDATA%\YourBand` if that does not exist yet, and leaves the old folder as it was.
 
 ## Measured (2026-10-21, Scarlett Solo, Focusrite USB ASIO, 48 kHz)
 
@@ -59,7 +61,7 @@ Still to measure: the true round trip with a loopback cable.
 
 ## The band (M2)
 
-Start the game (`game/Builds/Desktop/GuitarTutor.exe`). It starts the engine itself, hidden, with
+Start the game (`game/Builds/Desktop/YourBand.exe`). It starts the engine itself, hidden, with
 `--parent <the game's process>`: the engine then closes when the game does, even if the game crashes. C in
 the game shows the engine's window, the control panel, and T shows the guitar's TONE3000, in front of the
 game (the game allows the engine to take the front just before it asks). Closing those windows only hides
@@ -108,7 +110,7 @@ page keeps its guitarist on that strumming (Default) unless you choose the track
 Play from the game (Space) or the footswitch. Playing from the start, or from wherever you moved to, begins
 with a bar of count-in on sticks; after a pause the band plays on from where it stopped.
 
-- The game writes the parts (`game/Assets/GuitarTutor/Core/Band/Arranger.cs`) in one of three styles:
+- The game writes the parts (`game/Assets/YourBand/Core/Band/Arranger.cs`) in one of three styles:
   Ballad (the default below 120 BPM), Rock and Pop. B switches style in the game.
 - Two lead channels ("Lead 1", "Lead 2", MIDI channels 4 and 5) play the song's other instruments (a Guitar Pro
   file's harmonica, lead guitar...) as stand-ins on a plugin of your choice: Numa Player or Kontakt (any of its
@@ -145,8 +147,8 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
 
   **Sounds per song** (docs/instrument-tracks.md, step 7). Each song keeps, per band playstyle (Ballad, Rock, Pop),
   the plugin and its state the rhythm guitar, bass, keyboards and drums play their playstyle part on, and per
-  instrument the one it plays a track on (the leads only play tracks) (`%APPDATA%\GuitarTutor\songs\<song>.sounds`).
-  A song opened the first time gets a copy of the saved playstyle defaults (`%APPDATA%\GuitarTutor\band-defaults.sounds`;
+  instrument the one it plays a track on (the leads only play tracks) (`%APPDATA%\YourBand\songs\<song>.sounds`).
+  A song opened the first time gets a copy of the saved playstyle defaults (`%APPDATA%\YourBand\band-defaults.sounds`;
   none saved: the built-in sounds, the keyboards on Numa Player with each playstyle's sound); an instrument playing a
   track the first time starts on its playstyle part's sound (a lead on the plugin chosen for it last). Choosing a
   plugin in a row, or closing its window, keeps it for the song's track. **Band playstyle defaults...** (on the Band
@@ -269,7 +271,7 @@ RMS, peak 0.8.
 ## Testing without a sound
 
 ```
-"GuitarTutor Engine.exe" --silent --record out\band.wav --run-for 40
+"YourBand Engine.exe" --silent --record out\band.wav --run-for 40
 ```
 
 `--silent` replaces the audio interface with a pretend one (`src/SilentDevice.*`). It runs the engine at real
@@ -356,7 +358,7 @@ CPU at 64 samples, peaks 6-18 %. A new sound plays at full level 100 ms after th
 | `src/GameLink.*` | The connection to the game (TCP on 127.0.0.1:47800, JSON lines) |
 | `src/SharedClock.*` | The clock in shared memory |
 | `src/SilentDevice.*` | The pretend audio interface for `--silent` |
-| `src/SoundStore.*` | The band's sounds kept per song and per band style (JSON files under `%APPDATA%\GuitarTutor`) |
+| `src/SoundStore.*` | The band's sounds kept per song and per band style (JSON files under `%APPDATA%\YourBand`) |
 | `src/Processors.*` | Small processors: the mixer's volume controls and the limiter |
 | `src/Footswitch.*` | HID joystick reader (Windows joystick API, 500 Hz polling) |
 | `src/ParentWatch.*` | Started by the game: closes the engine when the game is gone |
@@ -370,6 +372,6 @@ CPU at 64 samples, peaks 6-18 %. A new sound plays at full level 100 ms after th
 
 ## Licences
 
-JUCE is used under the AGPLv3 while GuitarTutor is personal; a commercial JUCE licence may be required before
+JUCE is used under the AGPLv3 while YourBand is personal; a commercial JUCE licence may be required before
 publishing. The ASIO headers bundled with JUCE are Steinberg's (Steinberg ASIO licence or GPLv3; publishing
 under Steinberg's licence needs their free signed agreement). See [../CREDITS.md](../CREDITS.md).

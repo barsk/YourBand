@@ -1,6 +1,6 @@
 # Credits and third-party assets
 
-Every third-party asset and library used by GuitarTutor, with its source and licence. Large downloads are not
+Every third-party asset and library used by YourBand, with its source and licence. Large downloads are not
 in git; the "Local path" column says where they are expected, so a fresh checkout knows what to fetch.
 
 Allowed licences: CC0, CC BY (with credit), MIT, BSD, royalty-free store licences. Not allowed: NC

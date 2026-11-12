@@ -8,7 +8,7 @@ using AlphaTab.Importer;
 using AlphaTab.Midi;
 using AlphaTab.Model;
 
-namespace GuitarTutor.SongTool
+namespace YourBand.SongTool
 {
     /// <summary>What is in a Guitar Pro file: its tracks, and which of them play in each bar.</summary>
     static class GpxInfo

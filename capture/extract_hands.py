@@ -295,7 +295,7 @@ def process_video(path, out_dir, args):
         "marker_frames_pct": round(100 * sum(bool(f["markers"]) for f in frames_out) / max(total, 1), 1),
     }
     data = {
-        "format": "guitartutor-hands/1",
+        "format": "yourband-hands/1",
         "source": str(path.resolve()),
         "overlay": str(overlay_path.resolve()) if writer is not None else None,
         "fps": fps,

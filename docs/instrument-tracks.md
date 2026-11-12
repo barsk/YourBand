@@ -25,7 +25,7 @@ plays them as it does today.
 | Where choices live | In a file of its own next to the song (`<song>.band.json`), so a reimport keeps them |
 | Sounds | Per song and band playstyle (Ballad, Rock, Pop), the rhythm guitar, bass, keyboards and drums each keep a plugin and its sound; the lead guitar and instrument 1 one per song. A sound is saved when its plugin window closes |
 | Defaults | A song opened the first time gets a copy of the saved playstyle defaults (none saved: the built-in sounds; the keyboards, which have none, Numa Player with the playstyle's sound). The "Band playstyle defaults..." window shows the song's table and saves it as the defaults (revised 2026-10-31: the first try, a Default set and per-style sets the song followed, did not work in practice) |
-| Sound files | The saved plugin states (a Kontakt state is about 450 KB) go in a file per song under `%APPDATA%\GuitarTutor\songs\`, not in the song file or the engine settings |
+| Sound files | The saved plugin states (a Kontakt state is about 450 KB) go in a file per song under `%APPDATA%\YourBand\songs\`, not in the song file or the engine settings |
 | Mixer | Per instrument: mute and solo toggles, a volume knob and a pan knob, in place of today's faders. Solo silences the other band parts, never your guitar |
 | Per song | Volume, pan and mute are saved with the song; solo is not (a practice tool) |
 | Pan | Follows the musicians' places on stage until you turn the knob; "Pan from stage" puts them all back |
@@ -84,8 +84,8 @@ Each step leaves "Default" playing exactly as today, and is checked before the n
    saving when the plugin window closes, loading on song and playstyle change. In detail (done 2026-10-31, after a
    redesign the same day):
    - A *sound* is an instrument's plugin (or its built-in sound) and the plugin's state. The engine keeps a song's
-     sounds in `%APPDATA%\GuitarTutor\songs\<song>.sounds`: per playstyle the band members', and the leads' (JSON).
-   - A song opened the first time (an import too) gets a copy of `%APPDATA%\GuitarTutor\band-defaults.sounds`
+     sounds in `%APPDATA%\YourBand\songs\<song>.sounds`: per playstyle the band members', and the leads' (JSON).
+   - A song opened the first time (an import too) gets a copy of `%APPDATA%\YourBand\band-defaults.sounds`
      ("Save defaults"); with none saved, the built-in sounds (the keyboards: Numa Player with each playstyle's sound).
      The leads start on the plugins chosen for them last. (Your defaults were made once from the sounds you had,
      2026-10-31.)

@@ -2,7 +2,7 @@
 
   python switch_session.py <out-folder> [--bass-only] [--once]
 
-Starts `GuitarTutor Engine.exe --silent --record <out>/band.wav`, connects as the game would, loads a made-up
+Starts `YourBand Engine.exe --silent --record <out>/band.wav`, connects as the game would, loads a made-up
 song (a bass line on every quarter at 120 BPM, with drums and keys unless --bass-only), plays it, and every
 3.5 s asks for another bass (`bandBass`): Ample Bass P Lite, MONSTER Bass, built-in, and so on (with --once:
 one switch to MONSTER Bass, then nothing). Then check band.wav with wav_check.py: the band should play on
@@ -16,7 +16,7 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ENGINE = os.path.join(HERE, "..", "build", "Release", "gt_engine_artefacts", "Release", "GuitarTutor Engine.exe")
+ENGINE = os.path.join(HERE, "..", "build", "Release", "gt_engine_artefacts", "Release", "YourBand Engine.exe")
 
 
 def main(args):

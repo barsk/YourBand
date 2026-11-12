@@ -1,4 +1,4 @@
-"""Checks a recording of the band (as `GuitarTutor Engine.exe --silent --record <file.wav>` writes it).
+"""Checks a recording of the band (as `YourBand Engine.exe --silent --record <file.wav>` writes it).
 
   python wav_check.py <file.wav> [--bpm 96] [--grid 8] [--onsets 40]
 

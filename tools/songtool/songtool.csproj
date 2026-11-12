@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- A command-line front end for the game's core code (game/Assets/GuitarTutor/Core): import and inspect songs
+  <!-- A command-line front end for the game's core code (game/Assets/YourBand/Core): import and inspect songs
        without starting Unity. The core is compiled straight from the game's sources, with the C# version Unity
        uses, so nothing here can drift from the game. -->
   <PropertyGroup>
@@ -10,12 +10,12 @@
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <AssemblyName>songtool</AssemblyName>
-    <RootNamespace>GuitarTutor.SongTool</RootNamespace>
+    <RootNamespace>YourBand.SongTool</RootNamespace>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="../../game/Assets/GuitarTutor/Core/**/*.cs" Link="Core/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="../../game/Assets/YourBand/Core/**/*.cs" Link="Core/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

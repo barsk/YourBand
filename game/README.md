@@ -1,4 +1,4 @@
-# GuitarTutor game (Unity)
+# YourBand game (Unity)
 
 The game client: Unity 6.6 (6000.6.7f1) with URP, decided in experiment E4 (2026-10-21: see docs/plan.md; the
 experiments are no longer in the repository, only in its history). See
@@ -7,14 +7,14 @@ experiments are no longer in the repository, only in its history). See
 
 ## Structure
 
-Code lives in `Assets/GuitarTutor/`, split into assemblies that enforce the plan's dependency rules:
+Code lives in `Assets/YourBand/`, split into assemblies that enforce the plan's dependency rules:
 
 | Assembly | Folder | Rule |
 |---|---|---|
-| `GuitarTutor.Core` | `Core/` | Plain C#, no Unity references (`noEngineReferences`): song model, timing, later the bandleader and the score follower. Tested without a scene. |
-| `GuitarTutor.Core.Tests` | `Tests/EditMode/` | NUnit tests for the core |
-| `GuitarTutor.Runtime` | `Runtime/` | Unity side: the desktop screen, later band animation and the connection to the engine. Depends on the core, never the other way round. |
-| `GuitarTutor.Editor` | `Editor/` | Project setup and the desktop build, from code (`ProjectSetup`) |
+| `YourBand.Core` | `Core/` | Plain C#, no Unity references (`noEngineReferences`): song model, timing, later the bandleader and the score follower. Tested without a scene. |
+| `YourBand.Core.Tests` | `Tests/EditMode/` | NUnit tests for the core |
+| `YourBand.Runtime` | `Runtime/` | Unity side: the desktop screen, later band animation and the connection to the engine. Depends on the core, never the other way round. |
+| `YourBand.Editor` | `Editor/` | Project setup and the desktop build, from code (`ProjectSetup`) |
 
 What is there now:
 
@@ -48,7 +48,7 @@ What is there now:
   plays each hit), the guitarist's grips (fingers on frets, barres) and strokes read back from the strummed
   notes, the bassist's strings and frets (a hand that moves as little as it can), the keyboardist's fingers.
 - `Runtime/Band/`: the band as 3D musicians (Rocketbox avatars on the Mixamo playing clips, made by
-  `tools/band_assets` and GuitarTutor > Set up project; not in git). The clips are locked to the beat; arms
+  `tools/band_assets` and YourBand > Set up project; not in git). The clips are locked to the beat; arms
   and fingers go onto the real targets by IK in `LateUpdate`: sticks onto the drums and cymbals, fingers onto
   frets and strings, keys pressed down under the fingers.
 - `Runtime/Vr/VrMode.cs`: VR mode (below).
@@ -59,12 +59,12 @@ What is there now:
 
 ```
 game\build_desktop.cmd
-game\Builds\Desktop\GuitarTutor.exe
+game\Builds\Desktop\YourBand.exe
 ```
 
 `build_desktop.cmd` sets the project up from code (`ProjectSetup.Run`: the UI Toolkit theme and panel
 settings, the Desktop scene, player settings) and builds the Windows player (Mono) into `Builds/Desktop`. In the
-Editor: menu GuitarTutor > Set up project, then play `Assets/GuitarTutor/Scenes/Desktop.unity`.
+Editor: menu YourBand > Set up project, then play `Assets/YourBand/Scenes/Desktop.unity`.
 
 The game plays the first song in the repository's `songs-local/` (imported with `tools/songtool`), or the demo
 song. The band needs the audio engine (`engine/`, built). The game starts it by itself, hidden, and closes it
@@ -103,7 +103,11 @@ raise similarity and smoothness until the thin magenta outline round the musicia
 its app is no longer in the repository, see its history). The board is opaque, so it needs no key.
 
 The first time, the band and the board go in front of wherever you are; after that they stay where you put
-them (in `vr-settings.json` in the game's data folder, `%USERPROFILE%\AppData\LocalLow\GuitarTutor\GuitarTutor`).
+them (in `vr-settings.json` in the game's data folder, `%USERPROFILE%\AppData\LocalLow\YourBand\YourBand`).
+The game was called GuitarTutor until 2026-11-12: at the first start under the new name it takes over the old
+name's `vr-settings.json` and saved preferences (the registry key `HKCU\Software\GuitarTutor\GuitarTutor`, which
+holds the window's size and place, the panels shown and the song open last), leaving the old ones as they were
+(`Runtime/Settings/LegacyData.cs`).
 
 Controllers:
 - A: play or pause. B: restart with a count-in.
@@ -128,12 +132,12 @@ The first time in the headset:
    the key colour a little, and a low setting leaves that blur as a thin magenta outline. Raise both until the
    outline is gone (nothing in the band is close to magenta, so high values cost nothing until the setting is
    very high; stop when skin or dark hair turns see-through).
-3. Connect, then start `game\Builds\Desktop\GuitarTutor.exe -vr` (or press X in the game). Half a second
+3. Connect, then start `game\Builds\Desktop\YourBand.exe -vr` (or press X in the game). Half a second
    after the headset is tracked, the band and the board appear in front of you.
 4. Look at: the key's edges (hair, dark clothes), whether the band stands on your floor (Y to calibrate) and
    fits the room (move the musicians), whether the board reads well at that size, latency against the room.
 5. If the headset loses the connection the game stays open, showing the room; X twice looks for the headset
-   again. The log is `%USERPROFILE%\AppData\LocalLow\GuitarTutor\GuitarTutor\Player.log`.
+   again. The log is `%USERPROFILE%\AppData\LocalLow\YourBand\YourBand\Player.log`.
 
 ![VR mode on the desktop (-noxr): the band and the board on the key colour](../docs/images/m7-vr-room.png)
 

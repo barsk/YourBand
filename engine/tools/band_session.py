@@ -2,7 +2,7 @@
 
   python band_session.py <out-folder> --keys "4:Space,20:quit" [--seconds 30] [--band-bass ABPL] [--band-guitar synthesized] [game options ...]
 
-Starts `GuitarTutor Engine.exe --silent --record <out>/band.wav --run-for <seconds>`, waits for it to load its
+Starts `YourBand Engine.exe --silent --record <out>/band.wav --run-for <seconds>`, waits for it to load its
 plugins, starts the game with `-keys <keys> -keyshots <out>` and the other options (for example -demo,
 -song <file>, -parts drums), and waits for both. Then check the recording with wav_check.py.
 """
@@ -14,8 +14,8 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.normpath(os.path.join(HERE, "..", ".."))
-ENGINE = os.path.join(REPO, "engine", "build", "Release", "gt_engine_artefacts", "Release", "GuitarTutor Engine.exe")
-GAME = os.path.join(REPO, "game", "Builds", "Desktop", "GuitarTutor.exe")
+ENGINE = os.path.join(REPO, "engine", "build", "Release", "gt_engine_artefacts", "Release", "YourBand Engine.exe")
+GAME = os.path.join(REPO, "game", "Builds", "Desktop", "YourBand.exe")
 
 
 def require_port_free(port=47800):
@@ -25,7 +25,7 @@ def require_port_free(port=47800):
     try:
         probe.bind(("127.0.0.1", port))
     except OSError:
-        sys.exit("port %d is in use: another GuitarTutor Engine is running; close it (or its game) and try again" % port)
+        sys.exit("port %d is in use: another YourBand Engine is running; close it (or its game) and try again" % port)
     finally:
         probe.close()
 

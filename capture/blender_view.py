@@ -1,6 +1,6 @@
 """Show extracted hand motion as animated 3D skeleton hands in Blender (3.5+).
 
-Builds everything inside a "GuitarTutor <clip>" collection (re-running replaces
+Builds everything inside a "YourBand <clip>" collection (re-running replaces
 it), plus a camera matched to the filming camera with the tracking-overlay video
 as its background, so the 3D hands can be compared against the footage.
 
@@ -202,7 +202,7 @@ def main():
     args = parse_args()
     data = json.loads(args.json.read_text(encoding="utf-8"))
     clip = args.json.stem.removesuffix("_hands")
-    coll = fresh_collection(f"GuitarTutor {clip}")
+    coll = fresh_collection(f"YourBand {clip}")
 
     scene = bpy.context.scene
     fps = data["fps"]
@@ -219,10 +219,10 @@ def main():
         # Blender frame = video frame index + 1.
         track = {f["i"] + 1: f["hands"][role]["cam"] for f in data["frames"] if role in f["hands"]}
         if not track:
-            print(f"GuitarTutor: ingen {role}-hand i {args.json.name}")
+            print(f"YourBand: ingen {role}-hand i {args.json.name}")
             continue
         build_hand(coll, role, track, connections, material(f"GT_{role}", rgba), scene.frame_end)
-        print(f"GuitarTutor: {role}-hand, {len(track)} bildrutor")
+        print(f"YourBand: {role}-hand, {len(track)} bildrutor")
 
     scene.frame_set(1)
     look_through_camera()

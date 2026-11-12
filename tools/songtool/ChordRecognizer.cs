@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace GuitarTutor.SongTool
+namespace YourBand.SongTool
 {
     /// <summary>
     /// The chords of a track from its notes, for a Guitar Pro file that writes no chord names. Every note counts, not

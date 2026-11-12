@@ -1,4 +1,4 @@
-# GuitarTutor
+# YourBand
 
 Planen för spelet (övningsverktyg och jampartner, desktop och VR) finns i [docs/plan.md](docs/plan.md).
 Källor och licenser för allt tredjepartsinnehåll står i [CREDITS.md](CREDITS.md).

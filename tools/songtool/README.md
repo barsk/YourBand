@@ -1,6 +1,6 @@
 # songtool
 
-The game's core code (`game/Assets/GuitarTutor/Core`) from the command line, without starting Unity. It is
+The game's core code (`game/Assets/YourBand/Core`) from the command line, without starting Unity. It is
 compiled straight from the game's sources, with the C# version Unity uses, and the Newtonsoft.Json that comes
 with Unity (open the game project once so `game/Library` exists).
 

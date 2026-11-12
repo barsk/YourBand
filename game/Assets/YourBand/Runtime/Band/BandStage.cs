@@ -1,0 +1,248 @@
+using System.Collections.Generic;
+using YourBand.Core.Band;
+using YourBand.Core.Chart;
+using UnityEngine;
+using UnityEngine.Rendering;
+
+namespace YourBand.Runtime.Band
+{
+    /// <summary>
+    /// The band as 3D musicians (docs/plan.md, "Band animation"): the four musicians from
+    /// Resources/Band/&lt;role&gt; (made by YourBand &gt; Set up band from tools/band_assets), on a stage facing
+    /// the audience at -z, with a floor and lights. Shown at the song's position every frame.
+    /// </summary>
+    public sealed class BandStage : MonoBehaviour
+    {
+        /// <summary>Where each musician stands (metres; the audience is towards -z) and which way they face
+        /// (degrees about up; 180 faces the audience).</summary>
+        static readonly (BandRole role, Vector3 at, float facing)[] Layout =
+        {
+            (BandRole.Drummer, new Vector3(0f, 0f, 2.6f), 180f),
+            (BandRole.Guitarist, new Vector3(-1.5f, 0f, 1.1f), 160f),
+            (BandRole.Bassist, new Vector3(1.4f, 0f, 1.3f), 200f),
+            (BandRole.Keyboardist, new Vector3(2.7f, 0f, 2.5f), 235f),
+        };
+
+        /// <summary>The desktop's view of the band: from the audience, at standing eye height.</summary>
+        public static readonly Vector3 ViewFrom = new Vector3(0f, 1.55f, -3.2f), ViewAt = new Vector3(0.3f, 1.05f, 1.6f);
+
+        readonly List<Musician> musicians = new List<Musician>();
+        GameObject floor;
+
+        public IReadOnlyList<Musician> Musicians => musicians;
+
+        /// <summary>The band in your room (VR mode): no stage floor, the room's own floor shows through.</summary>
+        public bool InRoom
+        {
+            set => floor.SetActive(!value);
+        }
+
+        /// <summary>The middle of the band, on the floor.</summary>
+        public Vector3 Centre
+        {
+            get
+            {
+                var sum = Vector3.zero;
+                foreach (var m in musicians)
+                    sum += m.transform.position;
+                return musicians.Count > 0 ? sum / musicians.Count : transform.position;
+            }
+        }
+
+        /// <summary>How far round a musician their station reaches on the floor (m): the kit, the keyboard and
+        /// bench, or a player with their instrument.</summary>
+        public static float Footprint(BandRole role) => role switch
+        {
+            BandRole.Drummer => 0.95f,
+            BandRole.Keyboardist => 0.75f,
+            _ => 0.5f,
+        };
+
+        /// <summary>Whether a musician's station overlaps another's.</summary>
+        public bool Crowds(Musician m)
+        {
+            foreach (var other in musicians)
+                if (other != m && Flat(other.transform.position - m.transform.position).magnitude < Footprint(m.role) + Footprint(other.role) - 0.15f)
+                    return true;
+            return false;
+        }
+
+        /// <summary>A musician back on their place in the stage layout.</summary>
+        public void ResetStation(Musician m)
+        {
+            foreach (var (role, at, facing) in Layout)
+                if (role == m.role)
+                    m.transform.SetLocalPositionAndRotation(at, Quaternion.Euler(0, facing, 0));
+        }
+
+        static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0, v.z);
+
+        /// <summary>
+        /// Each musician's pan as the audience hears them, -1 all left to 1 all right: the angle from the audience's
+        /// place (<see cref="ViewFrom"/>), 45 degrees off the middle all to one side. Where they stand now if the band is
+        /// shown (in VR you can move them), else where the layout puts them.
+        /// </summary>
+        public static Dictionary<BandRole, float> Pans(BandStage stage)
+        {
+            var pans = new Dictionary<BandRole, float>();
+            foreach (var (role, at, _) in Layout)
+            {
+                var where = at;
+                if (stage != null)
+                    foreach (var m in stage.musicians)
+                        if (m.role == role)
+                            where = m.transform.localPosition;
+                var angle = Mathf.Atan2(where.x - ViewFrom.x, where.z - ViewFrom.z) * Mathf.Rad2Deg;
+                pans[role] = Mathf.Clamp(angle / 45f, -1f, 1f);
+            }
+            return pans;
+        }
+
+        /// <summary>The band, or null (and why) if its assets have not been made (tools/band_assets).</summary>
+        public static BandStage Create(out string missing)
+        {
+            missing = null;
+            var prefabs = new Dictionary<BandRole, GameObject>();
+            foreach (var (role, _, _) in Layout)
+            {
+                var prefab = Resources.Load<GameObject>("Band/" + role);
+                if (prefab == null)
+                {
+                    missing = $"no {role} (make the band with tools/band_assets, then YourBand > Set up band)";
+                    return null;
+                }
+                prefabs[role] = prefab;
+            }
+            var stage = new GameObject("Band").AddComponent<BandStage>();
+            foreach (var (role, at, facing) in Layout)
+            {
+                var m = Instantiate(prefabs[role], at, Quaternion.Euler(0, facing, 0), stage.transform).GetComponent<Musician>();
+                m.name = role.ToString();
+                stage.musicians.Add(m);
+                SteelHardware(m);
+            }
+            stage.Dress();
+            return stage;
+        }
+
+        static Material steel;
+
+        /// <summary>
+        /// The instruments' "chrome" comes from the models as near-white paint (the import drops its metal), which
+        /// reads as untextured plastic. A true metal would need reflections to show anything, so: satin steel, a
+        /// mid grey with a soft sheen.
+        /// </summary>
+        static void SteelHardware(Musician m)
+        {
+            if (steel == null)
+            {
+                steel = new Material(Shader.Find("Universal Render Pipeline/Lit")) { name = "Steel", color = new Color(0.50f, 0.52f, 0.56f) };
+                steel.SetFloat("_Metallic", 0.35f);
+                steel.SetFloat("_Smoothness", 0.6f);
+            }
+            if (m.instrument == null)
+                return;
+            foreach (var r in m.instrument.GetComponentsInChildren<Renderer>())
+            {
+                var materials = r.sharedMaterials;
+                var changed = false;
+                for (int i = 0; i < materials.Length; ++i)
+                    if (materials[i] != null && materials[i].name.ToLowerInvariant().Contains("chrome"))
+                    {
+                        materials[i] = steel;
+                        changed = true;
+                    }
+                if (changed)
+                    r.sharedMaterials = materials;
+            }
+        }
+
+        /// <summary>The song and the band's parts, for each musician to plan their playing.</summary>
+        public void SetSong(SongChart chart, Arrangement arrangement)
+        {
+            foreach (var m in musicians)
+                m.SetSong(chart, arrangement);
+        }
+
+        /// <summary>Whether the band guitarist plays (strums the rhythm) or rests.</summary>
+        public bool GuitarPlays
+        {
+            set
+            {
+                foreach (var m in musicians)
+                    if (m is GuitarPlayer g && m.role == BandRole.Guitarist)
+                        g.Playing = value;
+            }
+        }
+
+        public void Show(double quarter, double seconds)
+        {
+            foreach (var m in musicians)
+                m.Show(quarter, seconds);
+        }
+
+        /// <summary>
+        /// Points a camera at one musician (for checking them in screenshots): "guitarist" from the front,
+        /// "guitarist:left" / ":right" from their side, "guitarist:hands" close on the hands, ":feet" low on the feet.
+        /// </summary>
+        public void Frame(Camera eye, string what)
+        {
+            var parts = what.ToLowerInvariant().Split(':');
+            var m = musicians.Find(x => x.role.ToString().ToLowerInvariant() == parts[0]);
+            if (m == null)
+                return;
+            var t = m.transform;
+            var view = parts.Length > 1 ? parts[1] : "front";
+            var l = m.body.GetBoneTransform(HumanBodyBones.LeftHand).position;
+            var r = m.body.GetBoneTransform(HumanBodyBones.RightHand).position;
+            var hands = (l + r) / 2;
+            var (from, at) = view switch
+            {
+                "left" => (t.position - t.right * 1.5f + Vector3.up * 1.2f + t.forward * 0.3f, t.position + Vector3.up * 1.0f),
+                "right" => (t.position + t.right * 1.5f + Vector3.up * 1.2f + t.forward * 0.3f, t.position + Vector3.up * 1.0f),
+                "hands" => (hands + t.forward * 0.75f + Vector3.up * 0.2f, hands),
+                "kit" => (t.position - t.forward * 2.2f - t.right * 1.6f + Vector3.up * 1.7f, t.position + t.forward * 0.4f + Vector3.up * 0.6f),
+                "kitl" => (t.position + t.forward * 2.6f + t.right * 0.4f + Vector3.up * 1.5f, t.position + t.forward * 0.3f + Vector3.up * 0.6f),
+                "kick" => (t.position + t.forward * 0.5f + t.right * 0.9f + Vector3.up * 0.18f, t.position + t.forward * 0.5f + Vector3.up * 0.12f),
+                "kickl" => (t.position + t.forward * 0.5f - t.right * 0.9f + Vector3.up * 0.18f, t.position + t.forward * 0.5f + Vector3.up * 0.12f),
+                "feet" => (t.position - t.forward * 0.9f + t.right * 0.5f + Vector3.up * 1.5f, t.position + t.forward * 0.35f + Vector3.up * 0.1f),
+                "above" => (t.position + t.forward * 1.3f + Vector3.up * 2.3f, t.position + t.forward * 0.35f + Vector3.up * 0.7f),
+                _ => (t.position + t.forward * 2.4f + Vector3.up * 1.35f, t.position + Vector3.up * 1.05f),
+            };
+            eye.transform.position = from;
+            eye.transform.rotation = Quaternion.LookRotation(at - from);
+            eye.fieldOfView = view == "hands" ? 45 : 40;
+        }
+
+        void Dress()
+        {
+            floor = GameObject.CreatePrimitive(PrimitiveType.Plane);
+            floor.name = "Floor";
+            Destroy(floor.GetComponent<Collider>());
+            floor.transform.SetParent(transform, false);
+            floor.transform.localScale = new Vector3(1.6f, 1f, 1.2f);
+            floor.transform.localPosition = new Vector3(0.5f, 0f, 1.5f);
+            var lit = Shader.Find("Universal Render Pipeline/Lit");
+            var boards = new Material(lit) { color = new Color(0.16f, 0.14f, 0.13f) };
+            boards.SetFloat("_Smoothness", 0.35f);
+            floor.GetComponent<Renderer>().sharedMaterial = boards;
+
+            Light Lamp(string name, Vector3 euler, float intensity, Color color, bool shadows)
+            {
+                var light = new GameObject(name).AddComponent<Light>();
+                light.transform.SetParent(transform, false);
+                light.type = LightType.Directional;
+                light.transform.rotation = Quaternion.Euler(euler);
+                light.intensity = intensity;
+                light.color = color;
+                light.shadows = shadows ? LightShadows.Soft : LightShadows.None;
+                return light;
+            }
+            Lamp("Key", new Vector3(38, 25, 0), 1.5f, new Color(1f, 0.95f, 0.88f), true);  // from the front left, above
+            Lamp("Fill", new Vector3(20, -60, 0), 0.45f, new Color(0.8f, 0.86f, 1f), false);
+            Lamp("Rim", new Vector3(30, 170, 0), 0.9f, new Color(1f, 0.85f, 0.7f), false);  // from behind the band
+            RenderSettings.ambientMode = AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(0.24f, 0.24f, 0.26f);
+        }
+    }
+}

@@ -18,7 +18,7 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.normpath(os.path.join(HERE, "..", ".."))
-ENGINE = os.path.join(REPO, "engine", "build", "Release", "gt_engine_artefacts", "Release", "GuitarTutor Engine.exe")
+ENGINE = os.path.join(REPO, "engine", "build", "Release", "gt_engine_artefacts", "Release", "YourBand Engine.exe")
 PORT = 47800
 
 BPM = 96

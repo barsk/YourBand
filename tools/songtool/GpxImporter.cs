@@ -7,11 +7,11 @@ using AlphaTab;
 using AlphaTab.Importer;
 using AlphaTab.Midi;
 using AlphaTab.Model;
-using GuitarTutor.Core.Import.UltimateGuitar;
-using GuitarTutor.Core.Music;
-using GuitarTutor.Core.Songs;
+using YourBand.Core.Import.UltimateGuitar;
+using YourBand.Core.Music;
+using YourBand.Core.Songs;
 
-namespace GuitarTutor.SongTool
+namespace YourBand.SongTool
 {
     /// <summary>
     /// Builds a song from a Guitar Pro file (.gpx, .gp, .gp3/.gp4/.gp5) with alphaTab.
@@ -404,7 +404,7 @@ namespace GuitarTutor.SongTool
                 var (index, text) = sectionBars[s];
                 var start = bars[index].Start / tpq;
                 var end = s + 1 < sectionBars.Count ? bars[sectionBars[s + 1].Index].Start / tpq : SongEnd();
-                song.Sections.Add(new GuitarTutor.Core.Songs.Section
+                song.Sections.Add(new YourBand.Core.Songs.Section
                 {
                     Name = text,
                     AtQuarter = start,
@@ -485,12 +485,12 @@ namespace GuitarTutor.SongTool
                         var name = $"{track.Name} " + (baseName.StartsWith("Intro", StringComparison.OrdinalIgnoreCase) ? "Intro" : "Solo");
                         var index = song.Sections.IndexOf(s);
                         song.Sections.RemoveAt(index);
-                        var pieces = new List<GuitarTutor.Core.Songs.Section>();
+                        var pieces = new List<YourBand.Core.Songs.Section>();
                         if (from > s.AtQuarter + 1e-6)
-                            pieces.Add(new GuitarTutor.Core.Songs.Section { Name = s.Name, AtQuarter = s.AtQuarter, Quarters = from - s.AtQuarter });
-                        pieces.Add(new GuitarTutor.Core.Songs.Section { Name = name, AtQuarter = from, Quarters = end - from });
+                            pieces.Add(new YourBand.Core.Songs.Section { Name = s.Name, AtQuarter = s.AtQuarter, Quarters = from - s.AtQuarter });
+                        pieces.Add(new YourBand.Core.Songs.Section { Name = name, AtQuarter = from, Quarters = end - from });
                         if (end < s.AtQuarter + s.Quarters - 1e-6)
-                            pieces.Add(new GuitarTutor.Core.Songs.Section { Name = baseName + " (cont.)", AtQuarter = end, Quarters = s.AtQuarter + s.Quarters - end });
+                            pieces.Add(new YourBand.Core.Songs.Section { Name = baseName + " (cont.)", AtQuarter = end, Quarters = s.AtQuarter + s.Quarters - end });
                         song.Sections.InsertRange(index, pieces);
                         from = end;
                     }

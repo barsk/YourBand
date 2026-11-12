@@ -2,7 +2,7 @@
 
 // The engine's window, the control panel: audio device settings, the TONE3000 windows, preset switching, the connection to the
 // game and what the band is doing, with live latency, CPU and footswitch readouts. Settings and tones are
-// remembered in %APPDATA%\GuitarTutor\GuitarTutor Engine.settings, next to a log (engine.log).
+// remembered in %APPDATA%\YourBand\YourBand Engine.settings, next to a log (engine.log).
 
 #include <juce_audio_utils/juce_audio_utils.h>
 

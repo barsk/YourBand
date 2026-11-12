@@ -1,4 +1,4 @@
-# GuitarTutor: game plan
+# YourBand: game plan
 
 Living document, started 2026-10-21. Decisions made so far are in the table below; the rest of the
 document explains how the pieces fit together.
@@ -299,10 +299,10 @@ to recordings.
 - 2026-10-21: E4 run (`experiments/e4-renderer/`, removed from the repository 2026-11-12: in its history): one guitarist at Quest 3 stereo resolution takes 1.5 ms in
   URP and 2.1-2.7 ms in HDRP; HDRP's skin looks clearly better; Unity keeps HDRP in maintenance mode and develops
   URP. Unity MCP server registered for Claude Code (`unity-editor-mcp`).
-- 2026-10-21: URP chosen. `game/` created (Unity 6.6, URP, agent package): `GuitarTutor.Core` assembly without
+- 2026-10-21: URP chosen. `game/` created (Unity 6.6, URP, agent package): `YourBand.Core` assembly without
   Unity references holding the tempo map and the layered song model with JSON files, and 13 passing EditMode
   tests (`game/run_tests.cmd`).
-- 2026-10-21: E3 done: Ultimate Guitar importer in `GuitarTutor.Core` (`Import/UltimateGuitar/`), command line
+- 2026-10-21: E3 done: Ultimate Guitar importer in `YourBand.Core` (`Import/UltimateGuitar/`), command line
   `tools/songtool`. Wicked Game from both pages: 133 bars, 4:45 against the album's ~4:49; the intro's guessed
   0:34 matches the tabs page's 0:00-0:34; all lyric lines matched, 25 riffs placed. 20 tests pass. Imported songs
   and saved pages live in `songs-local/` (not in git).

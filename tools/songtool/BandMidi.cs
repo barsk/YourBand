@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using GuitarTutor.Core.Band;
-using GuitarTutor.Core.Chart;
-using GuitarTutor.Core.Songs;
+using YourBand.Core.Band;
+using YourBand.Core.Chart;
+using YourBand.Core.Songs;
 
-namespace GuitarTutor.SongTool
+namespace YourBand.SongTool
 {
     /// <summary>
     /// The band guitarist's part as the engine sends it to Shreddage (strumming mode), written as a standard MIDI

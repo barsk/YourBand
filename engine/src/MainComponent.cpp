@@ -338,12 +338,36 @@ EngineOptions EngineOptions::fromCommandLine (const juce::StringArray& args)
     return o;
 }
 
+namespace
+{
+    /** The program was called GuitarTutor until 2026-11-12. Its settings folder (the engine's settings, every song's
+        sounds, the playstyle defaults, the log) is copied once to the new name, when there is no folder of that name
+        yet; the old one stays as it is (an older build keeps using it). True if it was copied. */
+    bool keepSettingsFromGuitarTutor()
+    {
+        const auto appData = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory);
+        const auto from = appData.getChildFile ("GuitarTutor"), to = appData.getChildFile ("YourBand");
+        if (! from.isDirectory() || to.exists())
+            return false;
+        if (! from.copyDirectoryTo (to))
+        {
+            to.deleteRecursively();  // (half a copy would be taken for the settings)
+            return false;
+        }
+        // the settings file was named after the program
+        if (const auto old = to.getChildFile ("GuitarTutor Engine.settings"); old.existsAsFile())
+            old.moveFileTo (to.getChildFile ("YourBand Engine.settings"));
+        return true;
+    }
+}
+
 MainComponent::MainComponent (const EngineOptions& startOptions)
     : options (startOptions)
 {
+    const auto copiedSettings = keepSettingsFromGuitarTutor();
     juce::PropertiesFile::Options fileOptions;
-    fileOptions.applicationName = "GuitarTutor Engine";
-    fileOptions.folderName = "GuitarTutor";
+    fileOptions.applicationName = "YourBand Engine";
+    fileOptions.folderName = "YourBand";
     fileOptions.filenameSuffix = ".settings";
     settings = std::make_unique<juce::PropertiesFile> (fileOptions);
     settings->getFile().getParentDirectory().createDirectory();
@@ -354,6 +378,8 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
     logView.setReadOnly (true);
     logView.setFont (juce::Font (juce::FontOptions (13.0f)));
     addAndMakeVisible (logView);
+    if (copiedSettings)
+        log ("Settings: copied from %APPDATA%\\GuitarTutor to %APPDATA%\\YourBand (the program's old name); the old folder is left as it was");
 
     // audio device
     auto saved = settings->getXmlValue ("devices");
@@ -615,7 +641,7 @@ void MainComponent::handle (const juce::var& message)
         answer->setProperty ("engine", JUCE_APPLICATION_NAME_STRING);
         answer->setProperty ("protocol", 1);
         answer->setProperty ("sampleRate", engine.latency().sampleRate);
-        answer->setProperty ("clock", "Local\\GuitarTutorClock");
+        answer->setProperty ("clock", "Local\\YourBandClock");
         game.send (juce::var (answer));
     }
     else if (type == "load")

@@ -12,7 +12,7 @@ namespace gt
 class SharedClock
 {
 public:
-    static constexpr const wchar_t* name = L"Local\\GuitarTutorClock";
+    static constexpr const wchar_t* name = L"Local\\YourBandClock";
 
     SharedClock();
     ~SharedClock();

@@ -10,12 +10,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using GuitarTutor.Core.Band;
-using GuitarTutor.Core.Chart;
-using GuitarTutor.Core.Import.UltimateGuitar;
-using GuitarTutor.Core.Songs;
+using YourBand.Core.Band;
+using YourBand.Core.Chart;
+using YourBand.Core.Import.UltimateGuitar;
+using YourBand.Core.Songs;
 
-namespace GuitarTutor.SongTool
+namespace YourBand.SongTool
 {
     static class Program
     {

@@ -9,7 +9,7 @@
   playing geometry as JSON for each.
 
 The sources are downloads listed in CREDITS.md; this only copies and converts them. Then open the game
-project (or run build_desktop.cmd): GuitarTutor > Set up band (BandSetup) makes the musicians from them.
+project (or run build_desktop.cmd): YourBand > Set up band (BandSetup) makes the musicians from them.
 """
 import os
 import shutil

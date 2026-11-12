@@ -39,7 +39,7 @@ def main():
     dictionary = cv2.aruco.getPredefinedDictionary(ARUCO_DICT)
     page = Image.new("L", (mm(A4_MM[0]), mm(A4_MM[1])), 255)
     draw = ImageDraw.Draw(page)
-    draw.text((mm(20), mm(15)), "GuitarTutor – ArUco-markörer (DICT_4X4_50)", font=font(6), fill=0)
+    draw.text((mm(20), mm(15)), "YourBand – ArUco-markörer (DICT_4X4_50)", font=font(6), fill=0)
     draw.text((mm(20), mm(25)), "Skriv ut i 100 % / verklig storlek. Linjen nedan ska vara exakt 50 mm.",
               font=font(4), fill=0)
     draw.line((mm(20), mm(33), mm(70), mm(33)), fill=0, width=mm(0.5))
