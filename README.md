@@ -53,7 +53,7 @@ amp plugin (e.g. TONE3000) in the same program, so you hear yourself and the ban
 - Windows 10 or 11, 64-bit.
 - If using the internal amp plugin (TONE3000), an audio interface with an **ASIO** driver is strongly recommended: the author measured a 7.8 ms round trip with a Focusrite Scarlett Solo at 48 kHz and a 64-sample buffer.<br> 
 Windows audio works perfectly well if you don't need the amp plugin, for playing along to the band with an acoustic guitar or with an external amp.
-- For (optional) VR: a Quest 3 and [Virtual Desktop](https://www.vrdesktop.net). VD is needed for the mixed reality passthrough feature making the chroma-key magenta VR backdrop color fully transparent and creating the mixed reality feature with the band appearing in your room. VD is the only component that is not free in this setup. There are other beta 
+- For (optional) VR: a Quest 3 and [Virtual Desktop](https://www.vrdesktop.net). VD is needed for the mixed reality passthrough feature making the chroma-key magenta VR backdrop color fully transparent and creating the mixed reality feature with the band appearing in your room. VD is the only component that is not free in this setup, but very well worth its cost if you do PCVR IMHO. There are other solutions mentioned for mixed VR passthrough for SteamVR and OpenXR if you google them, but none tested here. 
 - Free accounts are needed to setup to download some of the free plugins.
 - A guitar (or any other instrument you want to practice with).
 
@@ -218,7 +218,7 @@ game\run_tests.cmd                   # the EditMode tests
 tools\make_release.cmd -Build
 ```
 
-The **3D musicians are not in the repository**: they have their own licences and are big (Microsoft Rocketbox
+The **3D musician models are not in the repository**: they have their own licences and are big (Microsoft Rocketbox
 avatars, Mixamo animations, instrument models). The game loads them from the optional *band pack*
 (`Band\band.bundle` next to the game). To see the band in a build from source, download the pack from
 [Releases](https://github.com/barsk/YourBand/releases) and unzip it into `game\Builds\Desktop` (or `game\` for the
