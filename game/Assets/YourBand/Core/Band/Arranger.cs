@@ -734,8 +734,9 @@ namespace YourBand.Core.Band
         /// <summary>
         /// A strum of a track's: down or up as the file records it (else down on the beat and up off it, as the importer's
         /// strumming has it), muted where the strings are dead or palm-muted, and as hard as the made-up part strums
-        /// (Shreddage takes a strum's velocity as its speed and loudness), shifted a little by the file's dynamics: the
-        /// file's own velocities (p 47, mp 63) are slow, faint strums.
+        /// (sent as the strum key's velocity: in the saved Shreddage sound it sets how fast the strum sweeps the
+        /// strings, up to about 96, and, less, how loud it is: docs/shreddage-keyswitches.md, "What a stroke's velocity
+        /// does"), shifted a little by the file's dynamics: the file's own velocities (p 47, mp 63) are slow, faint strums.
         /// </summary>
         static (bool Down, int Velocity, bool Muted) StrumOf(SongChart chart, List<TrackNote> strum, Dictionary<int, HashSet<int>> slots)
         {

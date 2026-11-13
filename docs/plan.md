@@ -40,6 +40,8 @@ It is for personal use first and may be published later, so licences are kept cl
 
 ## Architecture
 
+(How the code is built today: [architecture.md](architecture.md). This section is the plan.)
+
 Two programs on the PC, talking over a local connection:
 
 | Audio engine (C++) | Game client (Unity, C#) |

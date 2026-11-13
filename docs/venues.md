@@ -1,4 +1,6 @@
 # Venues (desktop mode)
+> [!Note]
+> The feature documented here resembles an early planned feature, that is not in the current release, and may never be. Kept here as a references document.
 
 Venues exist only in desktop mode; VR shows your real room. A venue is a Unity scene plus a definition:
 station spots, your spot, camera shots, lighting, acoustics and ambience. See [plan.md](plan.md).

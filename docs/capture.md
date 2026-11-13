@@ -1,4 +1,7 @@
 # Hand capture from video
+> [!Note]
+> The feature documented here resembles an early planned feature, that is not in the current release, and may never be. Kept here as a references document.
+
 
 An early experiment for the teacher avatar of the plan's "Later" list ([plan.md](plan.md)): how well can the hands
 of a guitarist be extracted from ordinary phone video, as a cheaper alternative to motion capture? The scripts are

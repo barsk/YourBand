@@ -2,7 +2,8 @@
 
 The game client: Unity 6.6 (6000.6.7f1) with URP, decided in experiment E4 (2026-10-21: see docs/plan.md; the
 experiments are no longer in the repository, only in its history). See
-[../docs/plan.md](../docs/plan.md) for the whole design; the audio engine is a separate program in
+[../docs/plan.md](../docs/plan.md) for the whole design, [../docs/architecture.md](../docs/architecture.md) for how it is built and
+[../docs/band-arrangement.md](../docs/band-arrangement.md) for how the band's parts are made; the audio engine is a separate program in
 [../engine](../engine).
 
 ## Structure

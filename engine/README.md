@@ -1,6 +1,6 @@
 # YourBand audio engine
 
-The C++ audio engine (see [../docs/plan.md](../docs/plan.md)). It owns the audio interface, hosts the TONE3000
+The C++ audio engine (see [../docs/plan.md](../docs/plan.md); how it is built: [../docs/architecture.md](../docs/architecture.md); how it drives Shreddage: [../docs/shreddage-keyswitches.md](../docs/shreddage-keyswitches.md)). It owns the audio interface, hosts the TONE3000
 plugin for your guitar and the band guitarist's, plays the band, and will grow the listener and the recorder.
 
 What it does now:
@@ -205,7 +205,7 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   active strum early, as a hand moving to the new chord would (a clean stroke rings about 1.1 s to -25 dB).
   A muted stroke adds the Mute keyswitch C6 around the strum (a few samples before it, let go 40 ms after):
   a fast chug (about 0.5 s to -25 dB) (C#6 would choke it; the song model has no choke yet). It needs the strumming-mode setup in the Shreddage
-  window (Strumming Mode off + Keyswitchable on, so F#5 switches the mode; Strum Speed/Volume from velocity)
+  window (Strumming Mode off + Keyswitchable on, so F#5 switches the mode)
   and the TACT Mute articulation left off (an enabled Mute damps every strum). The strum's pick lands about 13-20 ms after its
   keyswitch (its chord body builds for another 100 ms or so, as a strummed guitar's does), so the band sends
   Kontakt its guitar 20 ms early and the pick lands just after the beat (`bandGuitarAdvanceMs` in the
@@ -317,7 +317,10 @@ from 24 to 96 on its own and lists the ones that sound, how loud, how much of ea
 the pitch it sounds at: a drum kit's note layout, or an instrument's range and octave.
 `--sweep-test` (with `--state`) strums a G chord in Shreddage's strumming mode, `--n` strokes `--gap` beats apart
 (`--dirs dduu`, `--keys` hold lengths in ms, `--vels` velocities): each stroke's peak, RMS and time to its peak. Measured
-2026-10-30 on the band guitar's sound: down-strums at velocity 40 to 127 differ by under 2 dB, and not steadily.
+2026-10-30 on the band guitar's sound: down-strums at velocity 40 to 127 differ by under 2 dB, and not steadily. Measured
+2026-11-13 (`tools/sounds_state.py` for the saved sound, `tools/sweep_analyse.py` for the recording): the velocity sets the strum's
+speed (the time to half the peak: 136 ms at velocity 20, 95 at 40, 59 at 64, 42 at 96, 40 at 127) and, less, its level (RMS
+-13.0 dB at 20, -12.3 at 40, -10.8 at 64 and 96, -8.9 at 127); docs/shreddage-keyswitches.md, "What a stroke's velocity does".
 `--voicing 50,57,62` holds another chord, `--press 90,91` presses those keys instead of strums (the string keys), and `--at 5,5.02` gives each its own beat;
 with them the string keys were measured (above), and that a Shreddage state short of voices drops the oldest note, the
 ringing bass, when several strings are picked at once (Kontakt's instrument voice limit).
