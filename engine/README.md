@@ -81,6 +81,12 @@ build of it, `dotnet build tools/songtool -c Release`) and shows what it prints 
 from their URLs in memory and the URLs go into the song's sources. When the song is written to `songs-local` the engine
 sends the game `importedSong`, which reads its song list again and opens the new song, and the list here follows.
 
+**Delete song...**, to the right of Import new..., deletes the open song, after a confirmation ("Delete" or "Cancel"). Its song
+file, its band file (`<song>.band.json`) and its saved sounds (`%APPDATA%\YourBand\songs\<song>.sounds`) go to the Recycle Bin,
+so they can be got back; the Guitar Pro file or pages it was imported from are not touched. The engine moves the sounds and
+sends the game `deleteSong`, which moves its two files, reads its list again and opens the next song (`schema/engine-protocol.md`).
+The button is off for the game's demo song and while the game is not connected.
+
 Below, a row per band instrument: **Rhythm guitar**, **Bass**, **Keyboards**, **Drums**, **Lead guitar** and
 **Instrument 1** (docs/instrument-tracks.md). Each row's first list is the song's track the instrument plays, from the
 game (`tracks`): "Band playstyle", the part the band makes up in its playstyle (the lead guitar and instrument 1 have

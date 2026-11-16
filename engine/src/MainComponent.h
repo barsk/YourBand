@@ -72,6 +72,11 @@ private:
     void selectPreset (int index);
     /** The import window (made the first time), and a song it has written: the game is asked to open it. */
     void showImport();
+    /** Enabled for a song the game can delete: the game is connected and the open song is one of its files, not its demo. */
+    void updateDeleteButton();
+    void confirmDeleteSong();
+    /** Moves the song's sounds to the Recycle Bin and asks the game to do the same with its song file and band file. */
+    void deleteSong (int index, const juce::String& name);
     void songImported (const juce::File& song);
     void handle (const juce::var& message);
     void sendCommand (const juce::String& command);
@@ -89,6 +94,7 @@ private:
     juce::ComboBox styleBox;  // the game's band playstyles, the one playing; choosing one asks the game to play it
     juce::ComboBox songBox, inputBox, presetBox;  // songBox: the game's songs, the one open; choosing one asks the game to open it
     juce::TextButton importButton { "Import new..." };  // next to the song list: opens the import window
+    juce::TextButton deleteButton { "Delete song..." };  // and next to that: deletes the open song, once you confirm
     std::unique_ptr<ImportWindow> importWindow;
     juce::TextButton guitarButton { "Guitar tone..." };
     struct BandChoice { juce::File file; juce::String name; bool silentUntilChosen; float level; bool added; };

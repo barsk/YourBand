@@ -410,6 +410,9 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
     };
     addAndMakeVisible (importButton);
     importButton.onClick = [this] { showImport(); };
+    addAndMakeVisible (deleteButton);
+    deleteButton.setEnabled (false);
+    deleteButton.onClick = [this] { confirmDeleteSong(); };
     // the band's playstyle (the game's): choosing one asks the game to play the song in it
     addAndMakeVisible (styleLabel);
     addAndMakeVisible (styleBox);
@@ -540,6 +543,7 @@ MainComponent::MainComponent (const EngineOptions& startOptions)
         {
             engine.band().pause();
             songBox.setEnabled (false);  // (its list is the game's)
+            deleteButton.setEnabled (false);
             styleBox.setEnabled (false);  // (and so are the playstyles)
             showTracks ({});             // (and so are the tracks)
         }
@@ -745,6 +749,7 @@ void MainComponent::handle (const juce::var& message)
                 songBox.addItem ((*names)[i].toString(), i + 1);
         songBox.setSelectedId ((int) message["current"] + 1, juce::dontSendNotification);
         songBox.setEnabled (songBox.getNumItems() > 0);
+        updateDeleteButton();
     }
     else if (type == "window")
     {
@@ -1241,6 +1246,54 @@ void MainComponent::keepPlaystyleSound (const InstrumentRow& row, const juce::St
     appliedStates[row.slot] = engine.pluginState (row.slot);
     saveSongSounds();
     log (row.label.getText() + ": " + describe (sound, playsOnlyOnPlugin (row.slot)) + " kept for " + currentSong + ", " + style);
+}
+
+void MainComponent::updateDeleteButton()
+{
+    // the game's own demo song is not a file: nothing to delete
+    deleteButton.setEnabled (game.isConnected() && songBox.getSelectedId() > 0 && songBox.getText() != "Demo song");
+}
+
+void MainComponent::confirmDeleteSong()
+{
+    const auto name = songBox.getText();
+    const auto index = songBox.getSelectedId() - 1;
+    if (index < 0 || name.isEmpty() || name == "Demo song")
+        return;
+    juce::AlertWindow::showAsync (juce::MessageBoxOptions()
+                                      .withIconType (juce::MessageBoxIconType::WarningIcon)
+                                      .withTitle ("Delete song")
+                                      .withMessage ("Delete \"" + name + "\"?\n\nIts song file, its band file (which track each instrument plays) and its saved sounds "
+                                                    "are moved to the Recycle Bin. The Guitar Pro file or pages it was imported from are not touched.")
+                                      .withButton ("Delete")
+                                      .withButton ("Cancel")
+                                      .withAssociatedComponent (this),
+                                  [this, name, index] (int result) { if (result == 1) deleteSong (index, name); });
+}
+
+void MainComponent::deleteSong (int index, const juce::String& name)
+{
+    if (! game.isConnected())
+        return;
+    if (! engine.isSilent())
+    {
+        // this song's sounds, and no further saving to them: the engine keeps writing a song's sounds under the name it
+        // has open until the game opens another, and that would bring the file back
+        const auto file = sounds->songFile (name);
+        if (file.existsAsFile() && ! file.moveToTrash())
+            log ("Could not move " + file.getFullPathName() + " to the Recycle Bin");
+        if (currentSong == name)
+        {
+            currentSong = {};
+            songSounds = {};
+        }
+    }
+    log ("Delete song: " + name);
+    auto* message = new juce::DynamicObject();
+    message->setProperty ("type", "deleteSong");
+    message->setProperty ("index", index);
+    message->setProperty ("name", name);
+    game.send (juce::var (message));
 }
 
 void MainComponent::saveSongSounds()
@@ -1753,6 +1806,7 @@ void MainComponent::resized()
     songLabel.setBounds (row.removeFromLeft (100));
     songBox.setBounds (row.removeFromLeft (260));
     importButton.setBounds (row.removeFromLeft (140).reduced (6, 0));
+    deleteButton.setBounds (row.removeFromLeft (130).reduced (6, 0));
     r.removeFromTop (6);
 
     // your guitar: its input, its tone, the tone's presets

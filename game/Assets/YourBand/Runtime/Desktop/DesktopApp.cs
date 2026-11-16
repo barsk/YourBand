@@ -211,14 +211,68 @@ namespace YourBand.Runtime.Desktop
                 Debug.LogWarning("YourBand: the control panel imported a song that is not in songs-local, not opening it: " + path);
                 return;
             }
+            ReadSongList();
+            var index = songs.FindIndex(s => s != null && string.Equals(Path.GetFullPath(s), full, StringComparison.OrdinalIgnoreCase));
+            if (index >= 0)
+                Load(index);
+        }
+
+        /// <summary>The song list again: the song on the command line, the files in songs-local, and the demo song (null) last.</summary>
+        void ReadSongList()
+        {
             songs.Clear();
             if (requestedSong != null)
                 songs.Add(requestedSong);
             songs.AddRange(SongLibrary.Files());
             songs.Add(null);
-            var index = songs.FindIndex(s => s != null && string.Equals(Path.GetFullPath(s), full, StringComparison.OrdinalIgnoreCase));
-            if (index >= 0)
-                Load(index);
+        }
+
+        /// <summary>
+        /// A song the control panel asks to delete (after its confirmation): its song file and its band file go to the Recycle
+        /// Bin, so it can be got back. Only a song file in songs-local, the one the list shows under that name, is deleted. The list
+        /// is read again; the song after the deleted one opens if it was the open song (the demo song when none is left).
+        /// </summary>
+        void DeleteSong(int index, string name)
+        {
+            string full = null;
+            try
+            {
+                full = index >= 0 && index < songs.Count && songs[index] != null ? Path.GetFullPath(songs[index]) : null;
+            }
+            catch (Exception)
+            {
+            }
+            var folder = SongLibrary.LocalFolder();
+            if (folder == null || full == null || !full.EndsWith(".song.json", StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(Path.GetDirectoryName(full), Path.GetFullPath(folder), StringComparison.OrdinalIgnoreCase)
+                || SongName(full) != name)
+            {
+                Debug.LogWarning($"YourBand: not deleting '{name}': it is not a song file in songs-local (or the list has changed)");
+                if (engineConnected)
+                    SendSongList();  // (the engine's list may be out of date)
+                return;
+            }
+            var wasOpen = index == songIndex;
+            var open = songPath;
+            if (!RecycleBin.Move(full, BandConnections.PathFor(full)))
+            {
+                Debug.LogWarning($"YourBand: could not move '{name}' to the Recycle Bin");
+                if (engineConnected)
+                    SendSongList();
+                return;
+            }
+            Debug.Log($"YourBand: deleted {name} (to the Recycle Bin)");
+            if (requestedSong != null && string.Equals(Path.GetFullPath(requestedSong), full, StringComparison.OrdinalIgnoreCase))
+                requestedSong = null;
+            ReadSongList();
+            if (wasOpen)
+                Load(Math.Min(index, songs.Count - 1));  // (the one that came after it, or the demo song)
+            else
+            {
+                songIndex = Math.Max(0, songs.FindIndex(s => s == null ? open == null : open != null && string.Equals(Path.GetFullPath(s), Path.GetFullPath(open), StringComparison.OrdinalIgnoreCase)));
+                if (engineConnected)
+                    SendSongList();
+            }
         }
 
         void Load(int index)
@@ -475,6 +529,8 @@ namespace YourBand.Runtime.Desktop
             }
             else if (type == "importedSong")
                 OpenImported((string)message["path"]);
+            else if (type == "deleteSong")
+                DeleteSong((int?)message["index"] ?? -1, (string)message["name"]);
             else if (type == "connect")
                 Connect((string)message["instrument"], (int?)message["track"] ?? -1);
             else if (type == "style")

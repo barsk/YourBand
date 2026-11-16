@@ -45,6 +45,7 @@ the message set settles.
 | `openSong` | `index` | The song chosen in the control panel's song list: an index into the game's last `songs` |
 | `style` | `name` | The band playstyle chosen in the control panel ("Ballad", one of `load`'s `styles`): the game arranges the band in it (`tracks`, `load`) |
 | `importedSong` | `path` | The control panel's import window has written this song file (in the game's songs-local folder): the game reads its song list again, sends `songs`, and opens it |
+| `deleteSong` | `index`, `name` | The control panel's **Delete song...** button, after its confirmation: the song at `index` of the last `songs`, whose name is `name` (a check that the list has not changed). The game moves the song file and its band file to the Recycle Bin (only a song file in songs-local; anything else is refused and the list is sent again), reads its list again, opens the song after it if it was the open one (the demo song when none is left), and sends `songs`. The engine moves the song's sounds file to the Recycle Bin itself, before it sends this. The game's demo song cannot be deleted: the button is off for it |
 
 ## Clock (shared memory, 64 bytes, little-endian)
 

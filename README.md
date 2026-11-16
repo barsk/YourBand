@@ -154,7 +154,8 @@ Every instrument has a sound for each playstyle (Ballad, Rock, Pop). Set them on
 ### 6. Add a song and play
 
 - **Import new...** in the control panel takes a Guitar Pro file (and, optionally, an Ultimate Guitar chords page
-  for its strumming), turns it into a song and opens it. `L` steps through your songs.
+  for its strumming), turns it into a song and opens it. `L` steps through your songs. **Delete song...**, to its right, deletes the
+  open song after you confirm: its files go to the Recycle Bin, so you can get them back.
 - Songs are not included: import your own. They stay on your computer in `songs-local\` and are never uploaded.
 
 > The Ultimate Guitar import reads pages you give the URL for. Their terms do not allow automated scraping and the lyrics are licensed content, so use it for your own practice and see [docs/plan.md](docs/plan.md#legal).

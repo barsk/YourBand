@@ -315,7 +315,7 @@ Full definitions are in [schema/engine-protocol.md](../schema/engine-protocol.md
 | Direction | Messages |
 |---|---|
 | Game to engine | `hello`, `load` (the song's tempo map and the band's parts), `tracks`, `stage`, `play`, `pause`, `seek`, `speed`, `window`, `mix`, `songs`, `bandBass`, `quit` |
-| Engine to game | `hello`, `loaded`, `command` (footswitch), `connect` (a track chosen in the control panel), `style`, `openSong`, `importedSong` |
+| Engine to game | `hello`, `loaded`, `command` (footswitch), `connect` (a track chosen in the control panel), `style`, `openSong`, `importedSong`, `deleteSong` |
 
 ### 5.1 The clock and what is heard
 
@@ -355,6 +355,9 @@ Until `loaded` arrives the game runs on its own wall clock, so a song can be loo
 
 - **Choosing a track** for an instrument in the control panel: the engine sends `connect`; the game stores the choice in
   `<song>.band.json`, arranges the band again, and sends `tracks` and `load`.
+- **Deleting a song**: the control panel's **Delete song...** asks first; then the engine moves the song's sounds file to the Recycle
+  Bin and sends `deleteSong`, and the game moves the song file and the band file there too, reads its list again, opens the next
+  song and sends `songs`. Both programs use the Recycle Bin, so nothing is lost for good.
 - **Choosing a playstyle**: the engine sends `style`; the game arranges in that style and sends `tracks` and `load`.
 - **Startup**: the game looks for a running engine; if there is none it starts `Engine\YourBand Engine.exe` hidden with
   `--parent <its process id>`, and the engine's `ParentWatch` closes it when the game is gone, even if the game crashes. An
