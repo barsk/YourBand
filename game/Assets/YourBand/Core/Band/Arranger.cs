@@ -694,9 +694,10 @@ namespace YourBand.Core.Band
                 var chord = Chord.Parse(span.Name);
                 var voicing = song.VoicingFor(span);
                 var frets = voicing != null && voicing.Frets.Count == 6 ? voicing.Frets : GuitarShape(chord);
-                for (int s = 0; s < 6; ++s)
-                    if (frets[s] >= 0)
-                        arrangement.Voicings.Add(new VoicingNote(open[s] + frets[s], span.AtQuarter, span.Quarters));
+                // what Shreddage can voice: a chord in another tuning is moved to one a standard-tuned guitar can finger
+                var held = Enumerable.Range(0, 6).Where(s => frets[s] >= 0).Select(s => open[s] + frets[s]).ToList();
+                foreach (var pitch in GuitarVoicing.Voice(held).Values.Distinct().OrderBy(p => p))
+                    arrangement.Voicings.Add(new VoicingNote(pitch, span.AtQuarter, span.Quarters));
             }
             // each string rings until it is struck again, or the chord ends
             foreach (var onString in strikes.GroupBy(s => s.str))
@@ -853,9 +854,13 @@ namespace YourBand.Core.Band
                 if (h >= 0 && onset[0].AtQuarter < held[h].To - 1e-6)
                     heldOf[onset] = h;
             }
-            foreach (var (from, to, strings) in held)
-                foreach (var pitch in strings.Values.Distinct())
-                    arrangement.Voicings.Add(new VoicingNote(pitch, from, Math.Max(0.05, to - from)));
+            // what Shreddage can voice: a held chord that a standard-tuned guitar cannot finger (a song in DGCFAD has many) is
+            // not voiced at all and every string key is then silent, so its notes are moved an octave as needed (GuitarVoicing);
+            // the string keys count the notes of the chord as it is voiced
+            var voiced = held.Select(h => GuitarVoicing.Voice(h.Strings.Values)).ToList();
+            for (int i = 0; i < held.Count; ++i)
+                foreach (var pitch in voiced[i].Values.Distinct().OrderBy(p => p))
+                    arrangement.Voicings.Add(new VoicingNote(pitch, held[i].From, Math.Max(0.05, held[i].To - held[i].From)));
 
             // the strings struck, one by one
             var strikes = new List<(double At, int Str, int Pitch, int Rank, int Velocity, bool Muted, int Held, TrackNote Note)>();
@@ -873,7 +878,7 @@ namespace YourBand.Core.Band
                 if (!heldOf.TryGetValue(onset, out var h))
                     continue;
                 var strings = held[h].Strings;
-                var pitches = strings.Values.Distinct().OrderBy(p => p).ToList();
+                var pitches = voiced[h].Values.Distinct().OrderBy(p => p).ToList();  // (the chord as the plugin gets it)
                 var deadOnly = sounding[onset].Count == 0;
                 var struck = (deadOnly ? onset : sounding[onset]).Where(n => strings.ContainsKey(StringOf(n))).OrderBy(StringOf).ToList();
                 if (struck.Count == 0)
@@ -885,7 +890,8 @@ namespace YourBand.Core.Band
                 for (int k = 0; k < order.Count; ++k)
                 {
                     var pitch = strings[StringOf(order[k])];  // (a dead string's: the chord's, muted)
-                    strikes.Add((at + k * perString, StringOf(order[k]), pitch, pitches.IndexOf(pitch), velocity, muted, h, order[k]));
+                    strikes.Add((at + k * perString, StringOf(order[k]), pitch, voiced[h].TryGetValue(pitch, out var voicedPitch) ? pitches.IndexOf(voicedPitch) : -1,
+                                 velocity, muted, h, order[k]));
                 }
             }
 
@@ -925,6 +931,19 @@ namespace YourBand.Core.Band
                     velocities[list[k]] = Math.Max(1, Math.Min(127, velocity));
                 }
             }
+            // strings that share a key (two notes of the chord moved onto one pitch to be voiceable): one key, so a strike
+            // lets go of the other string's, not press the key again over it (struck together they are one press, below)
+            for (int i = 0; i < strikes.Count; ++i)
+            {
+                if (strikes[i].Rank < 0)
+                    continue;
+                var gap = RestrikeGap * song.Tempo.BpmAt(strikes[i].At) / 60.0;
+                for (int j = 0; j < strikes.Count; ++j)
+                    if (j != i && strikes[j].Rank == strikes[i].Rank && strikes[j].Held == strikes[i].Held && strikes[j].Str != strikes[i].Str
+                        && strikes[j].At > strikes[i].At + SameKeyTogether && strikes[j].At < strikes[i].At + lengths[i] + gap)
+                        lengths[i] = Math.Max(0.05, strikes[j].At - gap - strikes[i].At);
+            }
+
             // a bent or sliding note: the strings ringing as it is struck let go then, so the wheel bends it alone
             for (int b = 0; b < strikes.Count; ++b)
             {
@@ -941,12 +960,17 @@ namespace YourBand.Core.Band
             // the ones above, whose notes only the guitars that play notes play (C7 and up are keyswitches)
             const int stringKeys = 6;
             var played = new List<Played>();
+            var lastPress = new Dictionary<(int Held, int Rank), double>();
             for (int i = 0; i < strikes.Count; ++i)
             {
                 var s = strikes[i];
                 var n = s.Note;
                 var (at, length, velocity) = (s.At, lengths[i], velocities[i]);
-                var keyed = s.Rank < stringKeys;
+                var keyed = s.Rank >= 0 && s.Rank < stringKeys;  // (a note no string of the voiced chord has is not picked)
+                if (keyed && lastPress.TryGetValue((s.Held, s.Rank), out var pressed) && at - pressed <= SameKeyTogether)
+                    keyed = false;  // (the same key pressed by two strings together: once)
+                else if (keyed)
+                    lastPress[(s.Held, s.Rank)] = at;
                 if (n.Technique.Contains('m'))
                 {
                     arrangement.Controls.Add(new ControlPoint(BandPart.Guitar, at, PalmMuteController, 127));
@@ -983,6 +1007,9 @@ namespace YourBand.Core.Band
         /// struck again so soon is choked, Band.cpp's retrigger gap), so the string rings nearly up to its next note.
         /// </summary>
         const double RestrikeGap = 0.01;
+
+        /// <summary>Strikes of one key this close (quarter notes) are one press of it: two strings moved onto one pitch of a voiced chord.</summary>
+        const double SameKeyTogether = 0.05;
 
         /// <summary>
         /// A guitar note's velocity from the file's (its dynamics: ppp 15 to fff 127), in the range the guitarist's

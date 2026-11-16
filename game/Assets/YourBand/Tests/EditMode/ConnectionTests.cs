@@ -325,6 +325,43 @@ namespace YourBand.Core.Tests
         }
 
         [Test]
+        public void TheRhythmGuitarsTrack_InAnotherTuning_HoldsChordsShreddageCanVoice()
+        {
+            // Black Hole Sun is in DGCFAD: its G7 has F2 and G2, which only the low E string of a standard-tuned guitar reaches, and
+            // Shreddage voices no chord of the kind (every string key silent: measured with plugin_probe)
+            var song = GuitarProSong();
+            song.Chords.Clear();
+            song.Chords.Add(new ChordEvent { Name = "G7", AtQuarter = 0, Quarters = 4 });
+            var rhythm = song.Tracks[3];
+            rhythm.Notes.Clear();
+            var open = new[] { 38, 43, 48, 53, 57, 62 };
+            void Play(double at, params (int str, int fret)[] strings)
+            {
+                foreach (var (s, f) in strings)
+                    rhythm.Notes.Add(new TrackNote { AtQuarter = at, Quarters = 0.25, Pitch = open[s] + f, StringIndex = s, Fret = f, Velocity = 79 });
+            }
+            Play(0, (0, 3), (1, 0));  // F2 and G2 together
+            Play(0.5, (3, 2), (4, 2), (5, 0));
+            Play(1, (0, 3), (3, 2));
+            Play(1.5, (1, 0), (4, 2), (5, 0));
+            var connections = new BandConnections();
+            connections.Choose(Instrument.RhythmGuitar, TrackRef.Of(rhythm));
+            var a = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"), connections);
+
+            Assert.Greater(a.Voicings.Count, 0);
+            foreach (var chord in a.Voicings.GroupBy(v => (v.AtQuarter, v.Quarters)))
+            {
+                var notes = chord.Select(v => v.Pitch).Distinct().ToList();
+                Assert.IsTrue(GuitarVoicing.CanVoice(notes), "the chord at " + chord.Key.AtQuarter + ": " + string.Join(" ", notes.OrderBy(p => p)));
+                // the string keys count the notes of the chord as it is held
+                foreach (var pick in a.Picks.Where(p => p.AtQuarter >= chord.Key.AtQuarter - 1e-6 && p.AtQuarter < chord.Key.AtQuarter + chord.Key.Quarters - 1e-6))
+                    Assert.Less(pick.Rank, notes.Count);
+            }
+            Assert.Greater(a.Picks.Count, 5);  // the notes are still played
+            Assert.AreEqual(0, a.Strokes.Count);
+        }
+
+        [Test]
         public void TheRhythmGuitarsTrack_StrumsStringByString_WithItsTechniques()
         {
             var song = GuitarProSong();

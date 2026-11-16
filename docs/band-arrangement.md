@@ -107,7 +107,7 @@ if the song has none), and for each stroke that is not a rest:
 2. The stroke crosses the strings as a hand does: **down** low to high over all played strings, **up** high to low over
    the top four strings (string index 2 and above, when at least two of them are played). A string takes 12 ms after the one
    before on a downstroke and 9 ms on an upstroke.
-3. **Velocity** (the strum's speed and, less, its loudness on Shreddage: [shreddage-keyswitches.md](shreddage-keyswitches.md#54-what-a-strokes-velocity-does); before the 5-step humanising): muted 64; accented down 116, accented up 104; up 72; a down on the beat 96,
+3. **Velocity** (the strum's speed and, less, its loudness on Shreddage: [shreddage-keyswitches.md](shreddage-keyswitches.md#55-what-a-strokes-velocity-does); before the 5-step humanising): muted 64; accented down 116, accented up 104; up 72; a down on the beat 96,
    off the beat 84.
 4. It adds a `BandStroke` (for a strum-capable guitar), and one `BandNote` per string struck with its fret on the open string
    (for the built-in guitar and every other plugin).
@@ -170,14 +170,18 @@ under it in Redbud Tree.) The algorithm, in `TrackRhythm`:
 2. **Held chords.** The stretches a chord is held for are the chart's chord spans. In each, the pitch a string is struck at
    most often is that string's held pitch. A chord that continues the one before without changing any string's pitch is that
    chord held on (the strings ring through the change). A note off its string's held pitch starts a new held chord from there.
-3. **`Voicings`** get every distinct pitch of every held chord.
+3. **`Voicings`** get the notes of every held chord **as Shreddage can voice it** (`GuitarVoicing`: it fingers the held notes on a
+   guitar in standard tuning, and a chord it cannot finger, such as two notes only the low E string reaches, is silent: a song in
+   another tuning has many; [shreddage-keyswitches.md](shreddage-keyswitches.md#53-which-chords-shreddage-can-voice)). A chord that
+   cannot be fingered has as few notes moved an octave as makes it so.
 4. **Strikes.** Each onset becomes one strike per note, in the order a hand crosses the strings: down low to high, up high
    to low (the file's pick stroke `D` or `U` if it records one, else down on the beat and up off it, as `StrumOf` works it out); the strokes' spread is 12 ms per string down and 9 ms up. An
    onset of two or more notes is a **strum**: its direction and velocity come from `StrumOf` (the file's pick stroke, else
    down on the beat and up off it, with the importer's own slot rule; as hard as the made-up strumming, shifted by the file's
    dynamics). A single note's velocity is `64 + (fileVelocity - 15) / 2`, the range a plugin guitar plays in (a plugin
    guitar is faint and choked at the file's soft velocities).
-5. **Rank.** A strike's *rank* is the place of its pitch among the distinct pitches of the held chord, lowest first. That
+5. **Rank.** A strike's *rank* is the place of its pitch among the distinct pitches of the held chord as voiced, lowest first (a
+   note left out has none and is not picked; strings moved onto one pitch share a key). That
    is the number of the string key that will pick it ([shreddage-keyswitches.md](shreddage-keyswitches.md#6-picking-a-tracks-notes)).
 6. **Length.** A strike rings until the same string is struck again (less 0.01 s, `RestrikeGap`), or until 70 ms before its
    held chord ends, or 4 quarters, whichever is first. Muted strikes ring 0.08 quarters at most.

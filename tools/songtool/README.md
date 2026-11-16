@@ -13,6 +13,10 @@ tools/songtool/bin/Release/net8.0/songtool.exe show <song.json> [--bars 1-16]
 tools/songtool/bin/Release/net8.0/songtool.exe band-midi <song.json> [--bars 1-16] [--rhythm default|track] [-o <file.mid>]
 ```
 
+`engine-messages <song.json> [--style Ballad|Rock|Pop] [-o <file.jsonl>]` writes the messages the game sends the engine when it
+opens the song (`tracks`, then `load`: the band as the song's `.band.json` connects it), for `engine/tools/replay_session.py`,
+which plays them through the silent engine with the song's own saved sounds.
+
 `band-midi` writes the band guitarist's part as the engine sends it to Shreddage (channel 3: F#5, the held chords, the
 strum keyswitches or string keys, the notes), to look at in a DAW: `--rhythm default` the part the guitarist makes up,
 `track` a Guitar Pro song's rhythm track, every note its string struck on the held chord

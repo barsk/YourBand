@@ -10,6 +10,74 @@ using NUnit.Framework;
 
 namespace YourBand.Core.Tests
 {
+    public class GuitarVoicingTests
+    {
+        // chords of Black Hole Sun's track (DGCFAD), played into Shreddage with plugin_probe: every one of these left all its
+        // string keys silent
+        static readonly int[][] Silent =
+        {
+            new[] { 41, 43, 55, 59, 62 }, new[] { 41, 43, 55, 59, 64 }, new[] { 41, 43, 53, 59, 64 }, new[] { 41, 43, 53, 59, 62 },
+            new[] { 41, 43, 50, 53, 58, 62 }, new[] { 41, 43, 50, 55, 58, 62 }, new[] { 41, 46, 50, 55, 58, 62 }, new[] { 41, 46, 50, 53, 58, 62 },
+            new[] { 42, 43, 48 }, new[] { 42, 47, 48 }, new[] { 42, 45, 48 }, new[] { 41, 43, 50, 55, 59 }, new[] { 41, 43, 48, 55, 59 },
+            new[] { 41, 47, 48, 55, 59 }, new[] { 41, 45, 48, 55, 59 }, new[] { 42, 43, 48, 55, 59 }, new[] { 41, 43, 48, 53, 57 },
+            new[] { 41, 43, 50, 55, 59, 64 },
+        };
+
+        // and some that sounded
+        static readonly int[][] Sounding =
+        {
+            new[] { 40, 45, 50, 55, 59, 64 }, new[] { 39, 55, 58, 63 }, new[] { 39, 44, 51, 56, 60, 63 }, new[] { 39, 46, 51, 56, 60, 63 },
+            new[] { 43, 50, 55, 60 }, new[] { 40, 47, 52, 59 },
+        };
+
+        [Test]
+        public void CanVoice_AgreesWithWhatShreddageDid()
+        {
+            foreach (var chord in Silent)
+                Assert.IsFalse(GuitarVoicing.CanVoice(chord), string.Join(" ", chord));
+            foreach (var chord in Sounding)
+                Assert.IsTrue(GuitarVoicing.CanVoice(chord), string.Join(" ", chord));
+        }
+
+        [Test]
+        public void Voice_LeavesAChordThatCanBeFingeredAsItIs()
+        {
+            foreach (var chord in Sounding)
+            {
+                var voiced = GuitarVoicing.Voice(chord);
+                CollectionAssert.AreEqual(chord.OrderBy(p => p), voiced.Values.OrderBy(p => p), string.Join(" ", chord));
+            }
+        }
+
+        [Test]
+        public void Voice_MakesEveryChordShreddageLeftSilentVoiceable_KeepingItsNotes()
+        {
+            foreach (var chord in Silent)
+            {
+                var voiced = GuitarVoicing.Voice(chord);
+                Assert.IsTrue(GuitarVoicing.CanVoice(voiced.Values.Distinct().ToList()), string.Join(" ", chord));
+                // every note is still there, at most an octave or two away, but for the odd one left out
+                Assert.GreaterOrEqual(voiced.Count, chord.Length - 1, string.Join(" ", chord));
+                foreach (var (from, to) in voiced)
+                    Assert.AreEqual(0, (to - from) % 12, from + " -> " + to);
+            }
+            // F2 and G2 together: the G goes up onto the G3 already there, the F2 stays
+            var g7 = GuitarVoicing.Voice(new[] { 41, 43, 55, 59, 62 });
+            CollectionAssert.AreEqual(new[] { 41, 55, 59, 62 }, g7.Values.Distinct().OrderBy(p => p));
+            Assert.AreEqual(55, g7[43]);
+        }
+
+        [Test]
+        public void Fold_PutsANoteInShreddagesRange()
+        {
+            Assert.AreEqual(50, GuitarVoicing.Fold(38));  // a drop D's low D
+            Assert.AreEqual(67, GuitarVoicing.Fold(79));  // G5 is a keyswitch
+            Assert.AreEqual(66, GuitarVoicing.Fold(78));
+            Assert.AreEqual(76, GuitarVoicing.Fold(76));
+            Assert.AreEqual(39, GuitarVoicing.Fold(39));
+        }
+    }
+
     public class ChordTests
     {
         static int[] Of(string name) => Chord.Parse(name).Intervals.ToArray();

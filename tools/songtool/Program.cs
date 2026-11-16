@@ -4,6 +4,9 @@
 //       Imports an Ultimate Guitar song from pages saved in the browser, prints the import report.
 //   songtool show <song.json> [--bars a-b]
 //       Prints the chart bar by bar: section, chords, lyrics, and the riffs' notes per bar.
+//   songtool engine-messages <song.json> [--style Ballad|Rock|Pop] [-o <file.jsonl>]
+//       The messages the game sends the audio engine when it opens the song (tracks, then load), one JSON object per line,
+//       with the band as the song's .band.json connects it: for engine/tools/replay_session.py.
 
 using System;
 using System.Collections.Generic;
@@ -12,6 +15,7 @@ using System.Linq;
 using System.Text;
 using YourBand.Core.Band;
 using YourBand.Core.Chart;
+using YourBand.Core.Engine;
 using YourBand.Core.Import.UltimateGuitar;
 using YourBand.Core.Songs;
 
@@ -43,7 +47,9 @@ namespace YourBand.SongTool
                         : args.Length >= 3 && args[2] == "--order" ? GpxInfo.Order(args[1]) : GpxInfo.Print(args[1]);
                 if (args.Length >= 2 && args[0] == "band-midi")
                     return BandMidiFile(args);
-                Console.WriteLine("usage:\n  " + ImportCommand.Usage.Replace("\n", "\n  ") + "\n  songtool import-ug <chords.html> [--tabs <tabs.html>] [--chords-per-bar n|auto] -o <song.json>\n  songtool import-gpx <file.gpx> [--track n] [--strum <chords.html|strum.json>] [--strum-map \"Section=Pattern;…\"] -o <song.json>\n  songtool export-strum <chords.html> -o <strum.json>\n  songtool diag-strum <file.gpx> [--track n]\n  songtool show <song.json> [--bars a-b]\n  songtool band-midi <song.json> [--bars a-b] [--rhythm default|track] [-o <file.mid>]\n  songtool gpx-info <file.gpx> [--beats <track> <bars> | --order]");
+                if (args.Length >= 2 && args[0] == "engine-messages")
+                    return EngineMessages(args);
+                Console.WriteLine("usage:\n  " + ImportCommand.Usage.Replace("\n", "\n  ") + "\n  songtool import-ug <chords.html> [--tabs <tabs.html>] [--chords-per-bar n|auto] -o <song.json>\n  songtool import-gpx <file.gpx> [--track n] [--strum <chords.html|strum.json>] [--strum-map \"Section=Pattern;…\"] -o <song.json>\n  songtool export-strum <chords.html> -o <strum.json>\n  songtool diag-strum <file.gpx> [--track n]\n  songtool show <song.json> [--bars a-b]\n  songtool band-midi <song.json> [--bars a-b] [--rhythm default|track] [-o <file.mid>]\n  songtool engine-messages <song.json> [--style Ballad|Rock|Pop] [-o <file.jsonl>]\n  songtool gpx-info <file.gpx> [--beats <track> <bars> | --order]");
                 return 1;
             }
             catch (Exception e)
@@ -179,6 +185,27 @@ namespace YourBand.SongTool
         }
 
         /// <summary>The band guitarist's part as the engine sends it to Shreddage, as a MIDI file for a DAW: band-midi song.json -o out.mid [--bars 1-8].</summary>
+        /// <summary>The tracks and load messages the game sends the engine for a song, as the game arranges it (the band as its band file connects it).</summary>
+        static int EngineMessages(string[] args)
+        {
+            var path = args[1];
+            var song = SongJson.Load(path);
+            var chart = new SongChart(song);
+            var connections = BandConnections.Load(path);
+            var style = Option(args, "--style") is string name ? BandStyle.Named(name) : Arranger.DefaultStyle(song);
+            var arrangement = Arranger.Arrange(chart, style, connections);
+            var fileName = Path.GetFileName(path).Replace(".song.json", "").Replace(".json", "");
+            var lines = new[]
+            {
+                EngineProtocol.Tracks(song, connections),
+                EngineProtocol.Load(song.Info.Title, song.Tempo, arrangement, style.KeysSound, SongOrigin.Describe(song, path), fileName),
+            };
+            var output = Option(args, "-o") ?? Path.ChangeExtension(path, ".messages.jsonl");
+            File.WriteAllLines(output, lines);
+            Console.WriteLine($"Saved {Path.GetFullPath(output)}: the {style.Name} band for '{song.Info.Title}' ({arrangement.Notes.Count} notes, {arrangement.Voicings.Count} voicing notes, {arrangement.Strokes.Count} strokes, {arrangement.Picks.Count} picks)");
+            return 0;
+        }
+
         static int BandMidiFile(string[] args)
         {
             var song = SongJson.Load(args[1]);

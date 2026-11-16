@@ -57,7 +57,7 @@ control panel's **Band playstyle defaults...** window, in the Kontakt window beh
 YourBand sets no Shreddage parameter from code: it sends MIDI, and restores the state Kontakt saved. The Strumming tab's
 *Strum Speed Map* and *Strum Volume Map* (velocity or a controller, manual p. 17) are not among the required settings and
 are left as they are. In the saved sound as it stands a harder stroke sweeps the strings faster and somewhat louder
-([section 5.4](#54-what-a-strokes-velocity-does)).
+([section 5.5](#55-what-a-strokes-velocity-does)).
 
 The instrument must be loaded **alone** in Kontakt's rack, with no arpeggiator or other effect that could swallow notes.
 Shreddage's own keyswitches, effects and channel are saved with Kontakt's state: a guitar that is silent or muted is
@@ -66,6 +66,18 @@ checked in its window first.
 If Strumming Mode is set to **On** instead of Off, F#5 reverses its meaning: plain notes are silent without the key and the
 held chord sounds *in addition to* each strum. Picked parts and single-string stretches are then silent. This was
 measured on a saved state that behaved this way (`plugin_probe --f5-test` and `--no-f5`, 2026-10-29).
+
+**A song's saved sound can lack the settings.** Each song keeps its own copy of the guitar's sound (a new song gets a copy of
+the playstyle defaults, and a track the rhythm guitar plays keeps a sound of its own), and a song's copy is not changed when
+the defaults are. A copy saved before Keyswitchable was switched on ignores F#5 altogether: the chord rings with or without
+the key, so the held chord is heard as plain notes and the strokes and picks never get the stored chord the design needs.
+Checked on 2026-11-16 across a set of saved songs, 14 distinct rhythm sounds: 10 honoured F#5 and 4 ignored it, the 4 being
+the ones in the older songs. To check a song's sound: `engine/tools/sounds_state.py` writes its states out, and `plugin_probe
+<Kontakt.vst3> out --state <file> --sweep-test --n 1` prints *level before first strum*: **SILENT (chord stored, mode on)**
+means F#5 works, **RINGING (chord RINGING, mode off)** means it is ignored. To fix a song, open the guitar's window (the row's
+**...**), set Strumming Mode off and Keyswitchable on, and close it (the sound is saved when the window closes). **Load
+defaults** in the Band playstyle defaults window gives a song the saved playstyle defaults; the sound a track plays on is
+kept, so for a rhythm guitar that plays a track set it in the row's own window.
 
 ## 3. When the strumming-mode logic is used
 
@@ -81,7 +93,8 @@ other plugin, with no keyswitches. The detection is by file name, so any Kontakt
 band guitar is meant to be Kontakt with Shreddage.
 
 The two lead channels (channels 4 and 5, on Kontakt or Numa Player) are **not** strum-capable: they get plain notes, the
-pitch wheel and controllers (section 8), and none of the keyswitches below.
+pitch wheel and controllers (section 8), and none of the keyswitches below. A lead on Kontakt shares Shreddage's **note range**,
+though (section 4).
 
 ## 4. The keys YourBand plays
 
@@ -91,11 +104,11 @@ Everything is on channel 3.
 | Key | Note | Role | Velocity | How long it is held |
 |---|---|---|---|---|
 | **F#5** | 78 | Strumming mode on (momentary flip) | 100 | For as long as the guitar is in strumming mode: from the start of playback to the end, except for single-string stretches ([7](#7-single-string-stretches)) |
-| **G#5** | 80 | Down-strum of the held chord (all downstrokes) | The stroke's velocity | The chord's ring: [5.3](#53-strokes) |
+| **G#5** | 80 | Down-strum of the held chord (all downstrokes) | The stroke's velocity | The chord's ring: [5.4](#54-strokes) |
 | **A5** | 81 | Up-strum (all upstrokes) | The stroke's velocity | The same |
 | **C6** | 84 | Muted strum: turns the strum under it into a muted one | 100 | From 4 samples before the strum to 40 ms after it |
 | **F#6, G6, G#6, A6, A#6, B6** | 90-95 | Pick one string of the held chord: key = 90 + the string's *rank* in the chord | The pick's velocity | As long as the string rings: [6](#6-picking-a-tracks-notes) |
-| D#2 and up, below the keyswitches | 39 and up | The **playable range**: the held chord's notes and single-string notes | 96 for the chord; the note's own for single notes | The chord's length; the note's length |
+| D#2 to E5 | 39 to 76 | The **playable range**: the held chord's notes and single-string notes | 96 for the chord; the note's own for single notes | The chord's length; the note's length |
 
 How the manual describes them: F#5 "toggles Strumming Mode to the opposite of what is currently set in the GUI when
 pressed down, and returns to the previously-selected setting when released"; G#5 plays a down-strum "of whatever is
@@ -106,6 +119,14 @@ play". The speed and dynamics of a strum follow the Strumming tab's settings.
 
 **The lowest note** of Shreddage 3.5 Stratus FREE is D#2 (39). A note below it (a low D2 in a drop D song) is played an
 octave up (`guitarPluginPitch`); a chord note that lands on another note of its chord that way is held only once.
+
+**The highest note** is E5 (76). Measured with `plugin_probe --seq` on a lead's saved sound: E5 plays at -21.5 dB, F5 (77) at
+-43.9 dB (as good as silent), and F#5 (78) and up are the keyswitches of the table. A melody note there would not sound, and
+on a Shreddage with Keyswitchable on it would flip the strumming mode, strum or pick instead. So for the guitar and the two
+leads on Kontakt the engine plays a note above E5 **octaves lower** until it is in range (`setNoteCeiling`,
+`kontaktHighestNote` in `MainComponent.cpp`; since 2026-11-16): a G5 plays as G4, an F#5 as F#4. The same fold applies to the
+held chord's notes. A part on another plugin has no limit. (Heart of Gold's Guitar 1 has such notes in its melody from bar 55:
+G5 and F#5 played nothing before.)
 
 **Keys that YourBand does not use**, and why:
 
@@ -141,18 +162,49 @@ So for each `voicing` note (one per string of the chord, from `Arranger.Strum` o
 |---|---|
 | Note-on | Channel 3, the note (folded above D#2 if it is lower), velocity **96**, **4 samples before** the chord's start (and 20 ms early, [9.1](#91-advance)) so the plugin knows the chord before a strum at the same moment |
 | Note-off | **0.001 quarter note** (under 1 ms) before the chord ends, so a strum never hears two chords, and a note that both chords hold is not cut by the old chord's release after the new one's start |
-| Skipped | A note that folds onto another note of the same chord at the same moment; a chord over before the block; a chord inside the count-in; chords during a single-string stretch (re-sent at its end) |
+| Skipped | A note that folds onto another note of the same chord at the same moment; a chord over before the block, or, in a count-in, one over by the time the song's position is reached; chords during a single-string stretch (re-sent at its end) |
 
 A chord already sounding when the song is started in the middle (a seek or restart) is held from the start of the first
-block.
+block, **also when the start has a count-in**: the chord is only stored, silent, in strumming mode, and held during the count-in
+it is there for the first stroke. (Until 2026-11-16 a chord begun before the restart point was skipped during a count-in, so after
+skipping to a bar and pressing Space the strokes and picks had no chord to play until the next chord began. Checked with
+`engine/tools/strum_session.py --from 6 --count-in 4`: silent before, playing after.)
 
-### 5.3 Strokes
+### 5.3 Which chords Shreddage can voice
+
+Shreddage fingers the held notes on a guitar **in standard tuning**, one note to a string, and the strum and string keys act on
+that voicing. A chord it cannot finger that way is **not voiced at all, and then every key is silent**: no strum, no pick, not
+even a quiet one. The rule, measured on 2026-11-16 with `plugin_probe --seq` against the saved sound of a song in DGCFAD
+(43 distinct chords, 25 sounded and 18 were silent, and the rule below predicts all 43):
+
+> A chord is voiced when each of its notes can go to a string of its own, the strings being E2 A2 D3 G3 B3 E4 (40, 45, 50,
+> 55, 59, 64) and each string reaching one semitone below its open note (the lowest string's D#2 is the plugin's lowest note)
+> up the neck. A seventh note, or two notes that only one string can reach, break it.
+
+The plainest case is two adjacent low notes: F2 (41) and G2 (43) can only both be played on the low E string, so a chord
+holding both is silent. A song in drop D, DADGAD or DGCFAD has such chords (Black Hole Sun's G7 and A#6, bars 11 and 13: the
+guitar went silent there). The chord is a property of the held notes, so a single string key in a chord with an impossible
+note is silent although that note was never picked.
+
+So the arranger (`GuitarVoicing` in `Core/Band`, used by `Strum` and `TrackRhythm`) sends only chords that can be voiced:
+
+| Step | |
+|---|---|
+| 1 | Each note is folded into the range, D#2 to E5 (an octave up from below, an octave down from above) |
+| 2 | A chord that can be voiced is sent as it is |
+| 3 | Otherwise as few notes as possible move an octave (two octaves at most), an upward move before a downward one, so the low note of the two stays and the other goes up; a note with no place at all is left out |
+| 4 | The string keys count the notes of the chord **as voiced** (their rank), a note that was left out is not picked, and two strings that end on one pitch share its key (the later strike lets go of the earlier; struck together, one press) |
+
+The other guitars still get the notes as written (`BandNote`s), only the held chord is changed. In the example, F2 and G2 held
+with G3, B3 and D4: the G2 is played as G3 (a G3 is there already), so the chord is F2 G3 B3 D4 and every key sounds.
+
+### 5.4 Strokes
 
 Each `stroke` (when, direction, velocity, muted) becomes a key press:
 
 1. **Key**: G#5 for down, A5 for up. **Velocity** is the stroke's velocity (the arranger's strokes run 64 muted, 72 up,
    84-96 down, 104-116 accented, each ±5). It sets how fast the strum sweeps the strings and, less, how loud it is
-   ([5.4](#54-what-a-strokes-velocity-does)).
+   ([5.5](#55-what-a-strokes-velocity-does)).
 2. **Start**: on the stroke's beat, 20 ms early ([9.1](#91-advance)).
 3. **Length**: the key is held as long as the chord should ring, because Shreddage rings the strummed chord at full level
    while the key is down and damps it when the key is let go (a DAW strum track does exactly this). The hold is:
@@ -175,7 +227,7 @@ A chord change (the held voicing swapped) damps the active strum early, as a han
 Measured with `plugin_probe --sweep-test`: a clean stroke rings about 1.1 s to -25 dB, a muted one about
 0.5 s; the strum's pick lands 13-20 ms after its keyswitch and its chord body builds for another 100 ms or so.
 
-### 5.4 What a stroke's velocity does
+### 5.5 What a stroke's velocity does
 
 YourBand sets no Strum Speed or Strum Volume option (section 2), so what the velocity of a strum key does is what the saved
 sound does with it. Measured on 2026-11-13 on the band guitar's saved sound (Kontakt 8, the Ballad, Rock and Pop playstyle
@@ -215,8 +267,8 @@ track does not say which of the two it needs. A string key rings its string inde
 
 ### 6.1 Rank and key
 
-The arranger numbers the distinct pitches of the held chord from the lowest; a pick's **rank** is its pitch's number (0 for
-the lowest). The engine presses **key 90 + rank** (F#6 for rank 0, up to B6 for rank 5).
+The arranger numbers the distinct pitches of the held chord **as it is voiced** ([5.3](#53-which-chords-shreddage-can-voice)) from
+the lowest; a pick's **rank** is its pitch's number (0 for the lowest). The engine presses **key 90 + rank** (F#6 for rank 0, up to B6 for rank 5).
 
 Measured with `plugin_probe` on Redbud Tree's ten chords, also straight after a chord change: key 90 + k plays the k-th lowest
 note of the held chord, wrapping round when fewer are held. (The manual says the keys pick the six strings from the lowest
@@ -330,7 +382,7 @@ YourBand sends **CC20**, and Shreddage must have the rule **`CC20 64-127`** on M
 | With a Mute articulation enabled and *no* controller rule | It damps every strum (measured before the controller rule existed): give it the rule or keep it off |
 
 A **muted strum** is a different mechanism. In the made-up strumming it is the Mute keyswitch C6 around the strum
-([5.3](#53-strokes)). A strum of dead or palm-muted strings in a *track* has no strum key at all: it is played as short picks
+([5.4](#54-strokes)). A strum of dead or palm-muted strings in a *track* has no strum key at all: it is played as short picks
 (at most 0.08 quarter notes) of the held strings' string keys.
 
 ### 8.6 The rest
@@ -372,7 +424,7 @@ full, so the arranger lets them go only 10 ms before the next pick of the same s
 
 - **Play**: everything held is released first (`releaseAll`); then every cursor (notes, voicings, strokes, picks, spans, wheel,
   controllers) is positioned at the start with a binary search; a chord already sounding at that position is held from the
-  first block. Nothing is played inside the count-in.
+  first block, count-in or not. No stroke, pick or note is played inside the count-in.
 - **Pause, seek**: `releaseAll`: the pending note-offs, `allNotesOff` on every channel (which lets go of F#5), the pitch wheels
   to the middle, and every controller used in the score back to 0.
 - **A new song**: the same, then the cursors reset.
@@ -450,7 +502,12 @@ polarity of F#5), `--sweep-test` (strokes, with `--dirs`, `--keys`, `--vels`, `-
 `engine/tools/sweep_analyse.py` reads a `--sweep-test` recording: the level and the build-up time of each stroke.
 
 **Run the band silently.** `engine/tools/strum_session.py` loads a small song with strokes, voicings and per-string notes into
-the engine and records the guitar to a WAV; `wav_check.py` reads the levels and onsets.
+the engine and records the guitar to a WAV (`--from <quarter>` and `--count-in <quarters>` start it in the middle of the chord, as
+Space does after you skip); `wav_check.py` reads the levels and onsets.
+
+**Play any notes.** `plugin_probe ... --state <file> --seq "64@1+0.5!,78@3+2,c123@6" --seq-channel 3` plays the notes you list
+(`note@beat+length`, `v<velocity>`, `!` to measure its level, `c<controller>@<beat>[=value]` for a controller) and prints the
+level of the marked ones: how the range and the keyswitches were measured.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
@@ -462,6 +519,10 @@ the engine and records the guitar to a WAV; `wav_check.py` reads the levels and 
 | Bends and slides too big or too small | Pitch Bend Range is not ±2 | Set it to 2 |
 | Strums sound late or early | The advance does not suit the machine | `bandGuitarAdvanceMs` in the engine settings |
 | A bass note cuts when other strings are picked | Too few voices: the plugin drops its oldest note, the ringing bass | Voice limits 32 and 16 |
+| A chord, or a whole stretch of a song, is completely silent while the arrangement has notes there | The held chord cannot be fingered on a standard-tuned guitar: a song in another tuning (section 5.3); fixed by the arranger since 2026-11-16 | Update the game; `plugin_probe --seq` shows which chords are silent |
+| The chord rings as plain notes, strums and picks sound wrong, in one song only | That song's saved sound ignores F#5 (section 2) | Strumming Mode off and Keyswitchable on in the song's guitar window; or Load defaults |
+| A melody note is missing, and the notes after it do not sound | The note is above E5: a keyswitch, not a note (fixed by the note ceiling) | Update the engine; with another plugin no limit applies |
+| After skipping to a bar and pressing Space the guitar is silent for the rest of the chord | Fixed 2026-11-16 (the chord held at the restart point was skipped in a count-in) | Update the engine |
 
 ## 14. Source map
 
