@@ -105,6 +105,11 @@ namespace
         return plugin.getFileName().startsWithIgnoreCase ("Kontakt") ? 0.02 : 0.0;
     }
 
+    /** The highest note Shreddage (in Kontakt) plays: E5 (76), measured with plugin_probe --seq (a lead's E5 -21.5 dB, F5
+        -43.9 dB, near silent). From F#5 up its keys are keyswitches: F#5 flips the strumming mode, G#5 and A5 strum, and
+        so on, so a melody note there is played an octave lower instead. */
+    constexpr int kontaktHighestNote = 76;
+
     /** A plugin you add: drums and guitar at the built-in sound's level, a bass at about the known basses' (they
         play loud). */
     float addedPluginLevel (EngineCore::Slot slot) { return slot == EngineCore::Slot::bandBass ? 0.2f : 0.8f; }
@@ -989,6 +994,9 @@ bool MainComponent::chooseBandInstrument (EngineCore::Slot slot, int choice, boo
         engine.setBandGuitarStrummingMode (choice >= 0
                                            && part.choices[(size_t) choice].file.getFileName().startsWithIgnoreCase ("Kontakt"));
     auto playsPlugin = false;
+    if (slot == EngineCore::Slot::bandGuitar || isLead (slot))  // (a Kontakt guitar or lead has Shreddage's range)
+        engine.setBandNoteCeiling (slot, choice >= 0 && part.choices[(size_t) choice].file.getFileName().startsWithIgnoreCase ("Kontakt")
+                                         ? kontaktHighestNote : 127);
     if (choice >= 0)
     {
         auto& c = part.choices[(size_t) choice];

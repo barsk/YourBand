@@ -83,6 +83,8 @@ public:
     void setBandPluginLevel (Slot, float gain);
     /** The band guitar's notes go to its plugin this early (seconds), to make up for a sound that builds slowly. */
     void setBandGuitarAdvance (double seconds) { bandProcessor->setGuitarAdvance (seconds); }
+    /** The highest note a band instrument's plugin plays (127: no limit); higher notes are played octaves lower. */
+    void setBandNoteCeiling (Slot slot, int highest) { bandProcessor->setNoteCeiling ((BandProcessor::Part) partOf (slot), highest); }
     /** The band guitar's plugin is strum-capable (Shreddage's strumming mode): its strokes go to it as strum
         keyswitches on its held voicing, instead of its per-string notes. */
     void setBandGuitarStrummingMode (bool on) { bandProcessor->setStrummingMode (on); }

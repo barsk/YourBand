@@ -4,8 +4,9 @@ usage: sounds_state.py <file.sounds> <out-folder> [instrument=rhythm]
 
 A .sounds file (%APPDATA%\\YourBand\\band-defaults.sounds, or songs\\<song>.sounds) keeps each plugin state as JUCE's
 base64 text, "<size>.<data>" (six bits a character, least significant bit first). This decodes the state of the
-instrument (rhythm, bass, keys or drums) of every playstyle into <out-folder>/<instrument>-<playstyle>.state, complete
-VST3 states (they start with "VC2!"), the form the engine saves and plugin_probe loads. The source file is only read.
+instrument (rhythm, bass, keys or drums) of every playstyle into <out-folder>/<instrument>-<playstyle>.state; for lead,
+instrument1 or another instrument that plays a track, the one state it plays the song's track on, into
+<out-folder>/<instrument>.state. They are complete VST3 states (they start with "VC2!"), the form the engine saves and plugin_probe loads. The source file is only read.
 
   python sounds_state.py "%APPDATA%\\YourBand\\band-defaults.sounds" out\\states
   plugin_probe "Kontakt 8.vst3" out --state out\\states\\rhythm-ballad.state --sweep-test ...
@@ -38,14 +39,17 @@ source, folder = sys.argv[1], sys.argv[2]
 instrument = sys.argv[3] if len(sys.argv) > 3 else 'rhythm'
 os.makedirs(folder, exist_ok=True)
 sounds = json.load(open(source, encoding='utf-8'))
-for style, parts in sounds.get('styles', {}).items():
-    sound = parts.get(instrument)
+found = [(style, parts.get(instrument)) for style, parts in sounds.get('styles', {}).items()]
+if sounds.get('tracks', {}).get(instrument):
+    found.append((None, sounds['tracks'][instrument]))  # (an instrument playing a track: one sound for the song)
+for style, sound in found:
+    label = style or 'track'
     if not sound or 'state' not in sound:
-        print('%-7s no %s state' % (style, instrument))
+        print('%-7s no %s state' % (label, instrument))
         continue
     raw = decode(sound['state'])
-    path = os.path.join(folder, '%s-%s.state' % (instrument, style.lower()))
+    path = os.path.join(folder, '%s-%s.state' % (instrument, style.lower()) if style else '%s.state' % instrument)
     with open(path, 'wb') as f:
         f.write(raw)
-    print('%-7s %7d bytes  %s  sha1 %s  plugin %s' % (style, len(raw), raw[:4], hashlib.sha1(raw).hexdigest()[:10],
+    print('%-7s %7d bytes  %s  sha1 %s  plugin %s' % (label, len(raw), raw[:4], hashlib.sha1(raw).hexdigest()[:10],
                                                      os.path.basename(sound.get('plugin', ''))))

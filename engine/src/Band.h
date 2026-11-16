@@ -113,6 +113,9 @@ public:
     bool usesPluginFor (Part part) const { return onPlugin[(size_t) part].load(); }
     /** A part whose fader is all the way down: a lead that is off does not take the tab's single notes (the guitar plays them). */
     void setPartMuted (Part part, bool muted) { partMuted[(size_t) part].store (muted); }
+    /** The highest note a part's plugin plays: a note above it is played octaves lower, so it lands in the plugin's range
+        (Shreddage in Kontakt plays up to E5 (76); from F#5 up its keys are keyswitches, not notes). 127: no limit. */
+    void setNoteCeiling (Part part, int highest) { noteCeiling[(size_t) part].store (juce::jlimit (36, 127, highest)); }
     /** How early (seconds) the guitar's notes go to its plugin, when it plays on one: a plugin whose sound builds
         slowly (Kontakt's strummed guitars) is heard late by about that much. */
     void setGuitarAdvance (double seconds) { guitarAdvance.store (juce::jlimit (0.0, 0.2, seconds)); }
@@ -155,6 +158,10 @@ private:
     /** A part's pitch wheel to a bend (semitones), if it is not there already. */
     void sendWheel (int part, float semitones, int sample, juce::MidiBuffer&);
     void emit (const BandNote&, double dueAt, int sample, juce::MidiBuffer&);
+    /** A note as the part's plugin gets it: in the plugin's range (octaves down from above its ceiling). */
+    int inRange (int part, int pitch) const;
+    /** A chord note of the held voicing as the guitar plugin gets it: folded into its range, low and high. */
+    int guitarKeyPitch (int pitch) const;
     /** The note a General MIDI drum note plays on the kit in use: itself if the kit has the drum, else the nearest drum
         it has (a floor tom for a missing low tom, the crash for a china), or -1 (hand percussion with no stand-in). */
     int kitNote (int note) const;
@@ -177,6 +184,7 @@ private:
     std::array<std::atomic<bool>, numParts> onPlugin {};  // per part; the keys are always on their plugin
     std::array<std::atomic<bool>, numParts> partMuted {};  // per part: its fader is down
     std::atomic<double> guitarAdvance { 0.0 };
+    std::array<std::atomic<int>, numParts> noteCeiling {};  // per part (see setNoteCeiling); set to 127 in the constructor
     std::atomic<bool> strummingMode { false };
     std::atomic<bool> guitarResync { false };  // the guitar's sound changed: drop what it holds, start from now
     std::array<std::atomic<bool>, 128> drumPluginHas {};  // per note: the drum plugin plays it

@@ -246,6 +246,8 @@ BandProcessor::BandProcessor (SharedClock& sharedClock)
 {
     countInUntil = none;
     wheelSent.fill (8192);
+    for (auto& c : noteCeiling)
+        c.store (127);
 }
 
 void BandProcessor::prepareToPlay (double newSampleRate, int)
@@ -485,6 +487,23 @@ int BandProcessor::kitNote (int note) const
     return -1;
 }
 
+int BandProcessor::inRange (int part, int pitch) const
+{
+    const auto ceiling = noteCeiling[(size_t) part].load();
+    while (pitch > ceiling && pitch - 12 >= 0)
+        pitch -= 12;
+    return pitch;
+}
+
+int BandProcessor::guitarKeyPitch (int pitch) const
+{
+    const auto ceiling = noteCeiling[(size_t) guitar].load();
+    pitch = guitarPluginPitch (pitch);
+    while (pitch > ceiling && pitch - 12 >= guitarPluginLowest)
+        pitch -= 12;
+    return pitch;
+}
+
 void BandProcessor::emit (const BandNote& note, double time, int at, juce::MidiBuffer& midi)
 {
     // a drum the kit does not have: on the nearest one it has, or not at all
@@ -497,8 +516,8 @@ void BandProcessor::emit (const BandNote& note, double time, int at, juce::MidiB
         const auto length = note.part == drums ? juce::jmax (0.1, note.length) : note.part == bass ? note.length * 0.95 : note.length;
         // bass plugins sound an octave below the note they get, as bass parts are written (MONSTER Bass
         // and Ample Bass: note 40 is the low E, measured with plugin_probe --map)
-        const auto pitch = note.part == bass ? note.pitch + 12 : note.part == guitar ? guitarPluginPitch (note.pitch)
-                         : note.part == drums ? drumNote : note.pitch;
+        const auto pitch = note.part == bass ? note.pitch + 12 : note.part == guitar ? guitarKeyPitch (note.pitch)
+                         : note.part == drums ? drumNote : inRange (note.part, note.pitch);
         midi.addEvent (juce::MidiMessage::noteOn (channelOf (note.part), pitch, note.velocity), at);
         addOff ({ note.part, pitch, -1, time + length });
     }
@@ -634,7 +653,7 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         {
             const auto& v = s->voicings[index];
             for (size_t k = index; k-- > 0 && std::abs (s->voicings[k].at - v.at) < 1.0e-9;)
-                if (guitarPluginPitch (s->voicings[k].pitch) == guitarPluginPitch (v.pitch))
+                if (guitarKeyPitch (s->voicings[k].pitch) == guitarKeyPitch (v.pitch))
                     return true;
             return false;
         };
@@ -724,7 +743,7 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
                     const auto& v = s->voicings[i];
                     if (v.at < sp.to - 1.0e-9 && v.at + v.length > sp.to + 1.0e-9 && ! repeats (i))
                     {
-                        const auto pitch = guitarPluginPitch (v.pitch);
+                        const auto pitch = guitarKeyPitch (v.pitch);
                         midi.addEvent (juce::MidiMessage::noteOn (channelOf (guitar), pitch, (juce::uint8) 96), juce::jmin (n - 1, at + 2));
                         addOff ({ guitar, pitch, -1, v.at + v.length - early - 0.001 });
                     }
@@ -780,11 +799,14 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
                 if (singleActive || repeated)
                     continue;  // (the chord held when the single-string stretch ends is struck up again then)
                 // a chord over before this block is skipped; one begun before it (a restart in the middle of a chord)
-                // is held from the block's start
-                if (v.at + v.length <= q0 + 1.0e-9 || (countingIn && v.at < countInUntil - 1.0e-9))
+                // is held from the block's start. In a count-in the song's position is where it ends: a chord over by
+                // then is skipped, but the one still sounding there is held (it is only stored, silent, in strumming
+                // mode), or the strokes and picks after the count-in would have no chord to play (a restart in the
+                // middle of a chord was silent until the next chord)
+                if (v.at + v.length <= q0 + 1.0e-9 || (countingIn && v.at + v.length <= countInUntil + 1.0e-9))
                     continue;
                 const auto at = juce::jmax (0, offsetOf (v.at - early) - 4);
-                const auto pitch = guitarPluginPitch (v.pitch);
+                const auto pitch = guitarKeyPitch (v.pitch);
                 midi.addEvent (juce::MidiMessage::noteOn (channelOf (guitar), pitch, (juce::uint8) 96), at);
                 // let go as early as the next chord's notes go out (a hair before), so a strum never hears two
                 // chords and a note both chords hold is not cut by the old chord's release after the new one's start

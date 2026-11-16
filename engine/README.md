@@ -118,7 +118,8 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   until you choose a plugin; a lead on Numa Player starts with the keys' sound (change it in its window). The
   load message carries their notes as parts 4 and 5 and `leads`, their names, which the log shows. In the mixer
   "lead1" and "lead2". `tools/lead_session.py` records a silent test of them (`--lead1`, `--lead2` on the
-  engine's command line choose the plugins).
+  engine's command line choose the plugins). A lead (and the band guitar) on Kontakt plays a note above E5 (76) an octave lower:
+  Shreddage's range ends there and its keyswitches start at F#5 (`kontaktHighestNote`; docs/shreddage-keyswitches.md, section 4).
   The tab's single-string notes (a riff the guitarist plays as notes, not strums) go to Lead 1 when it has a plugin
   and the song gives that channel no part of its own (a UG song with a tab, not the GPX Heart of Gold, whose Lead 1
   is the harmonica): the guitar plugin then only strums and keeps quiet while the tab plays, so the two do not
@@ -269,6 +270,14 @@ Measured with the band playing (silent mode, 48 kHz, 64 samples): audio CPU 2-4 
 RMS, peak 0.8.
 
 ## Testing without a sound
+
+`tools/replay_session.py <out> <x.jsonl> --from <quarter> [--count-in n] [--only guitar]` plays a song's messages
+(`songtool engine-messages`) through the silent engine, on the sounds saved for that song, and records the band: what the game
+would send, in the sound you hear, from any bar. It found the silent chords of a song in DGCFAD (docs/shreddage-keyswitches.md,
+5.3). `plugin_probe ... --midi <file.mid>` plays a MIDI file (`songtool band-midi`) into one plugin.
+
+`tools/strum_session.py <out> --from 6 --count-in 4` starts the strum test's song in the middle of its one chord, after a
+count-in, as Space does after you skip: the guitar must play after the count-in (until 2026-11-16 it stayed silent).
 
 ```
 "YourBand Engine.exe" --silent --record out\band.wav --run-for 40

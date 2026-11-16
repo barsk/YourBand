@@ -1,6 +1,6 @@
 """A silent test of the band guitar's strum pipeline, without a game build.
 
-  python strum_session.py <out-folder> [--seconds 30] [--band-guitar "Kontakt 8"]
+  python strum_session.py <out-folder> [--seconds 30] [--band-guitar "Kontakt 8"] [--from <quarter>] [--count-in <quarters>]
 
 Starts the engine silently with a recording and the given band guitar plugin, loads a small test song
 (G, 96 BPM, 4-beat count-in, the D-DU-UDU strumming pattern for three bars and one held downstroke in
@@ -68,10 +68,19 @@ def main():
                 seconds = int(value)
             else:
                 band_guitar = value
+    play_from, count_in = 0.0, 4.0
     muted_bar = None
     if "--no-perstring" in rest:
         perstring = False
         rest.remove("--no-perstring")
+    for option in ("--from", "--count-in"):
+        if option in rest:
+            value = float(rest[rest.index(option) + 1])
+            del rest[rest.index(option):rest.index(option) + 2]
+            if option == "--from":
+                play_from = value
+            else:
+                count_in = value
     if "--muted-bar" in rest:
         muted_bar = int(rest[rest.index("--muted-bar") + 1])
         del rest[rest.index("--muted-bar"):rest.index("--muted-bar") + 2]
@@ -108,8 +117,8 @@ def main():
           "tempos": [[0, BPM]], "meters": [[0, 4, 4]],
           "notes": notes, "voicings": voicings, "strokes": strokes, "keys": ""})
     print("loaded:", receive())
-    send({"type": "play", "from": 0, "countIn": 4})
-    print("playing; the first strum lands %g s after play (count-in + 1 beat)" % (5 * QUARTER))
+    send({"type": "play", "from": play_from, "countIn": count_in})
+    print("playing from quarter %g after a count-in of %g quarters" % (play_from, count_in))
 
     try:
         code = engine.wait(timeout=seconds + 120)

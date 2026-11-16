@@ -15,6 +15,14 @@
 // a held G voicing, down/up strum keyswitches (G#5/A5) at several velocities, the muted-strum options
 // (C#0 Mute-articulation latch, C6 hold), and reports per-segment levels plus each strum's onset offset.
 //
+// With --midi <file.mid> (with --state) it plays a standard MIDI file into the plugin as it is (its channels, notes, controllers
+// and pitch wheel, in the file's own tempo) and writes the recording: for the band guitar's part as `songtool band-midi` writes it.
+//
+// With --seq (with --state) it plays the notes you list and reports the level of the ones you mark: --seq
+// "64@1+0.5!,78@3+2,64@4+0.5!" is note 64 at beat 1 for half a beat (measured), note 78 at beat 3 for two beats, then
+// note 64 at beat 4 (measured); v<n> after the length sets the velocity (default 100). "c123@6" sends controller 123 (all
+// notes off) at beat 6, "c20@2=127" controller 20 with value 127. On --seq-channel (default 4), 96 bpm. It shows what a note in a keyswitch range does to the notes after it.
+//
 // Loads the plugin without a window and reports what it offers (inputs, outputs, MIDI, programs, latency).
 // For each program whose name contains one of the filters (all programs if none are given), it plays a
 // keyboard comping phrase (Bm - A - E - E at 112 BPM, two bars each), rendered in 64-sample blocks as the
@@ -47,6 +55,9 @@ std::vector<double> g_muteList;  // --mutes 0,10,100: C6 hold length per stroke 
 double g_f5Beat = 3.5, g_chordBeat = 4.0, g_firstStroke = 5.0, g_gapBeats = 1.0;
 int g_numStrokes = 4;  // --f5/--chord/--strum/--gap/--n for the sweep test
 double g_chord2Beat = -1.0;
+std::string g_midi;    // --midi: a standard MIDI file to play
+std::string g_seq;     // --seq: "note@beat+length[v velocity][!]", comma separated (! measures the note)
+int g_seqChannel = 4;  // --seq-channel
 std::vector<int> g_chord2Notes;  // --chord2 <beat> <n,n,n,n,n,n>: the voicing changes at that beat
 
 constexpr double rate = 48000.0;
@@ -748,13 +759,182 @@ void sweepLenTest (juce::AudioPluginInstance& plugin, const juce::File& wav)
     std::cout << "wav: " << wav.getFullPathName() << "\n";
 }
 
+/** A free-form note test: the notes of --seq on --seq-channel at 96 bpm, and the peak and RMS level of the ones marked
+    with ! over their length and the half beat after it (their decay). */
+void seqTest (juce::AudioPluginInstance& plugin, const juce::File& wav)
+{
+    constexpr double beat = rate * 60.0 / 96.0;
+    struct Note { int note, velocity; double at, length; bool measured; };
+    struct Controller { int number, value; double at; };
+    std::vector<Note> notes;
+    std::vector<Controller> controllers;
+    for (const auto& token : juce::StringArray::fromTokens (juce::String (g_seq), ",", ""))
+    {
+        const auto t = token.trim();
+        if (t.isEmpty())
+            continue;
+        if (t.startsWithChar ('c'))  // a controller: c<number>@<beat>[=<value>]
+        {
+            const auto at = t.indexOfChar ('@'), eq = t.indexOfChar ('=');
+            if (at < 2)
+            {
+                std::cout << "cannot read --seq item '" << t << "'\n";
+                return;
+            }
+            controllers.push_back ({ t.substring (1, at).getIntValue(), eq > 0 ? t.substring (eq + 1).getIntValue() : 0,
+                                     t.substring (at + 1, eq > 0 ? eq : t.length()).getDoubleValue() });
+            continue;
+        }
+        const bool measured = t.endsWithChar ('!');
+        auto text = measured ? t.dropLastCharacters (1) : t;
+        int velocity = 100;
+        if (const auto v = text.indexOfChar ('v'); v >= 0)
+        {
+            velocity = juce::jlimit (1, 127, text.substring (v + 1).getIntValue());
+            text = text.substring (0, v);
+        }
+        const auto at = text.indexOfChar ('@'), plus = text.indexOfChar ('+');
+        if (at < 0 || plus < at)
+        {
+            std::cout << "cannot read --seq item '" << t << "'\n";
+            return;
+        }
+        notes.push_back ({ text.substring (0, at).getIntValue(), velocity, text.substring (at + 1, plus).getDoubleValue(),
+                           text.substring (plus + 1).getDoubleValue(), measured });
+    }
+    double end = 0.0;
+    for (const auto& n : notes)
+        end = std::max (end, n.at + n.length);
+    for (const auto& c : controllers)
+        end = std::max (end, c.at);
+    const int total = (int) std::round ((end + 2.0) * beat);
+    const auto outs = juce::jmax (1, plugin.getTotalNumOutputChannels());
+    juce::AudioBuffer<float> buffer (juce::jmax (outs, plugin.getTotalNumInputChannels()), block);
+    juce::AudioBuffer<float> recording (outs, total);
+    plugin.reset();
+    const auto began = juce::Time::getHighResolutionTicks();
+    for (int start = 0; start < total; start += block)
+    {
+        const auto n = juce::jmin (block, total - start);
+        juce::MidiBuffer evs;
+        for (const auto& note : notes)
+        {
+            const auto on = (int) std::round (note.at * beat), off = (int) std::round ((note.at + note.length) * beat);
+            if (on >= start && on < start + n)
+                evs.addEvent (juce::MidiMessage::noteOn (g_seqChannel, note.note, (juce::uint8) note.velocity), on - start);
+            if (off >= start && off < start + n)
+                evs.addEvent (juce::MidiMessage::noteOff (g_seqChannel, note.note), off - start);
+        }
+        for (const auto& c : controllers)
+        {
+            const auto at = (int) std::round (c.at * beat);
+            if (at >= start && at < start + n)
+                evs.addEvent (juce::MidiMessage::controllerEvent (g_seqChannel, c.number, c.value), at - start);
+        }
+        buffer.clear();
+        plugin.processBlock (buffer, evs);
+        const auto due = (start + n) / rate;
+        const auto elapsed = juce::Time::highResolutionTicksToSeconds (juce::Time::getHighResolutionTicks() - began);
+        if (due - elapsed > 0.002)
+            juce::MessageManager::getInstance()->runDispatchLoopUntil ((int) ((due - elapsed) * 1000.0));
+        for (int ch = 0; ch < outs; ++ch)
+            recording.copyFrom (ch, start, buffer, ch, 0, n);
+    }
+    wav.getParentDirectory().createDirectory();
+    wav.deleteFile();
+    juce::WavAudioFormat format;
+    if (std::unique_ptr<juce::OutputStream> stream = wav.createOutputStream())
+        if (auto writer = format.createWriterFor (stream, juce::AudioFormatWriterOptions{}.withSampleRate (rate)
+                                                                                      .withNumChannels (outs)
+                                                                                      .withBitsPerSample (24)))
+            writer->writeFromAudioSampleBuffer (recording, 0, total);
+
+    std::cout << "seq test (96 bpm, channel " << g_seqChannel << "):\n  note  beat  length  vel     peak     rms dB\n";
+    for (const auto& n : notes)
+    {
+        if (! n.measured)
+            continue;
+        const int a = (int) std::round (n.at * beat), b = juce::jmin (total, (int) std::round ((n.at + n.length + 0.5) * beat));
+        float peak = 0;
+        double sum = 0;
+        for (int j = a; j < b; ++j)
+        {
+            float x = 0;
+            for (int ch = 0; ch < outs; ++ch)
+                x += recording.getSample (ch, j);
+            peak = std::max (peak, std::abs (x));
+            sum += (double) x * x;
+        }
+        const auto rms = 10.0 * std::log10 (sum / std::max (1, b - a) + 1e-12);
+        std::cout << "  " << juce::String (n.note).paddedLeft (' ', 4) << juce::String (n.at, 2).paddedLeft (' ', 7)
+                  << juce::String (n.length, 2).paddedLeft (' ', 8) << juce::String (n.velocity).paddedLeft (' ', 5)
+                  << juce::String (peak, 3).paddedLeft (' ', 9) << juce::String (rms, 1).paddedLeft (' ', 10)
+                  << (rms < -80.0 ? "   (silent)" : "") << "\n";
+    }
+    std::cout << "wav: " << wav.getFullPathName() << "\n";
+}
+
+/** Plays a standard MIDI file into the plugin in 64-sample blocks at real-time pace and writes the recording. */
+void midiTest (juce::AudioPluginInstance& plugin, const juce::File& wav)
+{
+    juce::MidiFile file;
+    const juce::File midiFile { juce::String (g_midi) };
+    juce::FileInputStream input (midiFile);
+    if (! input.openedOk() || ! file.readFrom (input))
+    {
+        std::cout << "cannot read " << g_midi << "\n";
+        return;
+    }
+    file.convertTimestampTicksToSeconds();
+    juce::MidiMessageSequence all;
+    for (int t = 0; t < file.getNumTracks(); ++t)
+        all.addSequence (*file.getTrack (t), 0.0);
+    all.updateMatchedPairs();
+    const int total = (int) std::round ((all.getEndTime() + 3.0) * rate);
+    const auto outs = juce::jmax (1, plugin.getTotalNumOutputChannels());
+    juce::AudioBuffer<float> buffer (juce::jmax (outs, plugin.getTotalNumInputChannels()), block);
+    juce::AudioBuffer<float> recording (outs, total);
+    plugin.reset();
+    int next = 0;
+    const auto began = juce::Time::getHighResolutionTicks();
+    for (int start = 0; start < total; start += block)
+    {
+        const auto n = juce::jmin (block, total - start);
+        juce::MidiBuffer evs;
+        while (next < all.getNumEvents() && all.getEventTime (next) * rate < start + n)
+        {
+            const auto& m = all.getEventPointer (next)->message;
+            if (! m.isMetaEvent())
+                evs.addEvent (m, juce::jmax (0, (int) (all.getEventTime (next) * rate) - start));
+            ++next;
+        }
+        buffer.clear();
+        plugin.processBlock (buffer, evs);
+        const auto due = (start + n) / rate;
+        const auto elapsed = juce::Time::highResolutionTicksToSeconds (juce::Time::getHighResolutionTicks() - began);
+        if (due - elapsed > 0.002)
+            juce::MessageManager::getInstance()->runDispatchLoopUntil ((int) ((due - elapsed) * 1000.0));
+        for (int ch = 0; ch < outs; ++ch)
+            recording.copyFrom (ch, start, buffer, ch, 0, n);
+    }
+    wav.getParentDirectory().createDirectory();
+    wav.deleteFile();
+    juce::WavAudioFormat format;
+    if (std::unique_ptr<juce::OutputStream> stream = wav.createOutputStream())
+        if (auto writer = format.createWriterFor (stream, juce::AudioFormatWriterOptions{}.withSampleRate (rate)
+                                                                                      .withNumChannels (outs)
+                                                                                      .withBitsPerSample (24)))
+            writer->writeFromAudioSampleBuffer (recording, 0, total);
+    std::cout << "midi test: " << all.getNumEvents() << " events over " << all.getEndTime() << " s\nwav: " << wav.getFullPathName() << "\n";
+}
+
 int main (int argc, char* argv[])
 {
     juce::ScopedJuceInitialiser_GUI juce;  // plugins expect a message thread
 
     if (argc < 2)
     {
-        std::cout << "usage: plugin_probe <plugin.vst3> [out-folder] [program-name-filter ... | --state <file> ...] [--map [--velocity n] [--channel n]] [--strum-test] [--f5-test] [--sweep-test]\n";
+        std::cout << "usage: plugin_probe <plugin.vst3> [out-folder] [program-name-filter ... | --state <file> ...] [--map [--velocity n] [--channel n]] [--strum-test] [--f5-test] [--sweep-test] [--seq \"note@beat+length[vV][!],...\" [--seq-channel n]] [--midi <file.mid>]\n";
         return 1;
     }
     const juce::File pluginFile { juce::String (argv[1]) };
@@ -779,6 +959,12 @@ int main (int argc, char* argv[])
             noF5 = true;
         else if (juce::String (argv[i]) == "--sweep-test")
             sweepMode = true;
+        else if (juce::String (argv[i]) == "--seq" && i + 1 < argc)
+            g_seq = argv[++i];
+        else if (juce::String (argv[i]) == "--midi" && i + 1 < argc)
+            g_midi = argv[++i];
+        else if (juce::String (argv[i]) == "--seq-channel" && i + 1 < argc)
+            g_seqChannel = juce::jlimit (1, 16, juce::String (argv[++i]).getIntValue());
         else if (juce::String (argv[i]) == "--lag" && i + 1 < argc)
             g_lagMs = juce::String (argv[++i]).getDoubleValue();
         else if (juce::String (argv[i]) == "--key" && i + 1 < argc)
@@ -836,9 +1022,9 @@ int main (int argc, char* argv[])
         else
             filters.add (argv[i]);
     }
-    if ((strumMode || f5Mode || sweepMode) && states.isEmpty())
+    if ((strumMode || f5Mode || sweepMode || ! g_seq.empty() || ! g_midi.empty()) && states.isEmpty())
     {
-        std::cout << "--strum-test/--f5-test/--sweep-test needs --state <file>\n";
+        std::cout << "--strum-test/--f5-test/--sweep-test/--seq/--midi needs --state <file>\n";
         return 1;
     }
 
@@ -1009,6 +1195,10 @@ int main (int argc, char* argv[])
                 strumTest (*plugin, outFolder.getChildFile (stateFile.getFileNameWithoutExtension() + ".wav"));
             else if (sweepMode)
                 sweepLenTest (*plugin, outFolder.getChildFile (stateFile.getFileNameWithoutExtension() + ".sweep.wav"));
+            else if (! g_seq.empty())
+                seqTest (*plugin, outFolder.getChildFile (stateFile.getFileNameWithoutExtension() + ".seq.wav"));
+            else if (! g_midi.empty())
+                midiTest (*plugin, outFolder.getChildFile (stateFile.getFileNameWithoutExtension() + ".midi.wav"));
             else if (f5Mode)
                 f5Test (*plugin, outFolder.getChildFile (stateFile.getFileNameWithoutExtension() + (noF5 ? ".nof5.wav" : ".wav")), ! noF5);
             else if (map)
