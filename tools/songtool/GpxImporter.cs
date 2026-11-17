@@ -907,7 +907,7 @@ namespace YourBand.SongTool
             public List<int> Pitches;
             public HashSet<int> Pcs;
             public int[] Frets;
-            public string ChordName;   // the file's chord name in force at the strum (the latest chord marker), if it writes any
+            public string ChordName;   // the file's chord name for the strum: its own marker's, or the one in force if the strum fits it
             public bool Marked;        // the strum's own beat carries a chord marker
             public int Bass => Pitches.Count > 0 ? Pitches.Min() % 12 : -1;
         }
@@ -921,6 +921,7 @@ namespace YourBand.SongTool
             public int Bass;
             public int[] Frets;
             public string ChordName;   // the file's own name for the region, if its strums agree on one
+            public bool Lead;          // only two-note strums, sounding less than half its length: a lead line's double stops
         }
 
         static void RiffsAndChords(List<PlayedBar> timeline, Staff staff, Song song, ImportReport report, double tpq)
@@ -977,16 +978,18 @@ namespace YourBand.SongTool
                         else if (notes.Count >= 2)
                         {
                             var pitches = notes.Select(n => Pitch(staff, n)).Where(p => p >= 0).ToList();
+                            var pcs = new HashSet<int>(pitches.Select(p => p % 12));
+                            var marked = ChordName(beat) != null;
                             if (pitches.Count >= 2)
                                 strums.Add(new Strum
                                 {
                                     At = at,
                                     Duration = length,
                                     Pitches = pitches,
-                                    Pcs = new HashSet<int>(pitches.Select(p => p % 12)),
+                                    Pcs = pcs,
                                     Frets = FretsFor(notes, staff),
-                                    ChordName = writtenChord,
-                                    Marked = ChordName(beat) != null,
+                                    ChordName = marked || Fits(pitches, writtenChord) ? writtenChord : null,
+                                    Marked = marked,
                                 });
                         }
                     }
@@ -1002,6 +1005,14 @@ namespace YourBand.SongTool
                 report.Add("The file writes no chord names: the chords are read from its notes (bass notes first).");
             foreach (var region in regions)
             {
+                // a region of a lead line's double stops that the file names nothing that fits (No Woman No Cry's solo: 12
+                // of 115 notes, merged into one region of 45 quarters) is not a chord: the chord before it goes on
+                if (anyMarker && region.ChordName == null && region.Lead && song.Chords.Count > 0)
+                {
+                    var before = song.Chords[song.Chords.Count - 1];
+                    before.Quarters = Math.Max(before.Quarters, region.Start + region.Duration - before.AtQuarter);
+                    continue;
+                }
                 // the file's own chord name wins when its strums agree on one; otherwise the notes decide
                 var name = region.ChordName ?? DetectChord(region.CorePcs, region.Bass);
                 var frets = region.Frets;
@@ -1023,6 +1034,23 @@ namespace YourBand.SongTool
             song.Voicings.AddRange(voicings.Values);
             if (song.Chords.Count == 0)
                 report.Add("No chords detected (the track has no simultaneous notes); the tab is there but the chart has no chord names.");
+        }
+
+        /// <summary>
+        /// Whether a strum without a chord marker of its own is the chord named in force: its lowest note in that chord (or its
+        /// written bass), and more of its notes in it than outside it (a name that cannot be read is trusted). A file often
+        /// stops writing names for a stretch, and the last one would otherwise name every strum after it: No Woman No Cry's
+        /// fingerpicked verses strum an F (F3 A3 C4) with "C", "G" or "Am" in force, and the chord panel showed that F shape
+        /// for C and G. (Its lowest note tells F from Am, which share two notes.)
+        /// </summary>
+        static bool Fits(List<int> pitches, string written)
+        {
+            if (written == null || !YourBand.Core.Music.Chord.TryParse(written, out var chord))
+                return true;
+            var tones = chord.PitchClasses.Append(chord.Bass).ToHashSet();
+            var pcs = pitches.Select(p => p % 12).Distinct().ToList();
+            var inside = pcs.Count(p => tones.Contains(p));
+            return tones.Contains(pitches.Min() % 12) && inside > pcs.Count - inside;
         }
 
         /// <summary>The chords <see cref="ChordRecognizer"/> reads from all the tab's notes, as regions.</summary>
@@ -1137,11 +1165,15 @@ namespace YourBand.SongTool
 
                 var frets = RegionFrets(g, total);
 
-                // the file's own name for the region: the written name in force for most of its strum time, when it has one
-                // (by time: a bass note struck just before a marker, or a first strum of the next chord, is not the chord)
+                // the file's own name for the region: the written name of most of its strum time, when it has one
+                // (by time: a bass note struck just before a marker, or a first strum of the next chord, is not the chord;
+                // and a region mostly of strums that fit no name, a short one among them fitting the old name, is named
+                // by its notes)
                 var writtenName = g.Where(s => s.ChordName != null).GroupBy(s => s.ChordName)
-                    .OrderByDescending(x => x.Sum(s => s.Duration)).ThenBy(x => x.Key, StringComparer.Ordinal)
-                    .Select(x => x.Key).FirstOrDefault();
+                    .Select(x => (name: x.Key, time: x.Sum(s => s.Duration)))
+                    .Where(x => x.time > 0.5 * total || g.All(s => s.ChordName != null))
+                    .OrderByDescending(x => x.time).ThenBy(x => x.name, StringComparer.Ordinal)
+                    .Select(x => x.name).FirstOrDefault();
 
                 regions.Add(new ChordRegion
                 {
@@ -1151,6 +1183,7 @@ namespace YourBand.SongTool
                     Bass = bass,
                     Frets = frets,
                     ChordName = writtenName,
+                    Lead = g.All(s => s.Pitches.Distinct().Count() <= 2) && total < 0.5 * (Math.Min(end, nextStart) - start),
                 });
             }
             return regions;
