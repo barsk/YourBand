@@ -175,15 +175,19 @@ skipping to a bar and pressing Space the strokes and picks had no chord to play 
 Shreddage fingers the held notes on a guitar **in standard tuning**, one note to a string, and the strum and string keys act on
 that voicing. A chord it cannot finger that way is **not voiced at all, and then every key is silent**: no strum, no pick, not
 even a quiet one. The rule, measured on 2026-11-16 with `plugin_probe --seq` against the saved sound of a song in DGCFAD
-(43 distinct chords, 25 sounded and 18 were silent, and the rule below predicts all 43):
+(43 distinct chords, 25 sounded and 18 were silent, and the rule below predicts all 43), and how far up the neck it reaches on
+2026-11-17, against a song in standard tuning (all six strings at fret 12 sounded, the low E string at fret 13 was silent):
 
 > A chord is voiced when each of its notes can go to a string of its own, the strings being E2 A2 D3 G3 B3 E4 (40, 45, 50,
-> 55, 59, 64) and each string reaching one semitone below its open note (the lowest string's D#2 is the plugin's lowest note)
-> up the neck. A seventh note, or two notes that only one string can reach, break it.
+> 55, 59, 64) and each string reaching from one semitone below its open note (the lowest string's D#2 is the plugin's lowest
+> note) **up to its 12th fret** (the high E string's 12th fret is E5, the plugin's top note). A seventh note, two notes that
+> only one string can reach, or a note that needs a 13th fret, break it.
 
 The plainest case is two adjacent low notes: F2 (41) and G2 (43) can only both be played on the low E string, so a chord
 holding both is silent. A song in drop D, DADGAD or DGCFAD has such chords (Black Hole Sun's G7 and A#6, bars 11 and 13: the
-guitar went silent there). The chord is a property of the held notes, so a single string key in a chord with an impossible
+guitar went silent there). A chord high on the neck has them in any tuning: Don't Stop Believin' holds A2 G#4 B4 E5, where the
+B4 and E5 need the B and high E strings at fret 12 and the G#4 the G string at fret 13; 55 of its 321 held chords were silent,
+about 35 seconds of the song. The chord is a property of the held notes, so a single string key in a chord with an impossible
 note is silent although that note was never picked.
 
 So the arranger (`GuitarVoicing` in `Core/Band`, used by `Strum` and `TrackRhythm`) sends only chords that can be voiced:
@@ -192,7 +196,7 @@ So the arranger (`GuitarVoicing` in `Core/Band`, used by `Strum` and `TrackRhyth
 |---|---|
 | 1 | Each note is folded into the range, D#2 to E5 (an octave up from below, an octave down from above) |
 | 2 | A chord that can be voiced is sent as it is |
-| 3 | Otherwise as few notes as possible move an octave (two octaves at most), an upward move before a downward one, so the low note of the two stays and the other goes up; a note with no place at all is left out |
+| 3 | Otherwise as few notes as possible move an octave (two octaves at most): an upward move before a downward one, and an inner note before the chord's top or bass, which are heard most (F2 G2 with G3 B3 D4: the G2 goes up; A2 G#4 B4 E5: the B4 goes down to B3); a note with no place at all is left out |
 | 4 | The string keys count the notes of the chord **as voiced** (their rank), a note that was left out is not picked, and two strings that end on one pitch share its key (the later strike lets go of the earlier; struck together, one press) |
 
 The other guitars still get the notes as written (`BandNote`s), only the held chord is changed. In the example, F2 and G2 held

@@ -9,7 +9,8 @@ namespace YourBand.Core.Band
     /// fingered that way is not voiced at all, and then every key is silent: a song in another tuning (DGCFAD, drop D, DADGAD)
     /// has such chords, two notes that only the low E string reaches (F2 and G2) being the plainest. Measured with plugin_probe
     /// on 43 chords of a song in DGCFAD (docs/shreddage-keyswitches.md): the chords every one of whose notes can go to a string
-    /// of its own, each string reaching one semitone below its open note, sounded, the others (18 of them) were silent.
+    /// of its own, each string reaching from one semitone below its open note up to its 12th fret, sounded, the others (18 of
+    /// them) were silent.
     /// <see cref="Voice"/> keeps a chord that can be fingered as it is, and otherwise moves as few of its notes an octave as
     /// makes it so (a note is left out only when no octave helps).
     /// </summary>
@@ -21,8 +22,12 @@ namespace YourBand.Core.Band
         /// <summary>The open strings of a guitar in standard tuning, lowest first (E2 A2 D3 G3 B3 E4).</summary>
         static readonly int[] Open = { 40, 45, 50, 55, 59, 64 };
 
-        /// <summary>How far up the neck a note may be fingered: past what a chord in range needs.</summary>
-        const int MaxFret = 15;
+        /// <summary>
+        /// How far up the neck a note may be fingered: the 12th fret, on every string (the high E string's 12th fret is E5, the
+        /// plugin's top note). Measured with plugin_probe: all six strings at fret 12 sounded, the low E string at fret 13 was
+        /// silent, and Don't Stop Believin's A2 G#4 B4 E5 (the G#4 on the G string's 13th fret) was silent while A2 G4 B4 E5 sounded.
+        /// </summary>
+        const int MaxFret = 12;
 
         /// <summary>A note in the plugin's range: octaves up from below it, octaves down from above it.</summary>
         public static int Fold(int pitch)
@@ -62,7 +67,8 @@ namespace YourBand.Core.Band
         /// <summary>
         /// The pitch each note of a chord is played at so that the chord can be voiced: itself (in range) if the chord can be
         /// fingered, else with the fewest octave moves (a downward move costs a little more than an upward one, so a low note
-        /// goes up before a high one goes down). A note with no place is absent from the result, and two notes may end at one
+        /// goes up before a high one goes down, and the chord's top and bottom notes, which are heard most, move after an inner
+        /// one). A note with no place is absent from the result, and two notes may end at one
         /// pitch. The notes the plugin is given are the distinct values.
         /// </summary>
         public static Dictionary<int, int> Voice(IEnumerable<int> pitches)
@@ -75,7 +81,9 @@ namespace YourBand.Core.Band
             var options = raw.Select(p =>
             {
                 var home = Fold(p);
-                return new[] { 0, 12, -12, 24, -24 }.Select(shift => (pitch: home + shift, cost: System.Math.Abs(shift) / 12.0 + (shift < 0 ? 0.01 : 0.0)))
+                var outer = p == raw[0] || p == raw[raw.Count - 1] ? 0.02 : 0.0;  // (the top and the bass: heard most)
+                return new[] { 0, 12, -12, 24, -24 }.Select(shift => (pitch: home + shift,
+                                                                      cost: System.Math.Abs(shift) / 12.0 + (shift < 0 ? 0.01 : 0.0) + (shift != 0 ? outer : 0.0)))
                     .Where(o => o.pitch >= Lowest && o.pitch <= Highest).ToList();
             }).ToList();
             const double LeftOut = 5.0;

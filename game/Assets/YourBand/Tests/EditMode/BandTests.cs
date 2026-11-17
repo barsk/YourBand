@@ -21,6 +21,9 @@ namespace YourBand.Core.Tests
             new[] { 42, 43, 48 }, new[] { 42, 47, 48 }, new[] { 42, 45, 48 }, new[] { 41, 43, 50, 55, 59 }, new[] { 41, 43, 48, 55, 59 },
             new[] { 41, 47, 48, 55, 59 }, new[] { 41, 45, 48, 55, 59 }, new[] { 42, 43, 48, 55, 59 }, new[] { 41, 43, 48, 53, 57 },
             new[] { 41, 43, 50, 55, 59, 64 },
+            // Don't Stop Believin' (standard tuning): the G#4 needs the G string's 13th fret, past the 12th
+            new[] { 45, 68, 71, 76 }, new[] { 40, 68, 71, 76 },
+            new[] { 53, 57, 62, 67, 71, 76 },  // the low E string at fret 13
         };
 
         // and some that sounded
@@ -28,6 +31,8 @@ namespace YourBand.Core.Tests
         {
             new[] { 40, 45, 50, 55, 59, 64 }, new[] { 39, 55, 58, 63 }, new[] { 39, 44, 51, 56, 60, 63 }, new[] { 39, 46, 51, 56, 60, 63 },
             new[] { 43, 50, 55, 60 }, new[] { 40, 47, 52, 59 },
+            new[] { 45, 67, 71, 76 }, new[] { 45, 66, 71, 75 }, new[] { 45, 68, 76 },
+            new[] { 52, 57, 62, 67, 71, 76 },  // every string at fret 12
         };
 
         [Test]

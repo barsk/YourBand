@@ -172,8 +172,9 @@ under it in Redbud Tree.) The algorithm, in `TrackRhythm`:
    chord held on (the strings ring through the change). A note off its string's held pitch starts a new held chord from there.
 3. **`Voicings`** get the notes of every held chord **as Shreddage can voice it** (`GuitarVoicing`: it fingers the held notes on a
    guitar in standard tuning, and a chord it cannot finger, such as two notes only the low E string reaches, is silent: a song in
-   another tuning has many; [shreddage-keyswitches.md](shreddage-keyswitches.md#53-which-chords-shreddage-can-voice)). A chord that
-   cannot be fingered has as few notes moved an octave as makes it so.
+   another tuning has many, and so does a chord past the 12th fret, the highest Shreddage plays;
+   [shreddage-keyswitches.md](shreddage-keyswitches.md#53-which-chords-shreddage-can-voice)). A chord that cannot be fingered has as
+   few notes moved an octave as makes it so, an inner note before the top or the bass.
 4. **Strikes.** Each onset becomes one strike per note, in the order a hand crosses the strings: down low to high, up high
    to low (the file's pick stroke `D` or `U` if it records one, else down on the beat and up off it, as `StrumOf` works it out); the strokes' spread is 12 ms per string down and 9 ms up. An
    onset of two or more notes is a **strum**: its direction and velocity come from `StrumOf` (the file's pick stroke, else
