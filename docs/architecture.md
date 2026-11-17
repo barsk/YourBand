@@ -136,7 +136,7 @@ A **`TrackNote`** is what the band plays from a Guitar Pro track:
 | `Pitch` | The sounding MIDI pitch, capo included; on a drum track the General MIDI drum note |
 | `StringIndex`, `Fret` | The string (0 lowest) and fret where the track is tab, else -1 |
 | `Velocity` | 1-127 from the written dynamics (ppp 15 to fff 127), accents and ghost notes |
-| `Technique` | A letter each: `b` bend, `s` slide, `h` hammer-on or pull-off, `~` vibrato, `m` palm mute, `x` dead note, `g` ghost, `a` accent, `.` staccato, `r` let ring, `n` harmonic, `t` tapped, `z` tremolo picking, `q` grace note; `D` / `U` the pick stroke the file records |
+| `Technique` | A letter each: `b` bend, `s` slide, `h` hammer-on or pull-off, `~` vibrato, `m` palm mute, `x` dead note, `g` ghost, `a` accent, `.` staccato, `r` let ring, `n` harmonic, `t` tapped, `z` tremolo picking, `q` grace note; `D` / `U` the stroke the file records (its pick stroke, else its brush or arpeggio) |
 | `Bend`, `BendPoints` | A bend's top in semitones, and its shape as [where in the note 0-1, semitones] points |
 | `SlideOut`, `SlideIn` | `shift`, `legato`, `down`, `up` out of the note; `below`, `above` into it |
 | `Vibrato` | `slight` or `wide` |

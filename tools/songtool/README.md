@@ -64,7 +64,7 @@ note, as alphaTab's percussion mapper gives it), its string and fret where the t
 written dynamics and accents (as alphaTab's player: ppp 15 to fff 127; under a crescendo or a diminuendo spread evenly
 from the dynamic it starts at to the one after it, a level louder or softer where the file marks none), its techniques as letters (b bend, s slide,
 h hammer-on or pull-off, ~ vibrato, m palm mute, x dead, g ghost, a accent, . staccato, r let ring, n harmonic,
-t tapped, z tremolo, q grace; D or U the beat's recorded pick stroke), and the techniques' shapes: a bend's height in
+t tapped, z tremolo, q grace; D or U the beat's recorded pick stroke, else its brush or arpeggio), and the techniques' shapes: a bend's height in
 semitones and its points (`bendPoints`: [where in the note 0-1, semitones], so a release or a pre-bend is as written),
 a slide out (`slideOut`: shift, legato, down, up) and in (`slideIn`: below, above), the vibrato's width (`vibrato`:
 slight, wide) and tremolo picking's note length (`tremoloQuarters`). A harmonic has its sounding pitch (alphaTab's,
@@ -123,8 +123,9 @@ Guitar patterns). A run of more than three bars is too long to remember, so the 
 most common bar instead, and the run is kept as the pattern's `played` strokes, which the band plays. Bars of
 different lengths (a change of meter) fall back to the section's most common bar. A stroke's **direction** is, in order:
 
-1. the file's recorded pick stroke (`PickStroke`), muted where it is a palm mute or ghost; a GPX file often records
-   no strokes at all, so this usually does not fire;
+1. the file's recorded pick stroke (`PickStroke`), else its brush or arpeggio (`BrushType`; down is the lowest string
+   first, as alphaTab's player plays it), muted where it is a palm mute or ghost; a GPX file often records no strokes at
+   all, so this usually does not fire;
 2. the standard rule: **down on the beat, up on the off-beat**; strums on neighbouring sixteenths are the hand going
    down and up as fast as it can, so they **alternate** (the beat and the "&" down, the "e" and the "a" up).
 

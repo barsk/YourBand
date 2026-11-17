@@ -176,8 +176,8 @@ under it in Redbud Tree.) The algorithm, in `TrackRhythm`:
    [shreddage-keyswitches.md](shreddage-keyswitches.md#53-which-chords-shreddage-can-voice)). A chord that cannot be fingered has as
    few notes moved an octave as makes it so, an inner note before the top or the bass.
 4. **Strikes.** Each onset becomes one strike per note, in the order a hand crosses the strings: down low to high, up high
-   to low (the file's pick stroke `D` or `U` if it records one, else down on the beat and up off it, as `StrumOf` works it out); the strokes' spread is 12 ms per string down and 9 ms up. An
-   onset of two or more notes is a **strum**: its direction and velocity come from `StrumOf` (the file's pick stroke, else
+   to low (the file's stroke `D` or `U` if it records one, a pick stroke or a brush, else down on the beat and up off it, as `StrumOf` works it out); the strokes' spread is 12 ms per string down and 9 ms up. An
+   onset of two or more notes is a **strum**: its direction and velocity come from `StrumOf` (the file's stroke, else
    down on the beat and up off it, with the importer's own slot rule; as hard as the made-up strumming, shifted by the file's
    dynamics). A single note's velocity is `64 + (fileVelocity - 15) / 2`, the range a plugin guitar plays in (a plugin
    guitar is faint and choked at the file's soft velocities).

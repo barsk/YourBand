@@ -860,9 +860,26 @@ namespace YourBand.SongTool
             if (n.IsLeftHandTapped) t.Append('t');
             if (n.Beat.IsTremolo) t.Append('z');
             if (n.Beat.GraceType != GraceType.None) t.Append('q');
-            if (n.Beat.PickStroke == PickStroke.Down) t.Append('D');
-            else if (n.Beat.PickStroke == PickStroke.Up) t.Append('U');
+            var stroke = StrokeOf(n.Beat);
+            if (stroke == PickStroke.Down) t.Append('D');
+            else if (stroke == PickStroke.Up) t.Append('U');
             return t.ToString();
+        }
+
+        /// <summary>
+        /// The direction a beat's file records for it: its pick stroke, else its brush (a strum written out, a brush or an
+        /// arpeggio: down is the lowest string first, as alphaTab's own player plays it), else none.
+        /// </summary>
+        static PickStroke StrokeOf(Beat beat)
+        {
+            if (beat.PickStroke != PickStroke.None)
+                return beat.PickStroke;
+            return beat.BrushType switch
+            {
+                BrushType.BrushDown or BrushType.ArpeggioDown => PickStroke.Down,
+                BrushType.BrushUp or BrushType.ArpeggioUp => PickStroke.Up,
+                _ => PickStroke.None,
+            };
         }
 
         /// <summary>Whether two tracks play the same notes, on the same strings and frets.</summary>
@@ -1534,13 +1551,13 @@ namespace YourBand.SongTool
 
         /// <summary>
         /// The stroke a GPX beat records, or <see cref="Stroke.Rest"/> when it records neither a direction nor an accent:
-        /// the pick stroke (muted where it is a palm mute or ghost), and an accent on the beat's notes (louder; its
-        /// direction, when the file has no pick stroke, by the standard rule, <see cref="RuleDown"/>).
+        /// the pick stroke or brush (<see cref="StrokeOf"/>; muted where it is a palm mute or ghost), and an accent on the
+        /// beat's notes (louder; its direction, when the file has no stroke, by the standard rule, <see cref="RuleDown"/>).
         /// </summary>
         static Stroke Recorded(Beat beat, bool ruleDown)
         {
             var accent = beat.Notes.Any(n => n.Accentuated != AccentuationType.None);
-            var stroke = beat.PickStroke;
+            var stroke = StrokeOf(beat);
             if (stroke == PickStroke.None && !accent)
                 return Stroke.Rest;
             var down = stroke == PickStroke.None ? ruleDown : stroke == PickStroke.Down;
