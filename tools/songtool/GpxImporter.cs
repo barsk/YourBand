@@ -1026,7 +1026,7 @@ namespace YourBand.SongTool
                     continue;
                 }
                 // the file's own chord name wins when its strums agree on one; otherwise the notes decide
-                var name = region.ChordName ?? DetectChord(region.CorePcs, region.Bass);
+                var name = region.ChordName ?? NameFromNotes(region, staff);
                 // the shape: the file's diagram for its name (on the region's own markers, else the first the file draws for
                 // that name, on any track), else the one the track plays most
                 var diagram = region.ChordName == null ? null
@@ -1068,6 +1068,22 @@ namespace YourBand.SongTool
             var pcs = pitches.Select(p => p % 12).Distinct().ToList();
             var inside = pcs.Count(p => tones.Contains(p));
             return tones.Contains(pitches.Min() % 12) && inside > pcs.Count - inside;
+        }
+
+        /// <summary>
+        /// A region's chord named from its notes: those it sounds for most of its length, or its shape's when the shape holds
+        /// them all (No Woman No Cry's last C, x32010 struck once and then picked notes around it, sounds only its C and G for
+        /// most of the bar, which alone would make it C5).
+        /// </summary>
+        static string NameFromNotes(ChordRegion region, Staff staff)
+        {
+            var tunings = staff.StringTuning.Tunings;
+            var shape = Enumerable.Range(0, region.Frets.Length).Where(s => region.Frets[s] >= 0 && s < tunings.Count)
+                .Select(s => (int)tunings[tunings.Count - 1 - s] + region.Frets[s]).ToList();
+            var shapePcs = shape.Select(p => p % 12).ToHashSet();
+            if (shape.Count >= 3 && region.CorePcs.Count > 0 && region.CorePcs.IsSubsetOf(shapePcs) && shapePcs.Count > region.CorePcs.Count)
+                return DetectChord(shapePcs, shape.Min() % 12);
+            return DetectChord(region.CorePcs, region.Bass);
         }
 
         /// <summary>
