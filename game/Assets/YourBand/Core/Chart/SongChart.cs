@@ -67,7 +67,10 @@ namespace YourBand.Core.Chart
         public Section Section { get; internal set; }
         /// <summary>True for the first bar of a section.</summary>
         public bool StartsSection { get; internal set; }
+        /// <summary>The song's chords in this bar: the ones the band plays from.</summary>
         public List<BarChord> Chords { get; } = new List<BarChord>();
+        /// <summary>The chords the chart shows in this bar (<see cref="SongChart.ShowChordsOf"/>).</summary>
+        public List<BarChord> ShownChords { get; } = new List<BarChord>();
         public List<BarWord> Words { get; } = new List<BarWord>();
         public List<BarNote> Notes { get; } = new List<BarNote>();
     }
@@ -148,7 +151,7 @@ namespace YourBand.Core.Chart
     /// <summary>
     /// A song laid out as the chart shows it (see docs/plan.md, "Desktop mode"): bar by bar, with what to show at a
     /// position (the bar, the lyric line, the strumming stroke, the next chord change). Built once per song; the
-    /// views only ask it questions.
+    /// views only ask it questions, and tell it whose chords to show (<see cref="ShowChordsOf"/>).
     /// </summary>
     public sealed class SongChart
     {
@@ -164,8 +167,10 @@ namespace YourBand.Core.Chart
         public IReadOnlyList<ChartRow> Rows => rows;
         /// <summary>The length of the song's most common bar (quarter notes): <see cref="BarsPerRow"/> of them fill a row.</summary>
         public double TypicalBarQuarters { get; }
-        /// <summary>The song's chords by name, in the order they first appear.</summary>
-        public IReadOnlyList<string> ChordNames { get; }
+        /// <summary>The chords the chart shows, by name, in the order they first appear.</summary>
+        public IReadOnlyList<string> ChordNames { get; private set; }
+        /// <summary>The chords the chart shows, in time order (<see cref="ShowChordsOf"/>).</summary>
+        public IReadOnlyList<ChordEvent> ShownChords => shown;
         public double EndQuarter { get; }
         /// <summary>The tabs the TAB panel can show: the song's own first, then the Guitar Pro file's other tracks written as tab.</summary>
         public IReadOnlyList<ChartTab> Tabs => tabs;
@@ -177,6 +182,9 @@ namespace YourBand.Core.Chart
         readonly List<int> rowOfBar = new List<int>();
         readonly List<LyricLine> lines;
         readonly List<ChordEvent> chords;
+        List<ChordEvent> shown;
+        Dictionary<SongTrack, ILookup<int, ChordMarker>> markersByBar;
+        Dictionary<SongTrack, bool[]> soundingBars;  // per track and bar: whether it plays there
 
         public SongChart(Song song)
         {
@@ -184,7 +192,6 @@ namespace YourBand.Core.Chart
             chords = song.Chords.OrderBy(c => c.AtQuarter).ToList();
             // the lead lines are the song's lines; backing vocals only add their words to the bars
             lines = song.Lyrics.Where(l => l.Words.Count > 0 && !l.Backing).OrderBy(l => l.AtQuarter).ToList();
-            ChordNames = chords.Select(c => c.Name).Distinct().ToList();
 
             var ends = new List<double> { 0 };
             ends.AddRange(chords.Select(c => c.AtQuarter + c.Quarters));
@@ -257,6 +264,96 @@ namespace YourBand.Core.Chart
                     rowOfBar.Add(rows.Count - 1);
                 i = j;
             }
+            ShowChordsOf(tabs[0].Name);
+        }
+
+        // ------------------------------------------------------------ the chords shown
+        /// <summary>
+        /// The chart shows the chords as a track has them, as a Guitar Pro file writes a chord on a beat of each track (the
+        /// band goes on playing from the song's chords, <see cref="ChartBar.Chords"/>). A bar takes the chords written in it
+        /// on this track, else on the first other track of the file that has any there. In a bar with none, a written chord
+        /// goes on while the track that wrote it plays; otherwise the bar takes the song's chords. Each chord lasts until the
+        /// next, or until a bar nothing plays in. A track that writes no chords at all (a bass, the drums) shows those of the
+        /// song's own track. A song with no written chords shows the song's chords.
+        /// </summary>
+        public void ShowChordsOf(string trackName)
+        {
+            shown = ChordsAsWrittenFor(trackName) ?? chords;
+            ChordNames = shown.Select(c => c.Name).Distinct().ToList();
+            foreach (var bar in bars)
+                bar.ShownChords.Clear();
+            foreach (var c in shown)
+                foreach (var bar in BarsOver(c.AtQuarter, c.AtQuarter + c.Quarters))
+                {
+                    var from = Math.Max(c.AtQuarter, bar.AtQuarter);
+                    var to = Math.Min(c.AtQuarter + c.Quarters, bar.AtQuarter + bar.Quarters);
+                    bar.ShownChords.Add(new BarChord(c, from - bar.AtQuarter, to - from, c.AtQuarter < bar.AtQuarter - 1e-6));
+                }
+        }
+
+        /// <summary>The chord the chart shows at a position (null before the first or in a gap).</summary>
+        public ChordEvent ChordAt(double quarter) =>
+            shown.LastOrDefault(c => c.AtQuarter <= quarter && quarter < c.AtQuarter + c.Quarters);
+
+        List<ChordEvent> ChordsAsWrittenFor(string trackName)
+        {
+            var marked = Song.Tracks.Where(t => t.Chords.Count > 0).ToList();
+            if (marked.Count == 0)
+                return null;
+            if (markersByBar == null)
+            {
+                markersByBar = marked.ToDictionary(t => t, t => t.Chords.Where(m => BarOf(m.AtQuarter) != null).ToLookup(m => BarOf(m.AtQuarter).Index));
+                soundingBars = new Dictionary<SongTrack, bool[]>();
+                foreach (var t in Song.Tracks)
+                {
+                    var plays = new bool[bars.Count];
+                    var played = t.SameAs != null ? Song.Tracks.FirstOrDefault(o => o.Name == t.SameAs) ?? t : t;  // (a doubling track's notes are its twin's)
+                    foreach (var n in played.Notes)
+                        foreach (var bar in BarsOver(n.AtQuarter, n.AtQuarter + Math.Max(n.Quarters, 1e-3)))
+                            plays[bar.Index] = true;
+                    soundingBars[t] = plays;
+                }
+            }
+            var first = marked.FirstOrDefault(t => t.Name == trackName) ?? marked.FirstOrDefault(t => t.Name == tabs[0].Name);
+            var order = marked.Where(t => t == first).Concat(marked.Where(t => t != first)).ToList();
+
+            var result = new List<ChordEvent>();
+            ChordEvent open = null, openFrom = null;  // the chord going on, and the song's chord it is, if it is one
+            SongTrack writer = null;  // the track that wrote the chord going on
+            void Close(double at)
+            {
+                if (open != null)
+                    open.Quarters = at - open.AtQuarter;
+                open = openFrom = null;
+                writer = null;
+            }
+            void Start(double at, string name, string voicing, ChordEvent from, SongTrack track)
+            {
+                Close(at);
+                open = new ChordEvent { Name = name, AtQuarter = at, Voicing = voicing };
+                openFrom = from;
+                writer = track;
+                result.Add(open);
+            }
+            foreach (var bar in bars)
+            {
+                var source = order.FirstOrDefault(t => markersByBar[t][bar.Index].Any());
+                if (source != null)
+                    foreach (var m in markersByBar[source][bar.Index].OrderBy(m => m.AtQuarter))
+                        Start(m.AtQuarter, m.Name, m.Voicing, null, source);
+                else if (writer != null && soundingBars[writer][bar.Index])
+                    continue;
+                else if (bar.Chords.Count > 0)
+                {
+                    foreach (var c in bar.Chords)
+                        if (c.Chord != openFrom)
+                            Start(bar.AtQuarter + c.Offset, c.Chord.Name, c.Chord.Voicing, c.Chord, null);
+                }
+                else if (!soundingBars.Values.Any(plays => plays[bar.Index]))
+                    Close(bar.AtQuarter);
+            }
+            Close(EndQuarter);
+            return result.Where(c => c.Quarters > 1e-6).ToList();
         }
 
         // ------------------------------------------------------------ tabs
@@ -484,11 +581,11 @@ namespace YourBand.Core.Chart
         public static int WordsSung(LyricLine line, double quarter) => line?.Words.Count(w => w.AtQuarter <= quarter) ?? 0;
 
         // ------------------------------------------------------------ chords
-        /// <summary>The next chord change after a position: the first chord after it with a different name.</summary>
+        /// <summary>The next chord change the chart shows after a position: the first chord after it with a different name.</summary>
         public ChordEvent NextChange(double quarter)
         {
-            var now = Song.ChordAt(quarter);
-            return chords.FirstOrDefault(c => c.AtQuarter > quarter && (now == null || c.Name != now.Name));
+            var now = ChordAt(quarter);
+            return shown.FirstOrDefault(c => c.AtQuarter > quarter && (now == null || c.Name != now.Name));
         }
 
         // ------------------------------------------------------------ strumming

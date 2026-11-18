@@ -644,6 +644,8 @@ namespace YourBand.SongTool
                 }
                 if (songTrack.Notes.Count == 0)
                     continue;
+                if (!drums)
+                    songTrack.Chords = ChordMarkers(timeline, first, song, tpq);
                 songTrack.Notes.Sort((a, b) => a.AtQuarter != b.AtQuarter ? a.AtQuarter.CompareTo(b.AtQuarter) : a.Pitch.CompareTo(b.Pitch));
                 hairpins += Hairpins(songTrack.Notes, hairpin);
                 var twin = song.Tracks.FirstOrDefault(t => t.SameAs == null && SameNotes(t, songTrack));
@@ -1002,14 +1004,7 @@ namespace YourBand.SongTool
             if (riff.Notes.Count > 0)
                 song.Riffs.Add(riff);
 
-            // the chord diagrams the file draws, by name: the first with frets, this track's before the others' (No Woman No
-            // Cry draws its diagrams on the vocal track only)
-            var diagrams = new Dictionary<string, AlphaTab.Model.Chord>();
-            var strings = staff.StringTuning.Tunings.Count;
-            foreach (var st in new[] { staff }.Concat(staff.Track.Score.Tracks.SelectMany(t => t.Staves)))
-                foreach (var c in st.Chords?.Select(kv => kv.Value) ?? Enumerable.Empty<AlphaTab.Model.Chord>())
-                    if (!string.IsNullOrWhiteSpace(c.Name) && FretsOf(c, strings) != null)
-                        diagrams.TryAdd(c.Name.Trim(), c);
+            var diagrams = Diagrams(staff, staff.StringTuning.Tunings.Count);
 
             // a file that names no chords: the notes decide, all of them (a fingerpicked part has no strums to go by)
             var regions = anyMarker ? ChordRegions(strums) : RecognizedRegions(riff, staff, timeline, tpq);
@@ -1084,6 +1079,61 @@ namespace YourBand.SongTool
             if (shape.Count >= 3 && region.CorePcs.Count > 0 && region.CorePcs.IsSubsetOf(shapePcs) && shapePcs.Count > region.CorePcs.Count)
                 return DetectChord(shapePcs, shape.Min() % 12);
             return DetectChord(region.CorePcs, region.Bass);
+        }
+
+        /// <summary>
+        /// The chord diagrams the file draws, by name: the first with frets, this staff's before the other tracks' (No Woman
+        /// No Cry draws its diagrams on the vocal track only).
+        /// </summary>
+        static Dictionary<string, AlphaTab.Model.Chord> Diagrams(Staff staff, int strings)
+        {
+            var diagrams = new Dictionary<string, AlphaTab.Model.Chord>();
+            foreach (var st in new[] { staff }.Concat(staff.Track.Score.Tracks.SelectMany(t => t.Staves)))
+                foreach (var c in st.Chords?.Select(kv => kv.Value) ?? Enumerable.Empty<AlphaTab.Model.Chord>())
+                    if (!string.IsNullOrWhiteSpace(c.Name) && FretsOf(c, strings) != null)
+                        diagrams.TryAdd(c.Name.Trim(), c);
+            return diagrams;
+        }
+
+        /// <summary>
+        /// The chords written on a staff's beats, as played (repeats unrolled), each with its shape: the diagram on its beat,
+        /// else the file's diagram for its name, else the notes its beat plays, else a shape the song has for its name.
+        /// </summary>
+        static List<ChordMarker> ChordMarkers(List<PlayedBar> timeline, Staff staff, Song song, double tpq)
+        {
+            var markers = new List<ChordMarker>();
+            var strings = staff.StringTuning.Tunings.Count > 0 ? staff.StringTuning.Tunings.Count : 6;
+            var diagrams = Diagrams(staff, strings);
+            foreach (var pb in timeline)
+            {
+                if (!(BarAt(staff, pb.Index) is Bar bar))
+                    continue;
+                foreach (var voice in Played(staff, bar).Voices)
+                    foreach (var beat in voice.Beats)
+                    {
+                        var name = ChordName(beat);
+                        if (name == null)
+                            continue;
+                        var at = (pb.Start + beat.DisplayStart) / tpq;
+                        if (markers.Any(m => m.Name == name && Math.Abs(m.AtQuarter - at) < 1e-6))
+                            continue;
+                        var diagram = FretsOf(beat.Chord, strings) != null ? beat.Chord : diagrams.TryGetValue(name, out var d) ? d : null;
+                        var notes = beat.Notes.Where(n => n.String >= 1 && !n.IsDead).ToList();
+                        var frets = diagram != null ? FretsOf(diagram, strings)
+                            : staff.IsStringed && notes.Count >= 2 ? FretsFor(notes, staff) : null;
+                        string voicing = song.Voicings.FirstOrDefault(v => v.Chord == name)?.Id;
+                        if (frets != null)
+                        {
+                            voicing = $"{name}-{VoicingFrets(frets)}";
+                            if (song.Voicings.All(v => v.Id != voicing))
+                                song.Voicings.Add(new Voicing { Id = voicing, Chord = name, Frets = new List<int>(frets), Fingers = new List<int>(frets.Length),
+                                                                Barre = diagram != null ? BarreOf(diagram, frets) : null });
+                        }
+                        markers.Add(new ChordMarker { AtQuarter = at, Name = name, Voicing = voicing });
+                    }
+            }
+            markers.Sort((a, b) => a.AtQuarter.CompareTo(b.AtQuarter));
+            return markers;
         }
 
         /// <summary>

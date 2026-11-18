@@ -237,11 +237,21 @@ namespace YourBand.Runtime.UI
         {
             tabIndex = index;
             tab.SetTab(chart.Tabs[index]);
+            ShowChordsOfTab();
             ShowTabTitle();
             if (!IsShown(Panel.Tab))
                 SetShown(Panel.Tab, true);
             var shown = chart.Tabs[index];
             return shown.Name != "" ? shown.Name : "the song's tab";
+        }
+
+        /// <summary>The chart and the CHORDS panel show the chords as the track of the tab shown has them.</summary>
+        void ShowChordsOfTab()
+        {
+            chart.ShowChordsOf(chart.Tabs[tabIndex].Name);
+            Strip.ChordsChanged();
+            cards.Clear();
+            chordRow.Clear();
         }
 
         /// <summary>"TAB", the track's name, and which of the tabs the band plays it is (or that the band does not play it).</summary>
@@ -308,8 +318,7 @@ namespace YourBand.Runtime.UI
             tabIndex = 0;
             cycle = new List<int> { 0 };  // (the band's tracks come with its arrangement: SetTabTracks)
             ShowTabTitle();
-            cards.Clear();
-            chordRow.Clear();
+            ShowChordsOfTab();
             strum.Show(null, TimeSignature.FourFour);
 
             info.Clear();
@@ -385,13 +394,13 @@ namespace YourBand.Runtime.UI
 
         void ShowChords(double at, bool started)
         {
-            var now = chart.Song.ChordAt(at);
+            var now = chart.ChordAt(at);
             // before the music starts, the chord coming is the one it starts on
             var next = started ? chart.NextChange(at) : now ?? chart.NextChange(at);
             // the song's chords if they fit, otherwise the one sounding and the ones coming up
             var names = chart.ChordNames.Count <= MaxChords
                 ? chart.ChordNames.ToList()
-                : new[] { now?.Name }.Concat(chart.Song.Chords.Where(c => c.AtQuarter > at).Select(c => c.Name))
+                : new[] { now?.Name }.Concat(chart.ShownChords.Where(c => c.AtQuarter > at).Select(c => c.Name))
                     .Where(n => n != null).Distinct().Take(MaxChords).ToList();
             if (!names.SequenceEqual(cards.Select(c => c.name)))
             {
@@ -402,7 +411,7 @@ namespace YourBand.Runtime.UI
                     var card = ChartLook.Box("gt-chord-card", chordRow);
                     card.style.borderTopColor = ChartLook.ForChord(chart, name);
                     var diagram = new ChordDiagram();
-                    var chord = chart.Song.Chords.First(c => c.Name == name);
+                    var chord = chart.ShownChords.First(c => c.Name == name);
                     diagram.Show(name, chart.Song.VoicingFor(chord));
                     card.Add(diagram);
                     cards.Add((name, card, ChartLook.Label("", "gt-chord-card__tag", card)));

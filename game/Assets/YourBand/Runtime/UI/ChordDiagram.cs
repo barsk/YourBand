@@ -15,6 +15,7 @@ namespace YourBand.Runtime.UI
         const float Width = 130, Height = 194;
         const float X0 = 26, StringGap = 19, Y0 = 62, FretGap = 25, Radius = 9;
         const int FretsShown = 5;
+        const float TitleSize = 26;  // (as in Chart.uss)
 
         Voicing voicing;
         int firstFret = 1;
@@ -34,6 +35,8 @@ namespace YourBand.Runtime.UI
         {
             voicing = shape;
             title.text = chord;
+            // (a long name, Dsus4add9/F#, made smaller to stay within its box: a character is about 0.58 of the font's size)
+            title.style.fontSize = Mathf.Min(TitleSize, (Width - 6) / (0.58f * Mathf.Max(1, chord?.Length ?? 1)));
             foreach (var child in Children().Where(c => c != title).ToList())
                 Remove(child);
 

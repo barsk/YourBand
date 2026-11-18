@@ -123,7 +123,7 @@ The rules that shape everything else:
 | Rhythm guitar | Strumming patterns (a grid of strokes: down, up, muted, accent, rest), chord voicings (frets and fingers per string, barre) |
 | Lead and riffs | `Riffs`: tab notes (string, fret) |
 | Timing | `Tempo` (the `TempoMap`), `Info` (key, capo, tuning, time signature) |
-| Tracks | `Tracks`: every track of a Guitar Pro file as written, with its notes ([below](#track-notes)). Empty for a song from Ultimate Guitar pages |
+| Tracks | `Tracks`: every track of a Guitar Pro file as written, with its notes ([below](#track-notes)) and the chords written on its beats (`Chords`: position, name, shape). Empty for a song from Ultimate Guitar pages |
 | Provenance | `Sources`: which file or page each part came from |
 
 <a id="track-notes"></a>
@@ -143,6 +143,11 @@ A **`TrackNote`** is what the band plays from a Guitar Pro track:
 | `TremoloQuarters` | The repeated note's length for tremolo picking |
 
 Songs are JSON files (`SongJson`, versioned) in `songs-local/<name>.song.json`.
+
+A song has two views of its chords. `Song.Chords` is what the band plays from. The chart and the CHORDS panel show
+`SongChart.ShownChords`: the chords written in the file, as the track in the TAB panel has them (`ShowChordsOf`). A bar takes
+that track's markers, else the first other track's; in a bar with none, a written chord goes on while its track plays, else
+the bar takes the song's chords. A track with no markers shows the song's own track's. A song with no markers (one from Ultimate Guitar pages) shows `Song.Chords`.
 
 ### 3.4 Importing songs
 

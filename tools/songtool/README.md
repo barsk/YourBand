@@ -9,7 +9,7 @@ dotnet build tools/songtool -c Release
 tools/songtool/bin/Release/net8.0/songtool.exe import-ug <chords-page.html> [--tabs <tabs-page.html>] [--chords-per-bar n|auto] -o <song.json>
 tools/songtool/bin/Release/net8.0/songtool.exe import-gpx <file.gpx> [--track n] [--strum <chords-page.html|strum.json>] -o <song.json>
 tools/songtool/bin/Release/net8.0/songtool.exe export-strum <chords-page.html> -o <strum.json>
-tools/songtool/bin/Release/net8.0/songtool.exe show <song.json> [--bars 1-16]
+tools/songtool/bin/Release/net8.0/songtool.exe show <song.json> [--bars 1-16] [--chart [--track <name>]]
 tools/songtool/bin/Release/net8.0/songtool.exe band-midi <song.json> [--bars 1-16] [--rhythm default|track] [-o <file.mid>]
 ```
 
@@ -97,7 +97,11 @@ It imports what the current song model holds:
   the first the file draws for that name on any track (No Woman No Cry draws its diagrams on the vocal track), with the
   barre it marks; otherwise the shape the track plays most. A diagram drawn from a higher fret has its open strings read
   back as open (alphaTab gives them as the fret below the first one drawn). The band's guitarist, playing the track, holds
-  the shapes of its tab, not these. A file with **no** chord names (a Guitar Pro 4
+  the shapes of its tab, not these. These chords are what the **band** plays from. What the **chart** shows comes from the
+  file's chord markers: each track keeps the chords written on its beats (`tracks[].chords`), and the chart shows those of
+  the track in the TAB panel, each from its beat until the next. A bar where that track writes none takes the first other
+  track that does. In a bar no track marks, a written chord goes on while the track that wrote it plays; otherwise the bar
+  shows the band's chords. A file with **no** chord names (a Guitar Pro 4
   file often has none) gets its chords **read from all its notes** (`ChordRecognizer.cs`), not only the strummed ones,
   so a fingerpicked part works too: the song is cut into the chord sequence that best explains the notes on an
   eighth-note grid, a chord scored by the notes it holds, the notes it does not, and whether the bass notes struck are

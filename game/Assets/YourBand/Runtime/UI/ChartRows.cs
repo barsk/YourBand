@@ -51,6 +51,13 @@ namespace YourBand.Runtime.UI
             schedule.Execute(FitLyrics);
         }
 
+        /// <summary>The chart shows other chords now: the rows draw their bars again.</summary>
+        public void ChordsChanged()
+        {
+            foreach (var v in views)
+                v.ForgetBars();
+        }
+
         /// <summary>The lyrics' size for this song at this width: the largest that fits every bar, within limits.</summary>
         void FitLyrics()
         {
@@ -244,6 +251,13 @@ namespace YourBand.Runtime.UI
             style.display = DisplayStyle.None;
         }
 
+        public void ForgetBars()
+        {
+            RowIndex = -1;
+            foreach (var cell in pool)
+                cell.Forget();
+        }
+
         public void Show(ChartRow row)
         {
             RowIndex = row.Index;
@@ -319,6 +333,8 @@ namespace YourBand.Runtime.UI
             count.pickingMode = PickingMode.Ignore;
         }
 
+        public void Forget() => bar = null;
+
         public void Show(SongChart songChart, ChartBar shown)
         {
             if (shown == bar && songChart == chart)
@@ -333,10 +349,10 @@ namespace YourBand.Runtime.UI
             chords.Clear();
             wordLayer.Clear();
             words.Clear();
-            foreach (var c in bar.Chords)
+            foreach (var c in bar.ShownChords)
                 if (!c.CarriedIn)
                     chords.Add(c.Chord.Name, c.Offset / bar.Quarters, "gt-cell__chord");
-                else if (bar.Chords.Count == 1 || c.Quarters >= 1)
+                else if (bar.ShownChords.Count == 1 || c.Quarters >= 1)
                     chords.Add(c.Chord.Name, 0, "gt-cell__chord").AddToClassList("gt-cell__chord--held");
             foreach (var w in bar.Words)
             {
@@ -409,7 +425,7 @@ namespace YourBand.Runtime.UI
             var r = track.contentRect;
             if (r.width <= 0)
                 return;
-            foreach (var c in bar.Chords)
+            foreach (var c in bar.ShownChords)
             {
                 var x0 = (float)(c.Offset / bar.Quarters) * r.width;
                 var x1 = (float)((c.Offset + c.Quarters) / bar.Quarters) * r.width;

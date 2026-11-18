@@ -221,6 +221,17 @@ namespace YourBand.Core.Songs
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
         public string SameAs { get; set; }
         public List<TrackNote> Notes { get; set; } = new List<TrackNote>();
+        /// <summary>The chords the file writes on this track, in time order: the chart shows them (<see cref="Chart.SongChart.ShowChordsOf"/>).</summary>
+        public List<ChordMarker> Chords { get; set; } = new List<ChordMarker>();
+        public bool ShouldSerializeChords() => Chords.Count > 0;
+    }
+
+    /// <summary>A chord written on a beat of a track: it holds until the next one. <c>Voicing</c> names its shape in <see cref="Song.Voicings"/>.</summary>
+    public sealed class ChordMarker
+    {
+        public double AtQuarter { get; set; }
+        public string Name { get; set; } = "";
+        public string Voicing { get; set; }
     }
 
     /// <summary>A note of a track.</summary>

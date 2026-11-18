@@ -2,7 +2,7 @@
 //
 //   songtool import-ug <chords-page.html> [--tabs <tabs-page.html>] -o <song.json>
 //       Imports an Ultimate Guitar song from pages saved in the browser, prints the import report.
-//   songtool show <song.json> [--bars a-b]
+//   songtool show <song.json> [--bars a-b] [--chart [--track <name>]]
 //       Prints the chart bar by bar: section, chords, lyrics, and the riffs' notes per bar.
 //   songtool engine-messages <song.json> [--style Ballad|Rock|Pop] [-o <file.jsonl>]
 //       The messages the game sends the audio engine when it opens the song (tracks, then load), one JSON object per line,
@@ -49,7 +49,7 @@ namespace YourBand.SongTool
                     return BandMidiFile(args);
                 if (args.Length >= 2 && args[0] == "engine-messages")
                     return EngineMessages(args);
-                Console.WriteLine("usage:\n  " + ImportCommand.Usage.Replace("\n", "\n  ") + "\n  songtool import-ug <chords.html> [--tabs <tabs.html>] [--chords-per-bar n|auto] -o <song.json>\n  songtool import-gpx <file.gpx> [--track n] [--strum <chords.html|strum.json>] [--strum-map \"Section=Pattern;…\"] -o <song.json>\n  songtool export-strum <chords.html> -o <strum.json>\n  songtool diag-strum <file.gpx> [--track n]\n  songtool show <song.json> [--bars a-b]\n  songtool band-midi <song.json> [--bars a-b] [--rhythm default|track] [-o <file.mid>]\n  songtool engine-messages <song.json> [--style Ballad|Rock|Pop] [-o <file.jsonl>]\n  songtool gpx-info <file.gpx> [--beats <track> <bars> | --order]");
+                Console.WriteLine("usage:\n  " + ImportCommand.Usage.Replace("\n", "\n  ") + "\n  songtool import-ug <chords.html> [--tabs <tabs.html>] [--chords-per-bar n|auto] -o <song.json>\n  songtool import-gpx <file.gpx> [--track n] [--strum <chords.html|strum.json>] [--strum-map \"Section=Pattern;…\"] -o <song.json>\n  songtool export-strum <chords.html> -o <strum.json>\n  songtool diag-strum <file.gpx> [--track n]\n  songtool show <song.json> [--bars a-b] [--chart [--track <name>]]\n  songtool band-midi <song.json> [--bars a-b] [--rhythm default|track] [-o <file.mid>]\n  songtool engine-messages <song.json> [--style Ballad|Rock|Pop] [-o <file.jsonl>]\n  songtool gpx-info <file.gpx> [--beats <track> <bars> | --order]");
                 return 1;
             }
             catch (Exception e)
@@ -246,6 +246,11 @@ namespace YourBand.SongTool
         {
             var song = SongJson.Load(args[1]);
             var range = Option(args, "--bars");
+            // --chart: the chords the chart shows (for the song's own track, or --track's), not the ones the band plays from
+            var shownTrack = Option(args, "--track");
+            var chart = shownTrack != null || args.Contains("--chart") ? new SongChart(song) : null;
+            if (shownTrack != null)
+                chart.ShowChordsOf(shownTrack);
             var end = song.Chords.Count > 0 ? song.Chords.Max(c => c.AtQuarter + c.Quarters) : 0;
             var bars = song.Tempo.BarAt(Math.Max(0, end - 0.001)).bar + 1;
             int first = 0, last = bars - 1;
@@ -272,7 +277,8 @@ namespace YourBand.SongTool
                 if (section != previousSection)
                     Console.WriteLine($"[{section}]");
                 previousSection = section;
-                var chords = string.Join(" ", song.ChordsInBar(b).Select(c => c.AtQuarter < start ? "(" + c.Name + ")" : $"{c.Name}@{c.AtQuarter - start:0.#}"));
+                var inBar = chart != null ? chart.Bars[b].ShownChords.Select(c => c.Chord) : song.ChordsInBar(b);
+                var chords = string.Join(" ", inBar.Select(c => c.AtQuarter < start ? "(" + c.Name + ")" : $"{c.Name}@{c.AtQuarter - start:0.#}"));
                 var words = song.Lyrics.SelectMany(l => l.Words).Where(w => w.AtQuarter >= start && w.AtQuarter < start + length).Select(w => w.Text);
                 var notes = song.Riffs.SelectMany(r => r.Notes).Count(n => n.AtQuarter >= start && n.AtQuarter < start + length);
                 Console.WriteLine($"  {b + 1,4} {Clock(song.Tempo.SecondsAt(start)),6}  {chords,-22} {string.Join(" ", words)}{(notes > 0 ? $"   [{notes} riff notes]" : "")}");

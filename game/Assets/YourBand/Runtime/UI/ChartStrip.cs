@@ -86,6 +86,9 @@ namespace YourBand.Runtime.UI
             rows.SetSong(chart);
         }
 
+        /// <summary>The chart shows other chords now (another track's).</summary>
+        public void ChordsChanged() => rows.ChordsChanged();
+
         /// <summary>How far along the map the music is (0..1): through the section it is in, by that section's width.</summary>
         double CursorAlong(double quarter)
         {

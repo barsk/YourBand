@@ -177,6 +177,72 @@ namespace YourBand.Core.Tests
                 bar0.OrderBy(n => n.Offset).ThenBy(n => n.Note.StringIndex).Select(n => (n.Note.StringIndex, n.Note.Technique)));
         }
 
+        /// <summary>Bars of four: "Lead" writes Em in bars 0 and 1, "Main" E5 in bar 1 and G on beat 3 of bar 2; bar 3 has no marker.</summary>
+        static Song SongWithMarkers()
+        {
+            TrackNote Note(double at) => new TrackNote { AtQuarter = at, Quarters = 1, Pitch = 64, StringIndex = 5, Fret = 0 };
+            var standard = new[] { "E2", "A2", "D3", "G3", "B3", "E4" }.ToList();
+            var song = new Song();
+            song.Chords.Add(new ChordEvent { Name = "C", AtQuarter = 12, Quarters = 4 });
+            song.Riffs.Add(new Riff { Name = "Main", Notes = { new TabNote { AtQuarter = 4, Quarters = 1, StringIndex = 5 } } });
+            song.Tracks.Add(new SongTrack { Index = 0, Name = "Lead", Kind = "guitar", Tuning = standard, Notes = { Note(0), Note(4), Note(19) },
+                                            Chords = { new ChordMarker { AtQuarter = 0, Name = "Em" }, new ChordMarker { AtQuarter = 4, Name = "Em" } } });
+            song.Tracks.Add(new SongTrack { Index = 1, Name = "Main", Kind = "guitar", Tuning = standard, Notes = { Note(4), Note(10) },
+                                            Chords = { new ChordMarker { AtQuarter = 4, Name = "E5" }, new ChordMarker { AtQuarter = 10, Name = "G" } } });
+            song.Tracks.Add(new SongTrack { Index = 2, Name = "Bass", Kind = "bass", Tuning = standard, Notes = { Note(0) } });
+            return song;
+        }
+
+        static string[] Shown(SongChart chart) => chart.ShownChords.Select(c => $"{c.Name}@{c.AtQuarter:0}+{c.Quarters:0}").ToArray();
+
+        [Test]
+        public void TheChart_ShowsTheChordsWrittenOnTheShownTrack()
+        {
+            var chart = new SongChart(SongWithMarkers());
+            // the song's own track first: its E5, bar 0 from the other track, and bar 3 (no marker) the song's own chord
+            CollectionAssert.AreEqual(new[] { "Em@0+4", "E5@4+6", "G@10+2", "C@12+4" }, Shown(chart));
+            CollectionAssert.AreEqual(new[] { "Em", "E5", "G", "C" }, chart.ChordNames);
+            Assert.AreEqual("E5", chart.ChordAt(5).Name);
+            Assert.AreEqual("E5", chart.Bars[2].ShownChords[0].Chord.Name);  // carried in, up to the G on beat 3
+            Assert.IsTrue(chart.Bars[2].ShownChords[0].CarriedIn);
+
+            chart.ShowChordsOf("Lead");
+            CollectionAssert.AreEqual(new[] { "Em@0+4", "Em@4+6", "G@10+2", "C@12+4" }, Shown(chart));
+            Assert.AreEqual("G", chart.NextChange(5).Name);
+
+            chart.ShowChordsOf("Bass");  // writes none: the song's own track's
+            Assert.AreEqual("E5", chart.ChordAt(5).Name);
+            // the band's chords do not follow
+            Assert.AreEqual("C", chart.Bars[3].Chords.Single().Chord.Name);
+            Assert.AreEqual(0, chart.Bars[1].Chords.Count);
+        }
+
+        [Test]
+        public void AWrittenChord_GoesOnWhileItsTrackPlays()
+        {
+            var song = SongWithMarkers();
+            song.Tracks[1].Notes.Add(new TrackNote { AtQuarter = 13, Quarters = 1, Pitch = 64, StringIndex = 5, Fret = 0 });  // Main plays on in bar 3
+            CollectionAssert.AreEqual(new[] { "Em@0+4", "E5@4+6", "G@10+6" }, Shown(new SongChart(song)));
+        }
+
+        [Test]
+        public void AChord_EndsAtABarNothingPlaysIn()
+        {
+            var song = SongWithMarkers();
+            song.Chords.Clear();
+            song.Tracks[0].Notes.RemoveAll(n => n.AtQuarter > 15);
+            song.Sections.Add(new Section { Name = "All", AtQuarter = 0, Quarters = 16 });
+            CollectionAssert.AreEqual(new[] { "Em@0+4", "E5@4+6", "G@10+2" }, Shown(new SongChart(song)));
+        }
+
+        [Test]
+        public void ASongWithoutMarkers_ShowsItsChords()
+        {
+            var chart = Demo();
+            CollectionAssert.AreEqual(chart.Song.Chords.OrderBy(c => c.AtQuarter), chart.ShownChords);
+            Assert.AreEqual(chart.Bars[1].Chords.Count, chart.Bars[1].ShownChords.Count);
+        }
+
         [Test]
         public void ChordNames_InOrderOfFirstUse()
         {
