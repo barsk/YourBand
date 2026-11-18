@@ -41,7 +41,7 @@ namespace YourBand.Core.Songs
         public static string Strumming(Song song, bool long_ = false)
         {
             if (song.Strumming.Count == 0)
-                return "none (the band plays a downstroke on every beat)";
+                return "none in the song (the band plays the common strum, D - D U - U D U)";
             var origins = song.Strumming.Select(p => Of(song, p)).Distinct().ToList();
             return string.Join(" and ", origins.Select(o => Name(o, long_)));
         }

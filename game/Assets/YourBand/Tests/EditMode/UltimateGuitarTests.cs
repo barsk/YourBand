@@ -430,7 +430,7 @@ namespace YourBand.Core.Tests
             old.Sources.Add(new Source { Kind = "guitar-pro" });
             old.Strumming.Add(new StrumPattern());
             Assert.AreEqual(SongOrigin.GuitarPro, SongOrigin.Of(old, old.Strumming[0]));
-            Assert.AreEqual("none (the band plays a downstroke on every beat)", SongOrigin.Strumming(new Song()));
+            Assert.AreEqual("none in the song (the band plays the common strum, D - D U - U D U)", SongOrigin.Strumming(new Song()));
         }
 
         [Test]

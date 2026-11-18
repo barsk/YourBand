@@ -589,12 +589,24 @@ namespace YourBand.Core.Chart
         }
 
         // ------------------------------------------------------------ strumming
+        /// <summary>The strum for a song that has no pattern of its own: 1, 2 &amp;, (3) &amp;, 4 &amp; (D - D U - U D U), the most common one.</summary>
+        public static readonly StrumPattern DefaultStrum = new StrumPattern
+        {
+            Name = "Common strum", Subdivision = 8, Origin = SongOrigin.Default,
+            Strokes = { Stroke.Down, Stroke.Rest, Stroke.Down, Stroke.Up, Stroke.Rest, Stroke.Up, Stroke.Down, Stroke.Up },
+        };
+
         /// <summary>
-        /// The strumming patterns for a section: those made for it first, then those for the whole song (empty if
-        /// the song has none).
+        /// The strumming patterns for a section: those made for it first, then those for the whole song. A song with none has
+        /// <see cref="DefaultStrum"/> where the section is in 4/4 (it is a bar of 4/4), and otherwise none.
         /// </summary>
         public IReadOnlyList<StrumPattern> PatternsFor(Section section)
         {
+            if (Song.Strumming.Count == 0)
+            {
+                var meter = (bars.FirstOrDefault(b => b.Section == section) ?? bars.FirstOrDefault())?.Signature;
+                return meter != null && meter.Value.Numerator == 4 && meter.Value.Denominator == 4 ? new[] { DefaultStrum } : new StrumPattern[0];
+            }
             var name = section?.Name ?? "";
             return Song.Strumming.Where(p => p.Sections.Contains(name))
                 .Concat(Song.Strumming.Where(p => p.Sections.Count == 0))

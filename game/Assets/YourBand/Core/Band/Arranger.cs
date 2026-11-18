@@ -606,7 +606,7 @@ namespace YourBand.Core.Band
         static readonly List<(double at, double length, BandStyle.Tone tone)> NoHits = new List<(double, double, BandStyle.Tone)>();
 
         // ------------------------------------------------------------ guitar
-        /// <summary>A downstroke on every beat: for songs without a strumming pattern.</summary>
+        /// <summary>A downstroke on every beat: for a section with no strumming pattern (a song without any, outside 4/4).</summary>
         static readonly StrumPattern Downstrokes = new StrumPattern
         {
             Name = "Downstrokes", Subdivision = 8,
@@ -679,6 +679,31 @@ namespace YourBand.Core.Band
         /// stroke is a short chuck. The last bar is one chord, held.
         /// </summary>
         /// <summary>
+        /// A new chord is always struck, in a song from chord or tab pages, whose pattern is a general one and knows nothing of
+        /// where the chords change (a Guitar Pro song's strokes are its own): where the pattern rests as a chord comes in, a
+        /// stroke is added, down, or up if a stroke a sixteenth away is down, as a hand going down and up would play it.
+        /// </summary>
+        static void AddChordChanges(List<(double At, Stroke Stroke)> planned, ChartBar bar, List<ChordEvent> chords, List<BandStroke> before)
+        {
+            const double sixteenth = 0.25 + 1e-6;
+            bool IsDown(Stroke s) => s == Stroke.Down || s == Stroke.MutedDown || s == Stroke.AccentDown;
+            for (int c = 0; c < chords.Count; ++c)
+            {
+                var at = chords[c].AtQuarter;
+                if (at < bar.AtQuarter - 1e-6 || at >= bar.AtQuarter + bar.Quarters - 1e-6)
+                    continue;
+                if (c > 0 && chords[c - 1].Name == chords[c].Name)
+                    continue;  // (the same chord going on)
+                if (planned.Any(p => Math.Abs(p.At - at) < 1e-6))
+                    continue;
+                var downNear = planned.Any(p => Math.Abs(p.At - at) <= sixteenth && IsDown(p.Stroke))
+                               || before.Any(s => !s.Up && at - s.AtQuarter <= sixteenth && at > s.AtQuarter);
+                planned.Add((at, downNear ? Stroke.Up : Stroke.Down));
+            }
+            planned.Sort((a, b) => a.At.CompareTo(b.At));
+        }
+
+        /// <summary>
         /// The song's tab as a track for <see cref="TrackRhythm"/>, so that its notes are picked and ring as a Guitar Pro
         /// track's do, and the stretches it covers (each riff's, joined where they overlap). Null if the song has no tab.
         /// </summary>
@@ -735,12 +760,17 @@ namespace YourBand.Core.Band
                 var last = bar.Index == chart.Bars.Count - 1;
                 var pattern = last ? null : (chart.PatternsFor(bar.Section).FirstOrDefault(p => p.Strokes.Count > 0 && p.Subdivision > 0) ?? Downstrokes).AsPlayed();
                 var slot = last ? bar.Quarters : 4.0 / pattern.Subdivision;
+                var planned = new List<(double At, Stroke Stroke)>();
                 for (int i = 0; i * slot < bar.Quarters - 1e-6; ++i)
                 {
                     var stroke = last ? Stroke.Down : pattern.Strokes[chart.StrokeIndex(pattern, bar.Index, i)];
-                    if (stroke == Stroke.Rest)
-                        continue;
-                    var at = bar.AtQuarter + i * slot;
+                    if (stroke != Stroke.Rest)
+                        planned.Add((bar.AtQuarter + i * slot, stroke));
+                }
+                if (song.Tracks.Count == 0)
+                    AddChordChanges(planned, bar, chords, arrangement.Strokes);
+                foreach (var (at, stroke) in planned)
+                {
                     if (noStrum.Any(s => at >= s.From - 1e-6 && at < s.To - 1e-6))
                         continue;  // a stretch of the tab: its notes play instead of the strum
                     var chord = ChordAt(chords, at, out var span);
@@ -755,7 +785,7 @@ namespace YourBand.Core.Band
                     var muted = stroke == Stroke.MutedDown || stroke == Stroke.MutedUp;
                     var accent = stroke == Stroke.AccentDown || stroke == Stroke.AccentUp;
                     var order = down ? played : (played.Count(s => s >= 2) >= 2 ? played.Where(s => s >= 2) : played).Reverse().ToList();
-                    var onBeat = Math.Abs(i * slot - Math.Round(i * slot)) < 1e-6;
+                    var onBeat = Math.Abs(at - bar.AtQuarter - Math.Round(at - bar.AtQuarter)) < 1e-6;
                     var velocity = muted ? 64 : accent ? (down ? 116 : 104) : !down ? 72 : onBeat ? 96 : 84;
                     arrangement.Strokes.Add(new BandStroke(at, !down, humanise(velocity), muted));
                     var perString = (down ? DownSpread : UpSpread) * song.Tempo.BpmAt(at) / 60.0;  // in quarter notes

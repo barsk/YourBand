@@ -184,6 +184,68 @@ namespace YourBand.Core.Tests
         }
 
         [Test]
+        public void ASongWithoutAPattern_GetsTheCommonStrum_ShownAndPlayed()
+        {
+            var song = DemoSong.Create();
+            song.Riffs.Clear();
+            song.Strumming.Clear();
+            var chart = new SongChart(song);
+            Assert.AreSame(SongChart.DefaultStrum, chart.PatternsFor(song.Sections[0]).Single());
+            Assert.AreEqual(0, song.Strumming.Count);  // (the song itself is not changed)
+            var a = Arranger.Arrange(chart, BandStyle.Named("Ballad"));
+            var bar = a.Strokes.Where(s => s.AtQuarter < 4 - 1e-6).ToList();
+            CollectionAssert.AreEqual(new[] { 0.0, 1.0, 1.5, 2.5, 3.0, 3.5 }, bar.Select(s => s.AtQuarter));
+            CollectionAssert.AreEqual(new[] { false, false, true, true, false, true }, bar.Select(s => s.Up));
+        }
+
+        static Song TwoChordsInABar(double change)
+        {
+            var song = DemoSong.Create();
+            song.Riffs.Clear();
+            song.Strumming.Clear();
+            song.Chords.RemoveAll(c => c.AtQuarter < 4);
+            song.Chords.Add(new ChordEvent { Name = "G", AtQuarter = 0, Quarters = change });
+            song.Chords.Add(new ChordEvent { Name = "C", AtQuarter = change, Quarters = 4 - change });
+            song.Chords.Sort((a, b) => a.AtQuarter.CompareTo(b.AtQuarter));
+            return song;
+        }
+
+        [Test]
+        public void ANewChord_IsStruckWhereThePatternRests()
+        {
+            // the common strum rests on beat 3, where the chord changes: a downstroke there
+            var a = Arranger.Arrange(new SongChart(TwoChordsInABar(2)), BandStyle.Named("Ballad"));
+            var bar = a.Strokes.Where(s => s.AtQuarter < 4 - 1e-6).ToList();
+            CollectionAssert.AreEqual(new[] { 0.0, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5 }, bar.Select(s => s.AtQuarter));
+            Assert.IsFalse(bar[3].Up);
+        }
+
+        [Test]
+        public void ANewChord_ASixteenthAfterADownstroke_IsStruckUp()
+        {
+            var a = Arranger.Arrange(new SongChart(TwoChordsInABar(1.25)), BandStyle.Named("Ballad"));
+            Assert.IsTrue(a.Strokes.Single(s => System.Math.Abs(s.AtQuarter - 1.25) < 1e-6).Up);
+        }
+
+        [Test]
+        public void ANewChord_InAGuitarProSong_KeepsItsOwnStrokes()
+        {
+            var song = TwoChordsInABar(2);
+            song.Tracks.Add(new SongTrack { Index = 0, Name = "Guitar", Kind = "guitar" });
+            var a = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"));
+            Assert.IsFalse(a.Strokes.Any(s => System.Math.Abs(s.AtQuarter - 2) < 1e-6));
+        }
+
+        [Test]
+        public void ASongWithoutAPattern_OutsideFourFour_HasNoPatternToShow()
+        {
+            var song = DemoSong.Create();
+            song.Strumming.Clear();
+            song.Tempo = new TempoMap(120, new TimeSignature(3, 4));
+            Assert.AreEqual(0, new SongChart(song).PatternsFor(song.Sections[0]).Count);
+        }
+
+        [Test]
         public void Arrangement_PlaysAPatternsPlayedStrokesWhenItHasThem_AndNotTheShortPatternItShows()
         {
             var song = DemoSong.Create();

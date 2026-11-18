@@ -99,8 +99,10 @@ classes drops its fifth.
 
 ### 2.5 Rhythm guitar: strumming
 
-`Arranger.Strum`. For each bar it takes the section's strumming pattern (`chart.PatternsFor`; a downstroke on every beat
-if the song has none), and for each stroke that is not a rest:
+`Arranger.Strum`. For each bar it takes the section's strumming pattern (`chart.PatternsFor`). A song with none gets the
+common strum, 1, 2 &, (3) &, 4 & (D - D U - U D U), which the STRUMMING panel shows too; outside 4/4 it is a downstroke on every
+beat. In a song from chord or tab pages a new chord is always struck: where the pattern rests as it comes in, a stroke is added
+(`AddChordChanges`), down, or up if a stroke a sixteenth away is down. For each stroke:
 
 1. The chord sounding then gives the **shape**: the song's own fingering (`Song.VoicingFor`) if it has one, else
    `GuitarShape` (the E or A barre shape, open where it can be; a power chord without a third).
