@@ -29,9 +29,13 @@ namespace YourBand.Core.Import.UltimateGuitar
     /// </summary>
     public static class UgImporter
     {
+        /// <summary>For the chords per bar of lines without bar lines: as the page's own bar lines show (<see cref="BarsHoldTwoChords"/>).</summary>
+        public const int ChordsPerBarFromPage = -1;
+
+        /// <param name="chordsPerBar">For lines without bar lines: how many chords share a bar, 0 to work it out from each
+        /// line, or <see cref="ChordsPerBarFromPage"/>.</param>
         public static Song Import(UgPage chords, UgPage tabs, out ImportReport report, int chordsPerBar = 1)
         {
-            chordsPerBar = Math.Max(0, chordsPerBar);  // 0: from each line
             report = new ImportReport();
             var song = new Song();
             song.Info.Title = chords.Title;
@@ -53,6 +57,16 @@ namespace YourBand.Core.Import.UltimateGuitar
 
             var sheet = ChordSheet.Parse(chords.Content);
             var tabSheet = tabs != null ? ChordSheet.Parse(tabs.Content) : null;
+            // no tabs page: the tab written on the chords page itself (Heart of Gold's intro and fills) is the song's riffs
+            if (tabSheet == null && sheet.Sections.Any(s => s.Lines.Any(l => l.Tab != null)))
+                tabSheet = sheet;
+            if (chordsPerBar == ChordsPerBarFromPage)
+            {
+                chordsPerBar = BarsHoldTwoChords(sheet) ? 0 : 1;
+                if (chordsPerBar == 0)
+                    report.Add("The page's bar lines put two chords in a bar: so do its lines without bar lines.");
+            }
+            chordsPerBar = Math.Max(0, chordsPerBar);  // 0: from each line
 
             // timing: the first guess, then checked against the recording's time marks in the tabs page
             var scale = 1.0;
@@ -85,14 +99,25 @@ namespace YourBand.Core.Import.UltimateGuitar
             });
 
             if (tabSheet != null)
-            {
-                Merge(tabSheet, placed, song, report);
+                Merge(tabSheet, tabs != null ? "Tabs page" : "Tab on the chords page", placed, song, report);
+            if (tabs != null)
                 song.Sources.Add(new Source
                 {
                     Kind = "ultimate-guitar-tabs", Url = tabs.Url, Revision = tabs.Revision, Supplies = { "riffs", "timing check" },
                 });
-            }
             return song;
+        }
+
+        /// <summary>
+        /// Whether most of the bars the page draws hold more than one chord (Heart of Gold's | Em C | D G |): its lines without
+        /// bar lines then go at the same pace, and not a chord a bar (which made that song 4:11 where it is about 3 minutes, and
+        /// its outro's Em7 D Em four bars where they are two). A page with no bar lines says nothing.
+        /// </summary>
+        static bool BarsHoldTwoChords(ChordSheet sheet)
+        {
+            var bars = sheet.Sections.SelectMany(s => s.Lines).Select(l => l.Chords).Where(c => c != null && c.Barred)
+                .SelectMany(c => c.Chords.GroupBy(x => x.Bar)).Select(g => g.Count()).ToList();
+            return bars.Count(n => n >= 2) * 2 > bars.Count;
         }
 
         // ------------------------------------------------------------ timing
@@ -340,7 +365,7 @@ namespace YourBand.Core.Import.UltimateGuitar
         static string Normalise(string text) => Regex.Replace(text.ToLowerInvariant(), @"[^a-z0-9]+", "");
 
         // ------------------------------------------------------------ the tabs page: alternatives and riffs
-        static void Merge(ChordSheet tabs, Placement placed, Song song, ImportReport report)
+        static void Merge(ChordSheet tabs, string pageName, Placement placed, Song song, ImportReport report)
         {
             int cursor = 0, matched = 0, unmatched = 0, differ = 0, fills = 0, timed = 0, spread = 0, unplaced = 0;
             var where = new List<string>();
@@ -449,7 +474,7 @@ namespace YourBand.Core.Import.UltimateGuitar
                     }
                 }
             }
-            report.Add($"Tabs page: {matched} lyric lines matched, {unmatched} not found in the chords page, {differ} with other chords "
+            report.Add($"{pageName}: {matched} lyric lines matched, {unmatched} not found in the chords page, {differ} with other chords "
                        + $"(kept as alternatives); riffs: {timed} placed by their time marks, {fills} fills placed in their lines, "
                        + $"{spread} spread over their section" + (unplaced > 0 ? $", {unplaced} could not be placed." : "."));
             foreach (var w in where)

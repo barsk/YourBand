@@ -97,7 +97,7 @@ namespace YourBand.SongTool
             if (chords == null)
                 Console.WriteLine("  Tabs page only: the chords are taken from it, so expect fewer of them than a chords page gives.");
             Console.WriteLine("Building the song...");
-            var song = UgImporter.Import(chords ?? tabs, tabs, out var report, 1);
+            var song = UgImporter.Import(chords ?? tabs, tabs, out var report, UgImporter.ChordsPerBarFromPage);
             if (chords == null)  // (the tabs page stood in for the chords page: one source, the tabs page)
                 song.Sources.RemoveAll(s => s.Kind == "ultimate-guitar-chords");
             Summary(song, report);

@@ -156,7 +156,7 @@ namespace YourBand.SongTool
             var tabs = tabsPath != null ? UgPage.Load(tabsPath) : null;
             var output = Option(args, "-o") ?? Path.ChangeExtension(args[1], ".song.json");
             var perBarOption = Option(args, "--chords-per-bar");
-            var perBar = perBarOption == "auto" ? 0 : int.TryParse(perBarOption, out var n) ? n : 1;
+            var perBar = perBarOption == "auto" ? 0 : int.TryParse(perBarOption, out var n) ? n : UgImporter.ChordsPerBarFromPage;
             var song = UgImporter.Import(chords, tabs, out var report, perBar);
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(output)));
             SongJson.Save(song, output);

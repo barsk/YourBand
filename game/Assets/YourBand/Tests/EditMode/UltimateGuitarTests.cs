@@ -181,6 +181,44 @@ namespace YourBand.Core.Tests
         }
 
         [Test]
+        public void Import_TheTabOnAChordsPageIsTheSongsRiff_WithoutATabsPage()
+        {
+            const string content =
+                "[Intro]\n" +
+                "[ch]Em7[/ch]   [ch]D[/ch]\n" +
+                "e|--0--0--|\n" +
+                "B|--3--3--|\n" +
+                "G|--0--0--|\n" +
+                "D|--2--2--|\n" +
+                "A|--2--2--|\n" +
+                "E|--0--0--|\n" +
+                "\n" +
+                "[Verse]\n" +
+                "[ch]Em[/ch]\n" +
+                "words here\n";
+            var song = UgImporter.Import(UgPage.Parse(Page("Chords", content, false)), null, out _);
+            var riff = song.Riffs.Single();
+            Assert.AreEqual(12, riff.Notes.Count);
+            Assert.IsTrue(riff.Notes.All(n => n.AtQuarter < 8));  // over the line of chords it is written under
+            CollectionAssert.AreEqual(new[] { "Em7", "D", "Em" }, song.Chords.OrderBy(c => c.AtQuarter).Select(c => c.Name));
+            Assert.AreEqual(0, song.Alternatives.Count);
+            Assert.AreEqual(1, song.Sources.Count);  // one page: no tabs page is named
+        }
+
+        [Test]
+        public void Import_ThePagesBarLinesSetThePaceOfItsOtherLines()
+        {
+            const string plain = "[Outro]\n[ch]Em7[/ch]          [ch]D[/ch]   [ch]Em[/ch]\n";
+            double[] Lengths(string content) => UgImporter.Import(UgPage.Parse(Page("Chords", content, false)), null, out _, UgImporter.ChordsPerBarFromPage)
+                .Chords.OrderBy(c => c.AtQuarter).Skip(content.Contains("|") ? 4 : 0).Select(c => c.Quarters).ToArray();
+
+            // bars of two chords on the page: Em7 has a bar, D and Em share one
+            CollectionAssert.AreEqual(new[] { 4.0, 2.0, 2.0 }, Lengths("[Solo]\n| [ch]Em[/ch] [ch]C[/ch] | [ch]D[/ch] [ch]G[/ch] |\n" + plain));
+            // no bar lines: a chord a bar, the last filling out the whole bars
+            CollectionAssert.AreEqual(new[] { 4.0, 4.0, 8.0 }, Lengths(plain));
+        }
+
+        [Test]
         public void Import_ATabMarkedX2UnderChordsPlaysThemTwice_AndARiffOnItsOwnTakesABar()
         {
             const string page =

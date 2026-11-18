@@ -36,6 +36,15 @@ import takes only the strumming from a page; a UG import takes the chords page a
 alone gives fewer chords). Only `ultimate-guitar.com` addresses are fetched. If the site refuses the request (HTTP
 403 or 429) the message says to save the page from the browser and use `import-ug` / `import-gpx --strum` instead.
 
+A chords page rarely says how long its chords last. Chords between bar lines (`| Em C | D G |`) share a bar. Lines without
+bar lines get a chord a bar, unless most of the bars the page does draw hold two or more chords: then they go at that pace,
+two chords a bar, and of three chords the two written closest together share one (`import` and `import-ug`;
+`--chords-per-bar n|auto` on `import-ug` overrides it). A page with no bar lines at all gets a chord a bar, which is too slow
+for a song that changes twice a bar (Wonderwall's page comes out at 8:55).
+
+Tab written on a chords page counts as well: without a tabs page, those blocks become the song's riffs (shown in the TAB
+panel, and played by the band guitar as single notes), placed as a tabs page's are.
+
 Save the Ultimate Guitar pages from the browser ("Save page as", HTML) into `songs-local/pages/`, and Guitar Pro
 files (`.gpx`, or `.gp`/`.gp3`/`.gp4`/`.gp5`) into `songs-local/gpx/`; write the songs to `songs-local/`. That
 folder is not in git: song pages and lyrics are licensed content and stay on your machine.
