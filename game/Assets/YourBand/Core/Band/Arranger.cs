@@ -396,7 +396,19 @@ namespace YourBand.Core.Band
             if (rhythmTrack != null)
                 TrackRhythm(chart, rhythmTrack, arrangement);
             else if (!Out(Instrument.RhythmGuitar))
-                Strum(chart, chords, arrangement, Humanise);
+            {
+                // a song from tab pages has no tracks: where its tab goes, the guitarist plays the tab as it would a track
+                List<(double From, double To)> stretches = null;
+                var riffs = chart.Song.Tracks.Count == 0 ? RiffTrack(chart.Song, out stretches) : null;
+                Strum(chart, chords, arrangement, Humanise, riffs != null ? stretches : null);
+                if (riffs != null)
+                {
+                    TrackRhythm(chart, riffs, arrangement, stretches);
+                    var voicings = arrangement.Voicings.OrderBy(v => v.AtQuarter).ToList();
+                    arrangement.Voicings.Clear();
+                    arrangement.Voicings.AddRange(voicings);
+                }
+            }
             // the song's other instruments on the lead channels (their notes as the file has them)
             if (connections == null)
                 foreach (var part in chart.Song.Parts.Where(p => p.Voice == 1 || p.Voice == 2))
@@ -666,14 +678,57 @@ namespace YourBand.Core.Band
         /// top four, high to low), and each string rings until it is struck again or the chord changes; a muted
         /// stroke is a short chuck. The last bar is one chord, held.
         /// </summary>
-        static void Strum(SongChart chart, List<ChordEvent> chords, Arrangement arrangement, Func<int, int> humanise)
+        /// <summary>
+        /// The song's tab as a track for <see cref="TrackRhythm"/>, so that its notes are picked and ring as a Guitar Pro
+        /// track's do, and the stretches it covers (each riff's, joined where they overlap). Null if the song has no tab.
+        /// </summary>
+        static SongTrack RiffTrack(Song song, out List<(double From, double To)> stretches)
+        {
+            const double shortest = 0.05;
+            var open = OpenStrings(song.Info);
+            stretches = new List<(double From, double To)>();
+            var track = new SongTrack { Name = "Tab", Kind = "guitar", Tuning = song.Info.Tuning.ToList() };
+            var taken = new HashSet<(int, long)>();
+            foreach (var riff in song.Riffs)
+            {
+                var notes = riff.Notes.Where(n => n.StringIndex >= 0 && n.StringIndex < open.Length).ToList();
+                if (notes.Count == 0)
+                    continue;
+                foreach (var n in notes)
+                {
+                    if (taken.Add((n.StringIndex, (long)Math.Round(n.AtQuarter * 1000))))
+                        track.Notes.Add(new TrackNote
+                        {
+                            AtQuarter = n.AtQuarter, Quarters = Math.Max(shortest, n.Quarters), Pitch = open[n.StringIndex] + n.Fret,
+                            StringIndex = n.StringIndex, Fret = n.Fret,
+                            Technique = n.Technique == "h" || n.Technique == "p" ? "h" : "",
+                        });
+                }
+                // (from the beat it starts in: a tab's first notes often sit just after it, and no strum belongs before them)
+                stretches.Add((Math.Floor(notes.Min(n => n.AtQuarter) + 1e-6), notes.Max(n => n.AtQuarter + Math.Max(shortest, n.Quarters))));
+            }
+            stretches.Sort();
+            for (int i = stretches.Count - 1; i > 0; --i)
+                if (stretches[i].From <= stretches[i - 1].To)
+                {
+                    stretches[i - 1] = (stretches[i - 1].From, Math.Max(stretches[i - 1].To, stretches[i].To));
+                    stretches.RemoveAt(i);
+                }
+            return track.Notes.Count > 0 ? track : null;
+        }
+
+        /// <param name="tabStretches">Where the guitarist plays the song's tab as a track: no strumming there. Null: the tab's
+        /// single-string notes are played as notes (<see cref="SingleNotes"/>).</param>
+        static void Strum(SongChart chart, List<ChordEvent> chords, Arrangement arrangement, Func<int, int> humanise,
+                          IReadOnlyList<(double From, double To)> tabStretches = null)
         {
             var song = chart.Song;
             var open = OpenStrings(song.Info);
             var notes = arrangement.Notes;
             // single-string notes of the song's tab: played as notes, and no strumming over them
-            var singles = SingleNotes(song, open, humanise, arrangement.SingleSpans);
-            notes.AddRange(singles);
+            if (tabStretches == null)
+                notes.AddRange(SingleNotes(song, open, humanise, arrangement.SingleSpans));
+            var noStrum = tabStretches ?? arrangement.SingleSpans;
             var strikes = new List<(double at, int str, int pitch, int velocity, bool muted, double chordEnd)>();
             foreach (var bar in chart.Bars)
             {
@@ -686,8 +741,8 @@ namespace YourBand.Core.Band
                     if (stroke == Stroke.Rest)
                         continue;
                     var at = bar.AtQuarter + i * slot;
-                    if (arrangement.SingleSpans.Any(s => at >= s.From - 1e-6 && at < s.To - 1e-6))
-                        continue;  // a single-string stretch of the tab: its notes play instead of the strum
+                    if (noStrum.Any(s => at >= s.From - 1e-6 && at < s.To - 1e-6))
+                        continue;  // a stretch of the tab: its notes play instead of the strum
                     var chord = ChordAt(chords, at, out var span);
                     if (chord == null)
                         continue;
@@ -706,6 +761,8 @@ namespace YourBand.Core.Band
                     var perString = (down ? DownSpread : UpSpread) * song.Tempo.BpmAt(at) / 60.0;  // in quarter notes
                     // the chord lets go a little before its end: the hand needs a moment to reach the next chord
                     var chordEnd = Math.Max(at + 0.06, span.AtQuarter + span.Quarters - ChordGap * song.Tempo.BpmAt(at) / 60.0);
+                    if (tabStretches != null && tabStretches.Any(s => s.From > at))  // (and before the tab comes in)
+                        chordEnd = Math.Max(at + 0.06, Math.Min(chordEnd, tabStretches.First(s => s.From > at).From - ChordGap * song.Tempo.BpmAt(at) / 60.0));
                     for (int k = 0; k < order.Count; ++k)
                         strikes.Add((at + k * perString, order[k], open[order[k]] + frets[order[k]], humanise(velocity), muted, chordEnd));
                 }
@@ -718,8 +775,13 @@ namespace YourBand.Core.Band
                 var frets = voicing != null && voicing.Frets.Count == 6 ? voicing.Frets : GuitarShape(chord);
                 // what Shreddage can voice: a chord in another tuning is moved to one a standard-tuned guitar can finger
                 var held = Enumerable.Range(0, 6).Where(s => frets[s] >= 0).Select(s => open[s] + frets[s]).ToList();
-                foreach (var pitch in GuitarVoicing.Voice(held).Values.Distinct().OrderBy(p => p))
-                    arrangement.Voicings.Add(new VoicingNote(pitch, span.AtQuarter, span.Quarters));
+                // (the tab's stretches hold their own chords)
+                var parts = new List<(double From, double To)> { (span.AtQuarter, span.AtQuarter + span.Quarters) };
+                foreach (var s in tabStretches ?? Array.Empty<(double From, double To)>())
+                    parts = parts.SelectMany(p => new[] { (p.From, Math.Min(p.To, s.From)), (Math.Max(p.From, s.To), p.To) }).Where(p => p.Item2 - p.Item1 > 1e-6).ToList();
+                foreach (var part in parts)
+                    foreach (var pitch in GuitarVoicing.Voice(held).Values.Distinct().OrderBy(p => p))
+                        arrangement.Voicings.Add(new VoicingNote(pitch, part.From, part.To - part.From));
             }
             // each string rings until it is struck again, or the chord ends
             foreach (var onString in strikes.GroupBy(s => s.str))
@@ -802,7 +864,9 @@ namespace YourBand.Core.Band
         /// every note a plain note; and this one, as an experiment. It needs Shreddage's Strumming Mode off, Keyswitchable
         /// on and voices enough: 32 and 16.)
         /// </summary>
-        static void TrackRhythm(SongChart chart, SongTrack track, Arrangement arrangement)
+        /// <param name="stretches">Where the track plays, if only in parts of the song (the tab of a song without tracks): its
+        /// held chords stay inside them, and the chart's chords remain the guitarist's grips elsewhere.</param>
+        static void TrackRhythm(SongChart chart, SongTrack track, Arrangement arrangement, IReadOnlyList<(double From, double To)> stretches = null)
         {
             const double together = 0.02;  // notes this close are struck together
             const double ringAtMost = 4.0;  // quarters a string rings on, at most
@@ -824,6 +888,7 @@ namespace YourBand.Core.Band
 
             // the stretches a chord is held for: the chart's chords, and the gaps between them
             var cuts = song.Chords.SelectMany(c => new[] { c.AtQuarter, c.AtQuarter + c.Quarters })
+                .Concat(stretches?.SelectMany(s => new[] { s.From, s.To }) ?? Enumerable.Empty<double>())
                 .Concat(new[] { double.NegativeInfinity, double.PositiveInfinity }).Distinct().OrderBy(q => q).ToList();
             var held = new List<(double From, double To, Dictionary<int, int> Strings)>();
             var heldOf = new Dictionary<List<TrackNote>, int>();  // an onset's held chord
@@ -887,7 +952,7 @@ namespace YourBand.Core.Band
             var fretOf = new Dictionary<(int, int), int>();
             foreach (var n in track.Notes.Where(n => n.StringIndex >= 0 && n.StringIndex < 6 && n.Fret >= 0 && !Dead(n)))
                 fretOf.TryAdd((n.StringIndex, n.Pitch), n.Fret);
-            if (track.Tuning.Count == 6 && fretOf.Count > 0)
+            if (stretches == null && track.Tuning.Count == 6 && fretOf.Count > 0)
                 foreach (var h in held)
                 {
                     var frets = Enumerable.Repeat(-1, 6).ToArray();

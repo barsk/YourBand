@@ -44,7 +44,7 @@ namespace YourBand.Core.Import.UltimateGuitar
                        ?? throw new InvalidDataException("unexpected page data layout");
             var tab = data["tab"] ?? new JObject();
             var view = data["tab_view"] ?? new JObject();
-            var meta = view["meta"] ?? new JObject();
+            var meta = view["meta"] as JObject ?? new JObject();  // (a page with nothing to say has an empty list here)
 
             var page = new UgPage
             {

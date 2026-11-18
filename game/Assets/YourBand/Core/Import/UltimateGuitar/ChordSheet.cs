@@ -15,11 +15,16 @@ namespace YourBand.Core.Import.UltimateGuitar
     public sealed class ChordSheet
     {
         public List<SheetSection> Sections { get; } = new List<SheetSection>();
+        /// <summary>The shapes a list of the song's chords gives ("C  x32010"): per chord, the frets from the lowest string, -1 not played.</summary>
+        public Dictionary<string, int[]> Shapes { get; } = new Dictionary<string, int[]>();
 
+        static readonly Regex ListedShape = new Regex(@"^\s*(\S+)\s+([xX\d]{6})\s*$");
         static readonly Regex Header = new Regex(@"^\s*\[([A-Za-z][^\]\[]*)\]\s*$");
         static readonly Regex ChordTag = new Regex(@"\[ch\](.*?)\[/ch\]");
         static readonly Regex TabString = new Regex(@"^\s*([eBGDAEbgda])\s*\|(.*)$");
-        static readonly Regex Repeat = new Regex(@"(?:^|\s|\()[xX×]\s*(\d+)\)?(?:\s|$)|(?:^|\s)(\d+)\s*[xX×](?:\s|$)");
+        static readonly Regex Repeat = new Regex(@"(?:^|\s|\()[xX×]\s*(\d{1,2})\)?(?:\s|$)|(?:^|\s)(\d{1,2})\s*[xX×](?:\s|$)");
+        /// <summary>A chord's frets as a list of chords used writes them: C x32010, Em 022000.</summary>
+        static readonly Regex FretList = new Regex(@"^[xX\d]{4,}$");
         static readonly Regex TimeSpan = new Regex(@"(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})");
 
         public static ChordSheet Parse(string content)
@@ -44,10 +49,19 @@ namespace YourBand.Core.Import.UltimateGuitar
                     continue;
                 }
 
+                var listed = ListedShape.Match(ChordTag.Replace(raw, "$1"));
+                if (listed.Success && ChordName.IsChord(listed.Groups[1].Value))
+                {
+                    if (!sheet.Shapes.ContainsKey(listed.Groups[1].Value))
+                        sheet.Shapes.Add(listed.Groups[1].Value, listed.Groups[2].Value.Select(c => char.IsDigit(c) ? c - '0' : -1).ToArray());
+                    continue;
+                }
+
                 if (TabString.IsMatch(raw))
                 {
                     var block = new TabBlock { Time = pendingTime };
                     pendingTime = null;
+                    var firstColumn = TabString.Match(raw).Groups[2].Index;
                     while (i < lines.Count && TabString.IsMatch(lines[i]))
                         block.Strings.Add(TabString.Match(lines[i++]).Groups[2].Value);
                     --i;
@@ -60,6 +74,10 @@ namespace YourBand.Core.Import.UltimateGuitar
                         if (last >= 0)
                             block.Strings[s] = block.Strings[s].Substring(0, last);
                     }
+                    block.FirstColumn = firstColumn;
+                    for (int c = 0; c < block.Strings[0].Length; ++c)
+                        if (block.Strings[0][c] == '|')
+                            block.BarColumns.Add(firstColumn + c);
                     section.Lines.Add(new SheetLine { Tab = block });
                     continue;
                 }
@@ -121,6 +139,9 @@ namespace YourBand.Core.Import.UltimateGuitar
             var leftover = rest.Replace('|', ' ').Trim();
             if (leftover.Length > 0)
             {
+                // "C  x32010": a chord's shape in a list of the song's chords, not a chord played 32010 times
+                if (FretList.IsMatch(leftover))
+                    return null;
                 if (!Repeat.IsMatch(" " + leftover + " ") || Regex.Replace(leftover, @"[xX×\d()\s]", "").Length > 0)
                     return raw.Contains("[ch]") ? WithLyricInline(line, leftover) : null;  // words: a lyric line, not chords
                 line.Repeat = RepeatCount(leftover);
@@ -187,6 +208,10 @@ namespace YourBand.Core.Import.UltimateGuitar
         public List<string> Strings = new List<string>();
         public int Repeat = 1;
         public (double start, double end)? Time;
+        /// <summary>The columns of the page where a bar line divides the tab (none: it is one stretch, of any length).</summary>
+        public List<int> BarColumns = new List<int>();
+        /// <summary>The column of the page where the strings' text starts.</summary>
+        public int FirstColumn;
 
         public int Columns => Strings.Count == 0 ? 0 : Strings.Max(s => s.Length);
     }

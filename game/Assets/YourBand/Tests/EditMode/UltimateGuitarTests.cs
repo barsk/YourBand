@@ -181,6 +181,137 @@ namespace YourBand.Core.Tests
         }
 
         [Test]
+        public void Parse_APageWhoseMetaIsAnEmptyList()
+        {
+            // some pages have "meta": [] where others have an object with the key, capo and tuning
+            var data = new JObject
+            {
+                ["store"] = new JObject { ["page"] = new JObject { ["data"] = new JObject
+                {
+                    ["tab"] = new JObject { ["song_name"] = "Song", ["artist_name"] = "Band", ["type"] = "Tabs", ["tonality_name"] = "Em" },
+                    ["tab_view"] = new JObject { ["meta"] = new JArray(), ["wiki_tab"] = new JObject { ["content"] = "[Verse]\n[ch]Em[/ch]\n" } },
+                } } },
+            };
+            var html = "<div class=\"js-store\" data-content=\"" + System.Net.WebUtility.HtmlEncode(data.ToString()) + "\"></div>";
+            var page = UgPage.Parse(html);
+            Assert.AreEqual("Em", page.Key);
+            Assert.AreEqual(0, page.Capo);
+            Assert.AreEqual("E A D G B E", page.Tuning);
+        }
+
+        [Test]
+        public void Import_TheSameChordsWrittenAgainEachKeepTheirOwnTab()
+        {
+            string Block(int fret) =>
+                "[ch]Em[/ch]   [ch]D[/ch]\n" +
+                $"e|--{fret}--{fret}--|\n" +
+                "B|--3--3--|\n" +
+                "G|--0--0--|\n" +
+                "D|--2--2--|\n" +
+                "A|--2--2--|\n" +
+                "E|--0--0--|\n\n";
+            var song = UgImporter.Import(UgPage.Parse(Page("Tabs", "[Intro]\n" + Block(1) + Block(2) + Block(3), false)), null, out _);
+            var riffs = song.Riffs.OrderBy(r => r.Notes.Min(n => n.AtQuarter)).ToList();
+            Assert.AreEqual(3, riffs.Count);
+            CollectionAssert.AreEqual(new[] { 1, 2, 3 }, riffs.Select(r => r.Notes.First(n => n.StringIndex == 5).Fret));
+            for (int i = 0; i < 3; ++i)  // each over its own two bars
+                Assert.IsTrue(riffs[i].Notes.All(n => n.AtQuarter >= 8 * i && n.AtQuarter < 8 * (i + 1)), "riff " + i);
+        }
+
+        const string TabOfTwoBars =
+            "e|--0--0--|--2--0--|\n" +
+            "B|--3--3--|--3--0--|\n" +
+            "G|--0--0--|--2--0--|\n" +
+            "D|--2--2--|--0--2--|\n" +
+            "A|--2--2--|-----2--|\n" +
+            "E|--0--0--|-----0--|\n";
+
+        [Test]
+        public void Import_TheBarsOfATabPlaceTheChordsOverThem_AndSetThePageSPace()
+        {
+            // Em7 alone over the first bar, D and Em sharing the second
+            var one = UgPage.Parse(Page("Tabs", "[Intro]\n  Em7       D  Em\n" + TabOfTwoBars, false));
+            CollectionAssert.AreEqual(new[] { 4.0, 2.0, 2.0 }, UgImporter.Import(one, null, out _).Chords.OrderBy(c => c.AtQuarter).Select(c => c.Quarters));
+            // a chord right over the bar line starts the bar after it (the line's D is at the column of the tab's |)
+            var onTheLine = UgPage.Parse(Page("Tabs", "[Intro]\n  Em7     D    Em\n" + TabOfTwoBars, false));
+            CollectionAssert.AreEqual(new[] { 4.0, 2.0, 2.0 }, UgImporter.Import(onTheLine, null, out _).Chords.OrderBy(c => c.AtQuarter).Select(c => c.Quarters));
+
+            // bars of two chords: the line without bars follows, two bars for its four chords
+            const string content =
+                "[Intro]\n" +
+                "  Em7  C     D  Em\n" + TabOfTwoBars + "\n" +
+                "[Verse]\n" +
+                "Em    C     D     G\n" +
+                "some words to sing here\n";
+            var chords = UgImporter.Import(UgPage.Parse(Page("Tabs", content, false)), null, out _, UgImporter.ChordsPerBarFromPage)
+                .Chords.OrderBy(c => c.AtQuarter).ToList();
+            CollectionAssert.AreEqual(new[] { 2.0, 2.0, 2.0, 2.0 }, chords.Take(4).Select(c => c.Quarters));
+            CollectionAssert.AreEqual(new[] { 8.0, 10.0, 12.0, 14.0 }, chords.Skip(4).Select(c => c.AtQuarter));
+        }
+
+        [Test]
+        public void Import_AListOfChordShapesFillsTheChordBoxes_ButNotWithAWrongShape()
+        {
+            const string content =
+                "C       x32010\n" +
+                "D       000323\n" +
+                "\n" +
+                "[Verse]\n" +
+                "C     D\n" +
+                "some words to sing here\n";
+            var song = UgImporter.Import(UgPage.Parse(Page("Tabs", content, false)), null, out var report);
+            CollectionAssert.AreEqual(new[] { -1, 3, 2, 0, 1, 0 }, song.VoicingFor(song.Chords.First(c => c.Name == "C")).Frets);
+            // 000323 is not D's notes: the usual shape, and the report says so
+            CollectionAssert.AreEqual(new[] { -1, -1, 0, 2, 3, 2 }, song.VoicingFor(song.Chords.First(c => c.Name == "D")).Frets);
+            Assert.IsTrue(report.Notes.Any(n => n.Contains("000323")));
+        }
+
+        [Test]
+        public void Import_AChordThePageGivesNoShapeFor_GetsItsUsualOne()
+        {
+            const string content = "[Verse]\nEm7   D   F#m\nsome words to sing here\n";
+            var song = UgImporter.Import(UgPage.Parse(Page("Tabs", content, false)), null, out var report);
+            int[] Frets(string name) => song.VoicingFor(song.Chords.First(c => c.Name == name)).Frets.ToArray();
+            CollectionAssert.AreEqual(new[] { 0, 2, 2, 0, 3, 0 }, Frets("Em7"));
+            CollectionAssert.AreEqual(new[] { -1, -1, 0, 2, 3, 2 }, Frets("D"));
+            CollectionAssert.AreEqual(YourBand.Core.Band.Arranger.GuitarShape(YourBand.Core.Music.Chord.Parse("F#m")), Frets("F#m"));  // no open shape: the band's barre
+            Assert.IsTrue(report.Notes.Any(n => n.Contains("the usual ones")));
+        }
+
+        [Test]
+        public void Import_ARiffsNotesFallOnTheBeats_ThoughItsBarsDifferInWidth()
+        {
+            string Line(string name, string notes, string rest) => name + "|" + notes + "|" + rest + "|\n";
+            var content = "[Intro]\n  Em" + new string(' ', 17) + "D\n" +
+                          Line("e", "0---0---0---0-----", "0-------0-------") +
+                          Line("B", "------------------", "----------------") +
+                          Line("G", "------------------", "----------------") +
+                          Line("D", "------------------", "----------------") +
+                          Line("A", "------------------", "----------------") +
+                          Line("E", "------------------", "----------------");
+            var song = UgImporter.Import(UgPage.Parse(Page("Tabs", content, false)), null, out _);
+            CollectionAssert.AreEqual(new[] { 0.0, 1.0, 2.0, 3.0, 4.0, 6.0 }, song.Riffs.Single().Notes.Select(n => n.AtQuarter));
+            CollectionAssert.AreEqual(new[] { 0.0, 4.0 }, song.Chords.OrderBy(c => c.AtQuarter).Select(c => c.AtQuarter));
+        }
+
+        [Test]
+        public void Import_AListOfTheSongsChordShapesIsNotPlayed()
+        {
+            // "x32010" is C's frets, not "play C 32010 times" (which made a song of 34,000 chords)
+            const string content =
+                "CHORDS used in this song:\n" +
+                "Em7     022030\n" +
+                "C       x32010\n" +
+                "Am7     x02010\n" +
+                "[ch]G[/ch]  320003\n" +
+                "\n" +
+                "[Verse]\n" +
+                "[ch]Em[/ch] x2\n";
+            var chords = UgImporter.Import(UgPage.Parse(Page("Tabs", content, false)), null, out _).Chords;
+            CollectionAssert.AreEqual(new[] { "Em", "Em" }, chords.Select(c => c.Name));
+        }
+
+        [Test]
         public void Import_TheTabOnAChordsPageIsTheSongsRiff_WithoutATabsPage()
         {
             const string content =

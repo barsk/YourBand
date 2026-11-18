@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
+using YourBand.Core.Band;
 using YourBand.Core.Music;
 using YourBand.Core.Songs;
 
@@ -90,7 +91,7 @@ namespace YourBand.Core.Import.UltimateGuitar
                        + $"{song.Tempo.BarAt(placed.End).bar} bars at {bpm.ToString(CultureInfo.InvariantCulture)} BPM in {signature} "
                        + $"({Clock(song.Tempo.SecondsAt(placed.End))}).");
 
-            Voicings(chords, song, report);
+            Voicings(chords, sheet, song, report);
             Strumming(chords, song, report);
             song.Sources.Add(new Source
             {
@@ -117,7 +118,26 @@ namespace YourBand.Core.Import.UltimateGuitar
         {
             var bars = sheet.Sections.SelectMany(s => s.Lines).Select(l => l.Chords).Where(c => c != null && c.Barred)
                 .SelectMany(c => c.Chords.GroupBy(x => x.Bar)).Select(g => g.Count()).ToList();
+            // the bars of a tab under a line of chords count too
+            foreach (var section in sheet.Sections)
+                for (int li = 0; li < section.Lines.Count; ++li)
+                    if (section.Lines[li].Chords is ChordLine c && TabUnder(section, li, c) is TabBlock tab)
+                        bars.AddRange(Measures(c, tab).Where(m => m.Count > 0).Select(m => m.Count));
             return bars.Count(n => n >= 2) * 2 > bars.Count;
+        }
+
+        /// <summary>The tab right under a line of chords without words, if bar lines divide it.</summary>
+        static TabBlock TabUnder(SheetSection section, int line, ChordLine chords) =>
+            string.IsNullOrWhiteSpace(chords.Lyric) && !chords.Barred && line + 1 < section.Lines.Count
+            && section.Lines[line + 1].Tab is TabBlock tab && tab.BarColumns.Count > 0 ? tab : null;
+
+        /// <summary>The chords over each bar of a tab, by their columns, one right over a bar line being in the bar it starts (a bar may have none).</summary>
+        static List<List<SheetChord>> Measures(ChordLine chords, TabBlock tab)
+        {
+            var bars = Enumerable.Range(0, tab.BarColumns.Count + 1).Select(_ => new List<SheetChord>()).ToList();
+            foreach (var chord in chords.Chords)
+                bars[tab.BarColumns.Count(column => column <= chord.Column)].Add(chord);
+            return bars;
         }
 
         // ------------------------------------------------------------ timing
@@ -217,10 +237,30 @@ namespace YourBand.Core.Import.UltimateGuitar
                             name = "Unnamed";
                         }
                     }
+                    var tabBelow = TabUnder(section, li, c);
                     for (int r = 0; r < times; ++r)
                     {
                         var placedLine = new PlacedLine { Section = section.Name, Source = c, At = at };
-                        if (c.Barred || chordsPerBar == 0)
+                        if (tabBelow != null)
+                        {
+                            // the tab's bar lines say it: the chords over a bar share it, a bar with none holds the chord before
+                            var barLength = slot * Math.Max(1, chordsPerBar);
+                            foreach (var inBar in Measures(c, tabBelow))
+                            {
+                                foreach (var chord in inBar)
+                                {
+                                    placedLine.Chords.Add(new ChordEvent { Name = chord.Name, AtQuarter = at, Quarters = barLength / inBar.Count });
+                                    at += barLength / inBar.Count;
+                                }
+                                if (inBar.Count == 0)
+                                {
+                                    if (placedLine.Chords.Count > 0)
+                                        placedLine.Chords[placedLine.Chords.Count - 1].Quarters += barLength;
+                                    at += barLength;
+                                }
+                            }
+                        }
+                        else if (c.Barred || chordsPerBar == 0)
                         {
                             // bar lines say it: the chords between two of them share one bar. Without them (chords per
                             // bar from the line), the line's chord count and the chords' spacing say it
@@ -371,6 +411,7 @@ namespace YourBand.Core.Import.UltimateGuitar
             var where = new List<string>();
             var riffCount = 0;
             var seen = new Dictionary<string, int>();  // how many sections of a name so far (Chorus 1, Chorus 2...)
+            var taken = new HashSet<ChordLine>();  // the lines of chords that already have a tab over them
             foreach (var section in tabs.Sections)
             {
                 var name = Normalise(section.Name);
@@ -405,12 +446,17 @@ namespace YourBand.Core.Import.UltimateGuitar
                         {
                             // chords alone over a tab (an intro): the line of those chords in our section
                             var names = line.Chords.Chords.Select(c => c.Name).ToList();
-                            // (the first such line from the section's start: its page section may go on into an unnamed block)
-                            current = placed.Lines.FirstOrDefault(p => p.Section == section.Name && p.Chords.Select(c => c.Name).SequenceEqual(names)
-                                                                       && (ours == null || p.At >= ours.AtQuarter - 1e-9));
+                            // (from the section's start: its page section may go on into an unnamed block. The same chords
+                            // written again are the next such line, each with its own tab: Heart of Gold's intro has three)
+                            var candidates = placed.Lines.Where(p => p.Section == section.Name && p.Chords.Select(c => c.Name).SequenceEqual(names)
+                                                                     && (ours == null || p.At >= ours.AtQuarter - 1e-9)).ToList();
+                            current = candidates.FirstOrDefault(p => !taken.Contains(p.Source)) ?? candidates.FirstOrDefault();
                             overLine = current != null;
                             if (overLine)
+                            {
+                                taken.Add(current.Source);
                                 overEnd = placed.Lines.Where(p => p.Source == current.Source).Max(p => p.End);
+                            }
                             continue;
                         }
                         var at = Find(placed, Normalise(line.Chords.Lyric), cursor);
@@ -540,11 +586,51 @@ namespace YourBand.Core.Import.UltimateGuitar
 
         static readonly Regex Fret = new Regex(@"\d{1,2}");
 
-        /// <summary>A tab block's notes spread over a span: columns in proportion, played `Repeat` times.</summary>
+        /// <summary>
+        /// Where each column with a note falls in a tab block, from 0 to 1. Tab is typed by hand: its bars differ in width and
+        /// its columns are only roughly even, so proportions would put notes off the beat and a bar's first notes before
+        /// it. Each bar between bar lines takes an equal share, and in it the notes go to a grid of even steps: the block's
+        /// commonest distance between notes is one step (Heart of Gold's eighths, four columns), the bar holding the nearest
+        /// usual number of them. A note that would share its step with the one before (a hammer-on) goes half a step after it.
+        /// </summary>
+        static Dictionary<int, double> NotePlaces(TabBlock block)
+        {
+            var columns = block.Strings.SelectMany(s => Fret.Matches(s).Cast<Match>().Select(m => m.Index)).Distinct().OrderBy(c => c).ToList();
+            var lines = block.BarColumns.Select(c => c - block.FirstColumn).OrderBy(c => c).ToList();
+            var starts = new[] { 0 }.Concat(lines.Select(c => c + 1)).ToList();
+            var ends = lines.Concat(new[] { Math.Max(1, block.Columns) }).ToList();
+            int BarOf(int column) => lines.Count(c => c < column);
+            var step = Enumerable.Range(1, Math.Max(0, columns.Count - 1)).Where(i => BarOf(columns[i]) == BarOf(columns[i - 1]))
+                .Select(i => columns[i] - columns[i - 1]).Where(gap => gap >= 2)
+                .GroupBy(gap => gap).OrderByDescending(g => g.Count()).ThenBy(g => g.Key).Select(g => g.Key).FirstOrDefault();
+            var places = new Dictionary<int, double>();
+            for (int bar = 0; bar < starts.Count; ++bar)
+            {
+                var width = (double)Math.Max(1, ends[bar] - starts[bar]);
+                var count = step == 0 ? 16 : width / step;
+                var steps = new[] { 1, 2, 3, 4, 6, 8, 12, 16, 24, 32 }.OrderBy(n => Math.Abs(n - count)).First();
+                var first = columns.Where(c => BarOf(c) == bar).DefaultIfEmpty(0).First();
+                var before = -1.0;
+                foreach (var column in columns.Where(c => BarOf(c) == bar))
+                {
+                    // (a block without bar lines says nothing of where the beats are: even steps from its first note)
+                    var place = lines.Count > 0 ? Math.Round((column - starts[bar]) * steps / width) / steps
+                        : step > 0 ? (first + Math.Round((column - first) / (double)step) * step) / width : column / width;
+                    if (place <= before)
+                        place = before + 0.5 / steps;
+                    place = Math.Min(place, 1 - 0.25 / steps);
+                    before = place;
+                    places[column] = (bar + place) / starts.Count;
+                }
+            }
+            return places;
+        }
+
+        /// <summary>A tab block's notes spread over a span, by <see cref="NotePlaces"/>, played `Repeat` times.</summary>
         static Riff Riff(string name, TabBlock block, double at, double quarters)
         {
             var riff = new Riff { Name = name };
-            var columns = Math.Max(1, block.Columns);
+            var places = NotePlaces(block);
             var strings = block.Strings.Count;
             var pass = quarters / Math.Max(1, block.Repeat);
             for (int r = 0; r < block.Repeat; ++r)
@@ -555,14 +641,15 @@ namespace YourBand.Core.Import.UltimateGuitar
                     for (int n = 0; n < notes.Count; ++n)
                     {
                         var m = notes[n];
-                        var next = n + 1 < notes.Count ? notes[n + 1].Index : columns;
+                        var place = places[m.Index];
+                        var next = n + 1 < notes.Count ? places[notes[n + 1].Index] : 1.0;
                         var after = m.Index + m.Length < text.Length ? text[m.Index + m.Length] : '-';
                         riff.Notes.Add(new TabNote
                         {
                             StringIndex = strings - 1 - s,  // the top line is the highest string
                             Fret = int.Parse(m.Value),
-                            AtQuarter = at + r * pass + m.Index * pass / columns,
-                            Quarters = (next - m.Index) * pass / columns,
+                            AtQuarter = at + r * pass + place * pass,
+                            Quarters = (next - place) * pass,
                             Technique = "bhprs~/\\".IndexOf(after) >= 0 ? after.ToString() : "",
                         });
                     }
@@ -572,14 +659,64 @@ namespace YourBand.Core.Import.UltimateGuitar
         }
 
         // ------------------------------------------------------------ shapes, strumming, tuning
-        static void Voicings(UgPage page, Song song, ImportReport report)
+        /// <summary>The open shapes a guitarist reaches for first, from the lowest string.</summary>
+        static readonly Dictionary<string, int[]> OpenShapes = new Dictionary<string, int[]>
+        {
+            ["A"] = new[] { -1, 0, 2, 2, 2, 0 }, ["Am"] = new[] { -1, 0, 2, 2, 1, 0 }, ["C"] = new[] { -1, 3, 2, 0, 1, 0 },
+            ["D"] = new[] { -1, -1, 0, 2, 3, 2 }, ["Dm"] = new[] { -1, -1, 0, 2, 3, 1 }, ["E"] = new[] { 0, 2, 2, 1, 0, 0 },
+            ["Em"] = new[] { 0, 2, 2, 0, 0, 0 }, ["G"] = new[] { 3, 2, 0, 0, 0, 3 },
+            ["A7"] = new[] { -1, 0, 2, 0, 2, 0 }, ["Am7"] = new[] { -1, 0, 2, 0, 1, 0 }, ["B7"] = new[] { -1, 2, 1, 2, 0, 2 },
+            ["C7"] = new[] { -1, 3, 2, 3, 1, 0 }, ["Cmaj7"] = new[] { -1, 3, 2, 0, 0, 0 }, ["D7"] = new[] { -1, -1, 0, 2, 1, 2 },
+            ["Dm7"] = new[] { -1, -1, 0, 2, 1, 1 }, ["E7"] = new[] { 0, 2, 0, 1, 0, 0 }, ["Em7"] = new[] { 0, 2, 2, 0, 3, 0 },
+            ["G7"] = new[] { 3, 2, 0, 0, 0, 1 },
+        };
+
+        /// <summary>Whether frets, from the lowest string, sound only the chord's notes on the song's strings.</summary>
+        static bool Fits(int[] frets, Chord chord, Song song)
+        {
+            var open = Arranger.OpenStrings(song.Info);
+            var tones = new HashSet<int>(chord.PitchClasses) { chord.Bass };
+            return Enumerable.Range(0, 6).Where(s => frets[s] >= 0).All(s => tones.Contains((open[s] + frets[s]) % 12));
+        }
+
+        /// <summary>A chord's usual shape: its open one if it has one (and it fits the song's tuning), else the band's own for it.</summary>
+        static int[] UsualFrets(string name, Chord chord, Song song) =>
+            OpenShapes.TryGetValue(name, out var shape) && Fits(shape, chord, song) ? shape : Arranger.GuitarShape(chord).ToArray();
+
+        /// <summary>
+        /// The frets to show for a chord the page lists as text: as listed, or, if those are not the chord's notes (a slip on
+        /// the page: Heart of Gold's tabs give D as 000323), its usual open shape, else the band's own shape for it.
+        /// </summary>
+        static int[] ListedFrets(string name, int[] listed, Song song, ImportReport report)
+        {
+            if (!Chord.TryParse(name, out var chord))
+                return listed;
+            if (Fits(listed, chord, song))
+                return listed;
+            var own = UsualFrets(name, chord, song);
+            report.Add($"The page's shape for {name} ({string.Concat(listed.Select(f => f < 0 ? "x" : f.ToString()))}) is not that chord: a usual one is shown.");
+            return own;
+        }
+
+        static void Voicings(UgPage page, ChordSheet sheet, Song song, ImportReport report)
         {
             var missing = new List<string>();
             foreach (var name in song.Chords.Select(c => c.Name).Distinct())
             {
                 if (!page.Shapes.TryGetValue(name, out var shapes) || shapes.Count == 0)
                 {
-                    missing.Add(name);
+                    // the list in the page's text, else the chord's usual shape
+                    var known = Chord.TryParse(name, out var parsed);
+                    if (!sheet.Shapes.ContainsKey(name))
+                        missing.Add(name);
+                    if (sheet.Shapes.TryGetValue(name, out var listed) || known)
+                    {
+                        var frets = listed != null ? ListedFrets(name, listed, song, report) : UsualFrets(name, parsed, song);
+                        var id = $"{name}-{string.Concat(frets.Select(f => f < 0 ? "x" : f.ToString()))}";
+                        song.Voicings.Add(new Voicing { Id = id, Chord = name, Frets = frets.ToList() });
+                        foreach (var c in song.Chords.Where(c => c.Name == name))
+                            c.Voicing = id;
+                    }
                     continue;
                 }
                 var shape = shapes[0];
@@ -603,7 +740,7 @@ namespace YourBand.Core.Import.UltimateGuitar
                     c.Voicing = voicing.Id;
             }
             if (missing.Count > 0)
-                report.Add("No chord shapes on the page for: " + string.Join(", ", missing));
+                report.Add("No chord shapes on the page for " + string.Join(", ", missing) + ": the usual ones are shown.");
         }
 
         /// <summary>

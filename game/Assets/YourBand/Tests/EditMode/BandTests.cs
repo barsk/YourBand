@@ -206,7 +206,7 @@ namespace YourBand.Core.Tests
         }
 
         [Test]
-        public void Arrangement_PlaysTheTabsSingleStringNotesAsNotes_AndDoesNotStrumOverThem()
+        public void Arrangement_PlaysASongsTabAsATrack_RingingAndWithoutStrummingOverIt()
         {
             var song = DemoSong.Create();
             song.Riffs.Clear();
@@ -220,22 +220,20 @@ namespace YourBand.Core.Tests
                 riff.Notes.Add(new TabNote { StringIndex = str, Fret = 2, AtQuarter = 4, Quarters = 1 });
             song.Riffs.Add(riff);
             var a = Arranger.Arrange(new SongChart(song), BandStyle.Named("Ballad"));
-            Assert.AreEqual(1, a.SingleSpans.Count);
-            Assert.AreEqual(1.0, a.SingleSpans[0].From, 1e-6);
-            Assert.AreEqual(3.0, a.SingleSpans[0].To, 1e-6);  // a beat after the last single note, before the chord at 4
-            var singles = a.Notes.Where(n => n.Single).ToList();
-            Assert.AreEqual(2, singles.Count);
-            Assert.AreEqual(new[] { 45, 52 }, singles.Select(n => n.Pitch).ToArray());  // A2 open, D3 + 2
-            Assert.IsTrue(singles.All(n => n.Part == BandPart.Guitar));
-            // no stroke, and no string of a strum, inside the stretch; strokes before and after it stay
-            Assert.IsFalse(a.Strokes.Any(st => st.AtQuarter > 1.0 - 1e-6 && st.AtQuarter < 3.0 - 1e-6));
-            Assert.IsTrue(a.Strokes.Any(st => st.AtQuarter < 1.0 - 1e-6));
-            Assert.IsTrue(a.Strokes.Any(st => st.AtQuarter >= 3.0 - 1e-6));
-            Assert.IsFalse(a.Part(BandPart.Guitar).Any(n => !n.Single && n.AtQuarter > 1.0 - 1e-6 && n.AtQuarter < 3.0 - 1e-6));
-            // and the engine is told: the stretch, and the notes' flag
-            var (_, message) = EngineProtocol.Read(EngineProtocol.Load("x", song.Tempo, a, ""));
-            Assert.AreEqual(1, message["spans"].Count());
-            Assert.AreEqual(2, message["notes"].Count(n => n.Count() == 6));
+            Assert.AreEqual(0, a.SingleSpans.Count);
+            Assert.IsFalse(a.Notes.Any(n => n.Single));
+            // every note of the tab is picked: the three strings at 0, the two single notes, the three strings at 4
+            Assert.AreEqual(8, a.Picks.Count);
+            // the single note on the A string rings on until the same string is struck, not for its one quarter
+            var ringing = a.Part(BandPart.Guitar).Single(n => n.Pitch == 45 && System.Math.Abs(n.AtQuarter - 1) < 1e-6);
+            Assert.Greater(ringing.Quarters, 1.5);
+            // no strumming over the tab (0 to 5), and strumming again after it, on a chord held from there
+            Assert.IsFalse(a.Strokes.Any(st => st.AtQuarter < 5.0 - 1e-6));
+            Assert.IsTrue(a.Strokes.Any(st => st.AtQuarter >= 5.0 - 1e-6));
+            Assert.IsTrue(a.Voicings.Any(v => v.AtQuarter >= 5.0 - 1e-6));
+            CollectionAssert.AreEqual(a.Voicings.OrderBy(v => v.AtQuarter).Select(v => v.AtQuarter), a.Voicings.Select(v => v.AtQuarter));
+            // the guitarist's hands stay on the chart's chords: only a whole track gives them its own
+            Assert.AreEqual(0, a.Holds.Count);
         }
 
         [Test]

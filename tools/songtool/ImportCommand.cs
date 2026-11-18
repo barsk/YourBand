@@ -49,7 +49,7 @@ namespace YourBand.SongTool
             else
             {
                 song = FromUltimateGuitar(chordsUrl, tabsUrl);
-                tag = "";
+                tag = string.IsNullOrEmpty(chordsUrl) ? "tabs" : "chords";  // (a song from a chords page and one from a tabs page are two songs)
             }
 
             var output = Option("-o");

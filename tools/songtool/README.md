@@ -30,8 +30,9 @@ tools/songtool/bin/Release/net8.0/songtool.exe import --tabs-url <url> [--out-di
 
 `import` is what the control panel's "Import new..." window runs. It reads the Ultimate Guitar pages straight from
 their URLs, in memory (nothing but the song is saved), and records the URLs (and the page's revision) in the song's
-`sources`. The song goes to `songs-local/<title>[-<gp extension>][-ug].song.json` (a new import of the same song
-replaces the earlier one), every step prints a line, and a successful import ends with `Saved <path>`. A Guitar Pro
+`sources`. The song goes to `songs-local/<title>-<gp extension>[-ug].song.json` for a Guitar Pro file, `<title>-chords.song.json`
+for a chords page (with or without a tabs page) and `<title>-tabs.song.json` for a tabs page alone (a new import of the same
+kind replaces the earlier one), every step prints a line, and a successful import ends with `Saved <path>`. A Guitar Pro
 import takes only the strumming from a page; a UG import takes the chords page and/or the tabs page (a tabs page
 alone gives fewer chords). Only `ultimate-guitar.com` addresses are fetched. If the site refuses the request (HTTP
 403 or 429) the message says to save the page from the browser and use `import-ug` / `import-gpx --strum` instead.
@@ -43,7 +44,14 @@ two chords a bar, and of three chords the two written closest together share one
 for a song that changes twice a bar (Wonderwall's page comes out at 8:55).
 
 Tab written on a chords page counts as well: without a tabs page, those blocks become the song's riffs (shown in the TAB
-panel, and played by the band guitar as single notes), placed as a tabs page's are.
+panel, and played by the band guitar as a track is played), placed as a tabs page's are. Each bar of a tab takes an equal
+share of its riff, and its notes go to an even grid, since typed tab is only roughly even. A line of chords over a tab divided by
+bar lines takes its bars from the tab: the chords over a bar share it, and those bars count as the page's drawn bars above.
+
+A list of the song's chords in the page's text (`C  x32010`, frets from the lowest string) fills the chord boxes of chords the
+page has no diagram for. A listed shape whose notes are not the chord's is a slip on the page: the usual shape is used, and
+the import says so. A chord with neither a diagram nor a listed shape gets its usual shape too: its open one for the common
+chords, else a barre.
 
 Save the Ultimate Guitar pages from the browser ("Save page as", HTML) into `songs-local/pages/`, and Guitar Pro
 files (`.gpx`, or `.gp`/`.gp3`/`.gp4`/`.gp5`) into `songs-local/gpx/`; write the songs to `songs-local/`. That

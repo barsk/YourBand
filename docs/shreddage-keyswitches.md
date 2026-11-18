@@ -304,6 +304,8 @@ at once, which is the ringing bass. This is why the voice limits are 32 and 16 (
 
 ## 7. Single-string stretches
 
+A song from Ultimate Guitar pages has no tracks: where its tab goes, the guitarist plays the tab as it plays a track, with the
+string keys of section 6, so its notes ring. What follows is for a Guitar Pro song on its playstyle part (no track chosen).
 Where the song's tab has single-string notes instead of chords (a riff), the guitarist plays them as ordinary notes, and
 there is no strumming over them. The `load` message's `spans` give the stretches, and the notes carry a flag. In strumming
 mode the plugin would not sound plain notes, so for each stretch:
@@ -315,8 +317,7 @@ mode the plugin would not sound plain notes, so for each stretch:
 3. **At its end** (0.001 quarter note before): F#5 goes on again, and the chord held at that moment is sent again (a note-on 2 samples
    later, off at the chord's end).
 
-If Lead 1 has a plugin of its own, is not muted, and the song gives it no part, the tab's single notes go to **Lead 1** instead and
-the guitar plugin only strums and keeps quiet while the tab plays, so the two do not compete for voices.
+The rhythm guitar's own plugin always plays them: a lead instrument plays only the track chosen for it.
 
 ## 8. Techniques
 

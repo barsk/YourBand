@@ -117,7 +117,10 @@ hair (0.01 quarter); a muted stroke rings at most 0.08 quarters.
 
 `Voicings` get one note per played string of every chord (the held shape). The last bar is one held downstroke.
 
-**Single-string notes from the song's tab** (`SingleNotes`): where the tab has onsets of one note, the guitarist plays them
+**A song's tab, in a song without tracks** (one from Ultimate Guitar pages; `RiffTrack`): each riff's stretch is played as a
+track is (`TrackRhythm`), its notes picked and ringing; the strumming stops there and goes on after it.
+
+**Single-string notes from the song's tab, in a Guitar Pro song on its playstyle part** (`SingleNotes`): where the tab has onsets of one note, the guitarist plays them
 as notes and does not strum over them. A *run* starts at the first single-note onset and ends at the next onset of two or
 more strings (a chord, where strumming resumes), after a gap of more than a beat, or at the run's end; its notes are
 flagged `single`, and its time range goes into `SingleSpans`.
