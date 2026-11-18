@@ -170,7 +170,9 @@ under it in Redbud Tree.) The algorithm, in `TrackRhythm`:
 2. **Held chords.** The stretches a chord is held for are the chart's chord spans. In each, the pitch a string is struck at
    most often is that string's held pitch. A chord that continues the one before without changing any string's pitch is that
    chord held on (the strings ring through the change). A note off its string's held pitch starts a new held chord from there.
-3. **`Voicings`** get the notes of every held chord **as Shreddage can voice it** (`GuitarVoicing`: it fingers the held notes on a
+3. The held chords, as the tab frets them, are the arrangement's **`Holds`**: the guitarist's hands hold these shapes (a six-string
+   track that is tab), not the chart's chord boxes, which can be the file's diagram of the chord rather than the shape played.
+   **`Voicings`** get the notes of every held chord **as Shreddage can voice it** (`GuitarVoicing`: it fingers the held notes on a
    guitar in standard tuning, and a chord it cannot finger, such as two notes only the low E string reaches, is silent: a song in
    another tuning has many, and so does a chord past the 12th fret, the highest Shreddage plays;
    [shreddage-keyswitches.md](shreddage-keyswitches.md#53-which-chords-shreddage-can-voice)). A chord that cannot be fingered has as

@@ -91,8 +91,8 @@ namespace YourBand.Runtime.Band
                 var speed = chart.Song.Tempo.BpmAt(0) / (60.0 / ClipBeatGuitarist);  // of the clip's own pace, one to a quarter
                 quartersPerClipBeat = speed > 1.45 ? 2 : speed < 0.7 ? 0.5 : 1;
             }
-            grips = GuitarPerformance.Grips(chart);
-            strums = GuitarPerformance.Strums(chart, arrangement.Notes);
+            grips = GuitarPerformance.Grips(chart, arrangement);
+            strums = GuitarPerformance.Strums(chart, arrangement.Notes, arrangement.Holds);
             notes = BassPerformance.Plan(arrangement.Notes);
         }
 

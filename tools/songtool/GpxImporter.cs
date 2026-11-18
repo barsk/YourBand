@@ -909,6 +909,7 @@ namespace YourBand.SongTool
             public int[] Frets;
             public string ChordName;   // the file's chord name for the strum: its own marker's, or the one in force if the strum fits it
             public bool Marked;        // the strum's own beat carries a chord marker
+            public AlphaTab.Model.Chord Written;  // that marker's chord (its diagram, if the file draws one), or null
             public int Bass => Pitches.Count > 0 ? Pitches.Min() % 12 : -1;
         }
 
@@ -921,6 +922,7 @@ namespace YourBand.SongTool
             public int Bass;
             public int[] Frets;
             public string ChordName;   // the file's own name for the region, if its strums agree on one
+            public AlphaTab.Model.Chord Diagram;  // the file's diagram for that name on the region's own markers, if it draws one
             public bool Lead;          // only two-note strums, sounding less than half its length: a lead line's double stops
         }
 
@@ -990,6 +992,7 @@ namespace YourBand.SongTool
                                     Frets = FretsFor(notes, staff),
                                     ChordName = marked || Fits(pitches, writtenChord) ? writtenChord : null,
                                     Marked = marked,
+                                    Written = marked ? beat.Chord : null,
                                 });
                         }
                     }
@@ -998,6 +1001,15 @@ namespace YourBand.SongTool
 
             if (riff.Notes.Count > 0)
                 song.Riffs.Add(riff);
+
+            // the chord diagrams the file draws, by name: the first with frets, this track's before the others' (No Woman No
+            // Cry draws its diagrams on the vocal track only)
+            var diagrams = new Dictionary<string, AlphaTab.Model.Chord>();
+            var strings = staff.StringTuning.Tunings.Count;
+            foreach (var st in new[] { staff }.Concat(staff.Track.Score.Tracks.SelectMany(t => t.Staves)))
+                foreach (var c in st.Chords?.Select(kv => kv.Value) ?? Enumerable.Empty<AlphaTab.Model.Chord>())
+                    if (!string.IsNullOrWhiteSpace(c.Name) && FretsOf(c, strings) != null)
+                        diagrams.TryAdd(c.Name.Trim(), c);
 
             // a file that names no chords: the notes decide, all of them (a fingerpicked part has no strums to go by)
             var regions = anyMarker ? ChordRegions(strums) : RecognizedRegions(riff, staff, timeline, tpq);
@@ -1015,11 +1027,16 @@ namespace YourBand.SongTool
                 }
                 // the file's own chord name wins when its strums agree on one; otherwise the notes decide
                 var name = region.ChordName ?? DetectChord(region.CorePcs, region.Bass);
-                var frets = region.Frets;
+                // the shape: the file's diagram for its name (on the region's own markers, else the first the file draws for
+                // that name, on any track), else the one the track plays most
+                var diagram = region.ChordName == null ? null
+                    : region.Diagram ?? (diagrams.TryGetValue(region.ChordName, out var d) ? d : null);
+                var frets = diagram != null ? FretsOf(diagram, region.Frets.Length) : region.Frets;
                 var voicingId = $"{name}-{VoicingFrets(frets)}";
                 if (!voicings.TryGetValue(voicingId, out var voicing))
                 {
-                    voicing = new Voicing { Id = voicingId, Chord = name, Frets = new List<int>(frets), Fingers = new List<int>(frets.Length) };
+                    voicing = new Voicing { Id = voicingId, Chord = name, Frets = new List<int>(frets), Fingers = new List<int>(frets.Length),
+                                            Barre = diagram != null ? BarreOf(diagram, frets) : null };
                     voicings[voicingId] = voicing;
                 }
                 song.Chords.Add(new ChordEvent
@@ -1051,6 +1068,34 @@ namespace YourBand.SongTool
             var pcs = pitches.Select(p => p % 12).Distinct().ToList();
             var inside = pcs.Count(p => tones.Contains(p));
             return tones.Contains(pitches.Min() % 12) && inside > pcs.Count - inside;
+        }
+
+        /// <summary>
+        /// A chord diagram's frets per string, lowest first (-1 not played), or null when it draws none for a guitar of this
+        /// many strings (a chord can be a name only: its strings all unplayed). alphaTab lists them from the highest string,
+        /// and in a diagram drawn from a higher fret it reads an open string as the fret below the first one drawn (Zombie's
+        /// E5, drawn from fret 7 and played 0 7 9 9, comes as 6 7 9 9): a fret the diagram cannot show is that open string.
+        /// </summary>
+        static int[] FretsOf(AlphaTab.Model.Chord chord, int strings)
+        {
+            if (chord?.Strings == null || chord.Strings.Count != strings || chord.Strings.All(f => f < 0))
+                return null;
+            var first = (int)chord.FirstFret;
+            return chord.Strings.Reverse().Select(f => f < 0 ? -1 : first > 1 && (int)f == first - 1 ? 0 : (int)f).ToArray();
+        }
+
+        /// <summary>
+        /// A diagram's barre: the first fret it barres, across the strings at that fret; the index finger when it is the
+        /// shape's lowest fret, else the ring finger (Zombie's E5, 0 7 9 9: the index on the 7, the ring across the 9s).
+        /// </summary>
+        static Barre BarreOf(AlphaTab.Model.Chord chord, int[] frets)
+        {
+            if (chord.BarreFrets == null || chord.BarreFrets.Count == 0)
+                return null;
+            var fret = (int)chord.BarreFrets.Min();
+            var at = Enumerable.Range(0, frets.Length).Where(s => frets[s] == fret).ToList();
+            var lowest = frets.Where(f => f > 0).Min();
+            return at.Count >= 2 ? new Barre { Fret = fret, Finger = fret == lowest ? 1 : 3, FirstString = at.Min(), LastString = at.Max() } : null;
         }
 
         /// <summary>The chords <see cref="ChordRecognizer"/> reads from all the tab's notes, as regions.</summary>
@@ -1183,6 +1228,9 @@ namespace YourBand.SongTool
                     Bass = bass,
                     Frets = frets,
                     ChordName = writtenName,
+                    Diagram = g.Where(s => s.ChordName == writtenName && s.Written != null && FretsOf(s.Written, s.Frets.Length) != null)
+                        .GroupBy(s => VoicingFrets(FretsOf(s.Written, s.Frets.Length))).OrderByDescending(x => x.Count())
+                        .Select(x => x.First().Written).FirstOrDefault(),
                     Lead = g.All(s => s.Pitches.Distinct().Count() <= 2) && total < 0.5 * (Math.Min(end, nextStart) - start),
                 });
             }

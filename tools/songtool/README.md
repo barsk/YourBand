@@ -92,7 +92,12 @@ It imports what the current song model holds:
   file often stops writing names for a stretch, and the strums there are named by their notes (No Woman No Cry's
   fingerpicked verses strum an F with "C" or "G" still in force). A region takes the file's name only when that name
   covers most of its strum time, and a region of a lead line's double stops that fits no name (two-note strums, sounding
-  less than half its length) is not a chord: the chord before it goes on. A file with **no** chord names (a Guitar Pro 4
+  less than half its length) is not a chord: the chord before it goes on. A chord's **shape** (its voicing, the chord box
+  the chart shows) is the file's own diagram for its name when it draws one: the diagram on the chord's own marker, else
+  the first the file draws for that name on any track (No Woman No Cry draws its diagrams on the vocal track), with the
+  barre it marks; otherwise the shape the track plays most. A diagram drawn from a higher fret has its open strings read
+  back as open (alphaTab gives them as the fret below the first one drawn). The band's guitarist, playing the track, holds
+  the shapes of its tab, not these. A file with **no** chord names (a Guitar Pro 4
   file often has none) gets its chords **read from all its notes** (`ChordRecognizer.cs`), not only the strummed ones,
   so a fingerpicked part works too: the song is cut into the chord sequence that best explains the notes on an
   eighth-note grid, a chord scored by the notes it holds, the notes it does not, and whether the bass notes struck are

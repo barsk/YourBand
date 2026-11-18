@@ -82,6 +82,38 @@ namespace YourBand.Core.Tests
         }
 
         [Test]
+        public void Grips_FollowTheTab_WhenTheGuitaristPlaysATrack()
+        {
+            // the chart's G is the open shape (320003); the track plays it as the barre at the 3rd fret (355433)
+            var song = DemoSong.Create();
+            song.Riffs.Clear();
+            var g = song.Chords[0];
+            Assert.AreEqual("G", g.Name);
+            int[] open = { 40, 45, 50, 55, 59, 64 }, barre = { 3, 5, 5, 4, 3, 3 };
+            var track = new SongTrack { Index = 0, Name = "Guitar", Kind = "guitar", Tuning = new[] { "E2", "A2", "D3", "G3", "B3", "E4" }.ToList() };
+            for (double q = g.AtQuarter; q < g.AtQuarter + g.Quarters - 1e-6; q += 1)
+                for (int s = 0; s < 6; ++s)
+                    track.Notes.Add(new TrackNote { AtQuarter = q + s * 0.01, Quarters = 1, Pitch = open[s] + barre[s], StringIndex = s, Fret = barre[s], Velocity = 90 });
+            song.Tracks.Add(track);
+            var chart = new SongChart(song);
+            var connections = new BandConnections();
+            connections.Choose(Instrument.RhythmGuitar, TrackRef.Of(track));
+            var a = Arranger.Arrange(chart, BandStyle.Named("Ballad"), connections);
+
+            var first = GuitarPerformance.Grips(chart, a).First();
+            CollectionAssert.AreEqual(barre, first.Frets);
+            Assert.AreEqual("G", first.Chord);
+            Assert.AreEqual(3, first.Barre.Value.fret);
+            Assert.AreEqual(3, first.Position);
+            // without the track, the chart's shape
+            CollectionAssert.AreEqual(new[] { 3, 2, 0, 0, 0, 3 }, GuitarPerformance.Grips(chart).First().Frets);
+            // the strokes are found on the tab's strings: down from the low E to the high E
+            var stroke = GuitarPerformance.Strums(chart, a.Notes, a.Holds).First();
+            Assert.AreEqual(0, stroke.LowString);
+            Assert.AreEqual(5, stroke.HighString);
+        }
+
+        [Test]
         public void Strums_ReadTheStrokesBackFromTheNotes()
         {
             var song = DemoSong.Create();

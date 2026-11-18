@@ -88,6 +88,26 @@ namespace YourBand.Core.Band
     }
 
     /// <summary>
+    /// A chord the band guitarist's track holds, as its tab frets it: per string from the lowest, the fret (-1 not played,
+    /// 0 open) and the pitch (-1 not played). The guitarist's hands take these, not the chart's chord boxes.
+    /// </summary>
+    public sealed class GuitarHold
+    {
+        public double AtQuarter { get; }
+        public double Quarters { get; }
+        public int[] Frets { get; }
+        public int[] Pitches { get; }
+
+        public GuitarHold(double atQuarter, double quarters, int[] frets, int[] pitches)
+        {
+            AtQuarter = atQuarter;
+            Quarters = quarters;
+            Frets = frets;
+            Pitches = pitches;
+        }
+    }
+
+    /// <summary>
     /// A string of the held chord picked by itself (a strum-capable guitar's string key): when, how long the key is held
     /// (the string rings that long), the note's place in the held chord (0: its lowest note), and how hard.
     /// </summary>
@@ -160,6 +180,8 @@ namespace YourBand.Core.Band
         public List<BandStroke> Strokes { get; } = new List<BandStroke>();
         /// <summary>The guitarist's chords as held voicings, one note per string, in time order.</summary>
         public List<VoicingNote> Voicings { get; } = new List<VoicingNote>();
+        /// <summary>The chords the guitarist's track holds, as its tab frets them, in time order; empty when it plays no tab.</summary>
+        public List<GuitarHold> Holds { get; } = new List<GuitarHold>();
         /// <summary>The stretches where the guitarist plays single-string notes instead of strumming (from, to), in time order.</summary>
         public List<(double From, double To)> SingleSpans { get; } = new List<(double, double)>();
         /// <summary>The guitarist's strings picked one by one on the held chord, instead of strokes, in time order.</summary>
@@ -861,6 +883,24 @@ namespace YourBand.Core.Band
             for (int i = 0; i < held.Count; ++i)
                 foreach (var pitch in voiced[i].Values.Distinct().OrderBy(p => p))
                     arrangement.Voicings.Add(new VoicingNote(pitch, held[i].From, Math.Max(0.05, held[i].To - held[i].From)));
+            // the same chords as the tab frets them, for the guitarist's hands (a six-string track that is tab)
+            var fretOf = new Dictionary<(int, int), int>();
+            foreach (var n in track.Notes.Where(n => n.StringIndex >= 0 && n.StringIndex < 6 && n.Fret >= 0 && !Dead(n)))
+                fretOf.TryAdd((n.StringIndex, n.Pitch), n.Fret);
+            if (track.Tuning.Count == 6 && fretOf.Count > 0)
+                foreach (var h in held)
+                {
+                    var frets = Enumerable.Repeat(-1, 6).ToArray();
+                    var pitches = Enumerable.Repeat(-1, 6).ToArray();
+                    foreach (var s in h.Strings)
+                        if (fretOf.TryGetValue((s.Key, s.Value), out var fret))
+                        {
+                            frets[s.Key] = fret;
+                            pitches[s.Key] = s.Value;
+                        }
+                    if (frets.Any(f => f >= 0))
+                        arrangement.Holds.Add(new GuitarHold(h.From, Math.Max(0.05, h.To - h.From), frets, pitches));
+                }
 
             // the strings struck, one by one
             var strikes = new List<(double At, int Str, int Pitch, int Rank, int Velocity, bool Muted, int Held, TrackNote Note)>();

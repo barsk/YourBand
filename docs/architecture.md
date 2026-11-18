@@ -400,7 +400,9 @@ old name saved and leaves the old copy where it was (`LegacyData.cs`; `keepSetti
 Mixamo clip held to the song's beat, with an instrument whose playing geometry (frets, strings, keys, drums) is a JSON
 file next to its model (`InstrumentFrame`). `Core/Performance/` works out from the arrangement *who plays what with which
 hand and where*; `HandRig` and `Ik` then place hands, fingers and sticks on the real targets in `LateUpdate`. Every hit
-you see is a note in the arrangement.
+you see is a note in the arrangement. The guitarist's fretting hand holds the chords its track's tab holds (the arranger's
+`Holds`) when it plays a track, and the chart's chord shapes otherwise: the chart can draw a chord as the Guitar Pro file's
+diagram (No Woman No Cry's F as the barre at the 1st fret) while the track plays another shape of it (the small F, xx321x).
 
 VR mode (`VrMode`) starts OpenXR itself (Virtual Desktop's runtime), clears the camera to a key colour that Virtual
 Desktop's passthrough replaces with the room, draws the chart on a board, and lets you move the board and the musicians

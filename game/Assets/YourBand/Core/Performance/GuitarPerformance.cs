@@ -48,19 +48,32 @@ namespace YourBand.Core.Performance
     }
 
     /// <summary>
-    /// The band guitarist's playing as the hands do it: the chord shapes held (the song's fingerings, as the
-    /// chart shows them, else Arranger.GuitarShape with fingers found for it) and the strokes, read back from
-    /// the guitar part's notes (Arranger.Strum spreads each stroke across the strings).
+    /// The band guitarist's playing as the hands do it: the chord shapes held (the chords its track's tab holds, when it
+    /// plays one; else the song's fingerings, as the chart shows them, else Arranger.GuitarShape, with fingers found for
+    /// them) and the strokes, read back from the guitar part's notes (Arranger.Strum spreads each stroke across the strings).
     /// </summary>
     public static class GuitarPerformance
     {
         /// <summary>Notes of one stroke follow each other closer than this (quarter notes).</summary>
         const double SameStroke = 0.15;
 
-        public static List<Grip> Grips(SongChart chart)
+        public static List<Grip> Grips(SongChart chart, Arrangement arrangement = null)
         {
             var song = chart.Song;
             var grips = new List<Grip>();
+            if (arrangement != null && arrangement.Holds.Count > 0)
+            {
+                // the guitarist plays a track: the hands follow its tab (the chart's chord box can be another shape of
+                // the chord, the file's diagram)
+                foreach (var h in arrangement.Holds)
+                {
+                    var frets = h.Frets.ToArray();
+                    var fingers = FingersFor(frets);
+                    grips.Add(new Grip { AtQuarter = h.AtQuarter, Quarters = h.Quarters, Chord = song.ChordAt(h.AtQuarter + 1e-6)?.Name ?? "",
+                                         Frets = frets, Fingers = fingers, Barre = BarreOf(frets, fingers) });
+                }
+                return grips;
+            }
             foreach (var c in song.Chords.OrderBy(c => c.AtQuarter))
             {
                 if (!Chord.TryParse(c.Name, out var chord))
@@ -122,12 +135,21 @@ namespace YourBand.Core.Performance
             return (fret, index.Min(), Enumerable.Range(0, frets.Length).Where(s => frets[s] >= 0).Max());
         }
 
-        /// <summary>The strokes in the guitar part: its notes grouped by stroke, the way told by their order.</summary>
-        public static List<Strum> Strums(SongChart chart, IEnumerable<BandNote> notes)
+        /// <summary>
+        /// The strokes in the guitar part: its notes grouped by stroke, the way told by their order (the strings found in
+        /// the chords its tab holds, <paramref name="holds"/>, when it plays a track).
+        /// </summary>
+        public static List<Strum> Strums(SongChart chart, IEnumerable<BandNote> notes, IReadOnlyList<GuitarHold> holds = null)
         {
             var open = Arranger.OpenStrings(chart.Song.Info);
             int StringOf(int pitch, double at)
             {
+                // the string the tab holds this pitch on
+                var hold = holds?.LastOrDefault(h => h.AtQuarter <= at);
+                if (hold != null && at < hold.AtQuarter + hold.Quarters)
+                    for (int s = 0; s < hold.Pitches.Length; ++s)
+                        if (hold.Pitches[s] == pitch)
+                            return s;
                 // the string the shape plays this pitch on (the chord sounding then), else the nearest open string below
                 var chord = chart.Song.ChordAt(at);
                 var voicing = chord != null ? chart.Song.VoicingFor(chord) : null;
