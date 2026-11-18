@@ -659,10 +659,6 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
                     midi.addEvent (juce::MidiMessage::controllerEvent (channelOf ((Part) part), controls[next].controller, controls[next].value),
                                    offsetOf (controls[next].at - ahead));
         }
-        // the tab's single-string notes go to the lead 1 plugin, where it has one (and its fader is up) and the song
-        // gives that channel no part of its own: the guitar plugin then only strums (and keeps quiet while the tab plays), so the two do not
-        // compete for its voices and its strumming mode
-        const auto tabOnLead = s->leads[0].isEmpty() && onPlugin[(size_t) lead1].load() && ! partMuted[(size_t) lead1].load();
         // a held voicing's note that folds onto another of its chord (a drop D chord's D2 and the D3 above it) is left out:
         // one key, once
         const auto repeats = [&] (size_t index)
@@ -676,17 +672,10 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         while (cursor < s->notes.size() && s->notes[cursor].at < q1)
         {
             const auto& note = s->notes[cursor++];
-            if (note.part == guitar && ! (tabOnLead && note.single))  // the guitar has its own cursor, below
+            if (note.part == guitar)  // the guitar has its own cursor, below
                 continue;
             if (note.at < q0 - 1.0e-9 || (countingIn && note.at < countInUntil - 1.0e-9))
                 continue;
-            if (note.part == guitar)
-            {
-                auto tab = note;  // (the tab's single notes go to the lead 1 plugin)
-                tab.part = lead1;
-                emit (tab, note.at, offsetOf (note.at), midi);
-                continue;
-            }
             emit (note, note.at, offsetOf (note.at), midi);
         }
 
@@ -775,8 +764,6 @@ void BandProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
                 continue;
             if (strums && ! note.single)
                 continue;  // (single-string notes are played as notes in the strumming mode too: it is let go for them)
-            if (tabOnLead && note.single)
-                continue;  // (the lead 1 plugin plays them, above)
             emit (note, note.at, offsetOf (note.at - early), midi);
         }
         if (! strums && strumModeOn)

@@ -111,8 +111,6 @@ public:
             guitarResync.store (true);
     }
     bool usesPluginFor (Part part) const { return onPlugin[(size_t) part].load(); }
-    /** A part whose fader is all the way down: a lead that is off does not take the tab's single notes (the guitar plays them). */
-    void setPartMuted (Part part, bool muted) { partMuted[(size_t) part].store (muted); }
     /** The highest note a part's plugin plays: a note above it is played octaves lower, so it lands in the plugin's range
         (Shreddage in Kontakt plays up to E5 (76); from F#5 up its keys are keyswitches, not notes). 127: no limit. */
     void setNoteCeiling (Part part, int highest) { noteCeiling[(size_t) part].store (juce::jlimit (36, 127, highest)); }
@@ -187,7 +185,6 @@ private:
     const Score* latest = nullptr;
     std::atomic<double> outputLatency { 0.0 };
     std::array<std::atomic<bool>, numParts> onPlugin {};  // per part; the keys are always on their plugin
-    std::array<std::atomic<bool>, numParts> partMuted {};  // per part: its fader is down
     std::atomic<double> guitarAdvance { 0.0 };
     std::array<std::atomic<int>, numParts> noteCeiling {};  // per part (see setNoteCeiling); set to 127 in the constructor
     std::atomic<bool> strummingMode { false };

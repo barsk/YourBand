@@ -162,10 +162,6 @@ void EngineCore::applyMix (int part)
         channel->setGain (gain);
         channel->setPan (pans[(size_t) part]);
     }
-    // a silent part (muted, or its level all the way down) plays no notes either: a lead that is off does not take the
-    // tab's single notes (the guitar plays them)
-    if (bandNode != nullptr)  // (none after shutdown)
-        bandProcessor->setPartMuted ((BandProcessor::Part) part, mutedParts[(size_t) part] || faderLevels[(size_t) part] <= 0.0f);
 }
 
 bool EngineCore::setSoundLevel (const juce::String& part, float gain)

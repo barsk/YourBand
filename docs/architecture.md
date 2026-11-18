@@ -259,8 +259,7 @@ Per block, in this order (`Band.cpp`, `processBlock`):
 5. Note-offs due in this block (before the new note-ons, so a re-struck chord lets go first).
 6. The parts' **pitch wheels**: the value between two points at the block start, then each point at its moment.
 7. The parts' **controllers** (the palm mute's CC20) at their moments.
-8. The notes of drums, bass, keys and the leads (and the tab's single-string notes, which go to Lead 1 when it has a
-   plugin).
+8. The notes of drums, bass, keys and the leads.
 9. The **band guitar**: the Shreddage logic of [shreddage-keyswitches.md](shreddage-keyswitches.md): single-string
    stretches, per-string notes, and, in strumming mode, the held chord, the strokes and the picks.
 10. Advance `quarter`; render the built-in voices into the block.

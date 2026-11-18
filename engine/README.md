@@ -126,11 +126,8 @@ with a bar of count-in on sticks; after a pause the band plays on from where it 
   "lead1" and "lead2". `tools/lead_session.py` records a silent test of them (`--lead1`, `--lead2` on the
   engine's command line choose the plugins). A lead (and the band guitar) on Kontakt plays a note above E5 (76) an octave lower:
   Shreddage's range ends there and its keyswitches start at F#5 (`kontaktHighestNote`; docs/shreddage-keyswitches.md, section 4).
-  The tab's single-string notes (a riff the guitarist plays as notes, not strums) go to Lead 1 when it has a plugin
-  and the song gives that channel no part of its own (a UG song with a tab, not the GPX Heart of Gold, whose Lead 1
-  is the harmonica): the guitar plugin then only strums and keeps quiet while the tab plays, so the two do not
-  compete for its voices. Without a Lead 1 plugin, or with Lead 1 muted or its volume all the way down, the guitar plays them as
-  before. `lead_session.py --tab` tests it. A lead's or the guitar's note that the same key follows at once is let go 60 ms
+  The tab's single-string notes (a riff the guitarist plays as notes, not strums) are played by the rhythm guitar's
+  plugin: a lead plays only the track chosen for it. A lead's or the guitar's note that the same key follows at once is let go 60 ms
   early: a plugin takes the repeat for the same note held on, with no new attack (Numa Player, a D2 in eighths: back to
   back the repeats rose 2-5 dB, 60 ms apart 13-16 dB; Shreddage choked a fingerpicked part's repeats 10 ms apart).
 - The band's drums and bass each play their built-in sound or an instrument plugin, chosen in the control
