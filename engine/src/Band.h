@@ -126,6 +126,10 @@ public:
         measured with plugin_probe --map); empty: all of them. A drum the kit in use (the plugin's, or the built-in one)
         does not have is played on the nearest one it has, or left out (kitNote). */
     void setDrumPluginNotes (const std::vector<int>& notes);
+    /** The keyboards or a lead on a drum plugin whose layout is known (a drum track played as an extra instrument: the
+        tambourine on MONSTER Drums): the drum notes it plays, so that a drum it lacks goes to the nearest it has, as for
+        the drums. Empty: the part's notes go to its plugin as they are. */
+    void setKitNotes (Part part, const std::vector<int>& notes);
 
     // any thread: for the window
     double position() const { return shownPosition.load(); }
@@ -162,9 +166,10 @@ private:
     int inRange (int part, int pitch) const;
     /** A chord note of the held voicing as the guitar plugin gets it: folded into its range, low and high. */
     int guitarKeyPitch (int pitch) const;
-    /** The note a General MIDI drum note plays on the kit in use: itself if the kit has the drum, else the nearest drum
-        it has (a floor tom for a missing low tom, the crash for a china), or -1 (hand percussion with no stand-in). */
-    int kitNote (int note) const;
+    /** The note a General MIDI drum note plays on a part's kit (the drums', or a drum plugin on another part): itself if
+        the kit has the drum, else the nearest drum it has (a floor tom for a missing low tom, the crash for a china), or
+        -1 (hand percussion with no stand-in). */
+    int kitNote (int part, int note) const;
     void addOff (Off);
     void collectGarbage();
 
@@ -189,6 +194,8 @@ private:
     std::atomic<bool> guitarResync { false };  // the guitar's sound changed: drop what it holds, start from now
     std::array<std::atomic<bool>, 128> drumPluginHas {};  // per note: the drum plugin plays it
     std::atomic<bool> drumPluginHasAll { true };
+    std::array<std::atomic<bool>, numParts> playsKit {};  // per part other than the drums: its plugin is a drum kit
+    std::array<std::array<std::atomic<bool>, 128>, numParts> kitHas {};  // per such part and note: the kit plays it
 
     // audio thread
     const Score* playingScore = nullptr;

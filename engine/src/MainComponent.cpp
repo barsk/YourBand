@@ -995,6 +995,8 @@ bool MainComponent::chooseBandInstrument (EngineCore::Slot slot, int choice, boo
     // held voicing, instead of the per-string notes
     if (slot == EngineCore::Slot::bandDrums)
         engine.band().setDrumPluginNotes (choice >= 0 ? drumPluginNotes (part.choices[(size_t) choice].file) : std::vector<int> {});
+    if (playsOnlyOnPlugin (slot))  // (the keyboards or a lead on a drum kit: a drum track as one more instrument)
+        engine.setBandKitNotes (slot, choice >= 0 ? drumPluginNotes (part.choices[(size_t) choice].file) : std::vector<int> {});
     if (slot == EngineCore::Slot::bandGuitar)
         engine.setBandGuitarStrummingMode (choice >= 0
                                            && part.choices[(size_t) choice].file.getFileName().startsWithIgnoreCase ("Kontakt"));

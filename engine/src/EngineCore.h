@@ -84,6 +84,8 @@ public:
     /** The band guitar's notes go to its plugin this early (seconds), to make up for a sound that builds slowly. */
     void setBandGuitarAdvance (double seconds) { bandProcessor->setGuitarAdvance (seconds); }
     /** The highest note a band instrument's plugin plays (127: no limit); higher notes are played octaves lower. */
+    /** The keyboards or a lead on a drum plugin: the drum notes it plays (see BandProcessor::setKitNotes). */
+    void setBandKitNotes (Slot slot, const std::vector<int>& notes) { bandProcessor->setKitNotes ((BandProcessor::Part) partOf (slot), notes); }
     void setBandNoteCeiling (Slot slot, int highest) { bandProcessor->setNoteCeiling ((BandProcessor::Part) partOf (slot), highest); }
     /** The band guitar's plugin is strum-capable (Shreddage's strumming mode): its strokes go to it as strum
         keyswitches on its held voicing, instead of its per-string notes. */

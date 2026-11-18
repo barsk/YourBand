@@ -272,7 +272,8 @@ song, or after a count-in, is correct without replaying anything.
 
 Which MIDI channel a part plays on: keys 1, bass 2, guitar 3, lead 1 4, lead 2 5, drums 10. A drum the kit in use does
 not have is played on the nearest one it has (`drumStandIns`; the built-in kit has 12 drums, MONSTER Drums most of
-General MIDI).
+General MIDI). The same holds for the keyboards or a lead on MONSTER Drums, so a drum track can be one more instrument: its
+tambourine, a drum that kit lacks, plays on the open hi-hat.
 
 ### 4.5 Plugin hosting
 

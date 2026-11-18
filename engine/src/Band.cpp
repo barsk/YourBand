@@ -470,13 +470,28 @@ void BandProcessor::setDrumPluginNotes (const std::vector<int>& notes)
     drumPluginHasAll.store (notes.empty());
 }
 
-int BandProcessor::kitNote (int note) const
+void BandProcessor::setKitNotes (Part part, const std::vector<int>& notes)
+{
+    auto& has = kitHas[(size_t) part];
+    playsKit[(size_t) part].store (false);
+    for (auto& h : has)
+        h.store (false);
+    for (auto n : notes)
+        if (n >= 0 && n < (int) has.size())
+            has[(size_t) n].store (true);
+    playsKit[(size_t) part].store (! notes.empty());
+}
+
+int BandProcessor::kitNote (int part, int note) const
 {
     const auto onKitPlugin = onPlugin[(size_t) drums].load();
     const auto has = [&] (int n)
     {
-        return n >= 0 && n < (int) drumPluginHas.size()
-            && (onKitPlugin ? drumPluginHasAll.load() || drumPluginHas[(size_t) n].load() : builtInKitHas (n));
+        if (n < 0 || n >= (int) drumPluginHas.size())
+            return false;
+        if (part != drums)
+            return kitHas[(size_t) part][(size_t) n].load();
+        return onKitPlugin ? drumPluginHasAll.load() || drumPluginHas[(size_t) n].load() : builtInKitHas (n);
     };
     if (has (note))
         return note;
@@ -507,17 +522,18 @@ int BandProcessor::guitarKeyPitch (int pitch) const
 void BandProcessor::emit (const BandNote& note, double time, int at, juce::MidiBuffer& midi)
 {
     // a drum the kit does not have: on the nearest one it has, or not at all
-    const auto drumNote = note.part == drums ? kitNote (note.pitch) : note.pitch;
+    const auto onKit = note.part == drums || playsKit[(size_t) note.part].load();
+    const auto drumNote = onKit ? kitNote (note.part, note.pitch) : note.pitch;
     if (drumNote < 0)
         return;
     if (note.part == keys || onPlugin[(size_t) note.part].load())
     {
         // a drum hit is short; a bass note lets go just before the next, as a player's would
-        const auto length = note.part == drums ? juce::jmax (0.1, note.length) : note.part == bass ? note.length * 0.95 : note.length;
+        const auto length = onKit ? juce::jmax (0.1, note.length) : note.part == bass ? note.length * 0.95 : note.length;
         // bass plugins sound an octave below the note they get, as bass parts are written (MONSTER Bass
         // and Ample Bass: note 40 is the low E, measured with plugin_probe --map)
         const auto pitch = note.part == bass ? note.pitch + 12 : note.part == guitar ? guitarKeyPitch (note.pitch)
-                         : note.part == drums ? drumNote : inRange (note.part, note.pitch);
+                         : onKit ? drumNote : inRange (note.part, note.pitch);
         midi.addEvent (juce::MidiMessage::noteOn (channelOf (note.part), pitch, note.velocity), at);
         addOff ({ note.part, pitch, -1, time + length });
     }
