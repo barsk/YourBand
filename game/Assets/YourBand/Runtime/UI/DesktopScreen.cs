@@ -112,11 +112,14 @@ namespace YourBand.Runtime.UI
 
             Strip = new ChartStrip();
             Add(Strip);
+            // the keys along the bottom, and the program's version at its right end
+            var footer = ChartLook.Box("gt-footer", this);
             hint = ChartLook.Label(string.Join("   ·   ", "Space play / pause", "R restart", "Left / Right bar", "PgUp / PgDn section", "Up / Down speed", "1-4 panels", "Tab track's tab", "M tracks", "P pattern", "B band style", "V band view", "X VR", "C control panel", "T tone", "H help"),
-                "gt-hint", this);
+                "gt-hint", footer);
             vrHint = ChartLook.Label(string.Join("   ·   ", "A play / pause", "B restart", "right stick: bar, speed", "left stick: section", "trigger: move the chart or a musician, grip: the band", "right stick click: in front of you", "left stick up: help"),
-                "gt-hint", this);
+                "gt-hint", footer);
             vrHint.AddToClassList("gt-hidden");
+            ChartLook.Label("YourBand " + UnityEngine.Application.version, "gt-version", footer);
 
             help = Help(new[]
                      {

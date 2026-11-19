@@ -83,7 +83,7 @@ Keys:
 - 1-4: the panels, in their order on screen: song, chords, strumming, tab.
 - P: the next strumming pattern.
 - B: the next band style.
-- V: the band view: the band in 3D behind the chart (the chart alone is the default).
+- V: the band view: the band in 3D behind the chart, on from the start where the band pack is installed; V again for the chart alone.
 - X: VR mode on or off (below).
 - L: the next song.
 - C: the control panel (audio device, band faders, log). T: your guitar's tone (TONE3000).
@@ -155,7 +155,7 @@ Command line:
 | `-engineargs "..."` | more for the started engine's command line, for example `"--silent --record band.wav"` |
 | `-style Rock` | start in that band style |
 | `-parts drums,bass` | give the band only those parts (to check them one at a time) |
-| `-view band` | start in the band view; `-cam guitarist` (or `drummer`, `bassist`, `keyboardist`, with `:left`, `:right`, `:hands`, `:above`; the drummer also `:feet`, `:kick`, `:kickl`, `:kit`, `:kitl`) frames one musician |
+| `-view band`, `-view chart` | start in the band view, or with the chart alone (without either: the band where the band pack is installed); `-cam guitarist` (or `drummer`, `bassist`, `keyboardist`, with `:left`, `:right`, `:hands`, `:above`; the drummer also `:feet`, `:kick`, `:kickl`, `:kit`, `:kitl`) frames one musician |
 | `-nochart`, `-nopanels` | screenshots without the chart, or without the panels |
 | `-guitarplays` | the band guitarist plays in screenshots (there is no engine to say so) |
 | `-bandlog` | the musicians log what they play |

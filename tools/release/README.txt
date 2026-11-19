@@ -11,7 +11,7 @@ control panel, H the game's help.
                  (*.band.json); imports land here. Empty in a release made without songs: copy a songs-local
                  folder here, or import songs
   settings\      in a release made with them: the band's sounds as they were on the computer it was made on
-  Game\Band\     the optional 3D band (V shows it): made by unzipping the band pack over this folder. Without
+  Game\Band\     the optional 3D band (shown at start, V hides it): made by unzipping the band pack over this folder. Without
                  it the game has no band view and is otherwise the same
 
 Windows 10 or 11, 64-bit. Nothing else needs installing for the game and the engine themselves.

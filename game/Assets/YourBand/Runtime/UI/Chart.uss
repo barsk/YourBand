@@ -465,7 +465,20 @@
 .gt-hint {
     font-size: 16px;
     color: var(--gt-faint);
+    flex-shrink: 1;
+    overflow: hidden;
+}
+.gt-footer {
+    flex-direction: row;
+    align-items: flex-end;
     margin-top: 8px;
+}
+.gt-version {
+    font-size: 14px;
+    color: var(--gt-faint);
+    margin-left: auto;
+    padding-left: 24px;
+    flex-shrink: 0;
 }
 .gt-help {
     position: absolute;

@@ -89,8 +89,31 @@ namespace YourBand.Runtime.Desktop
 
         static double Now => Time.realtimeSinceStartupAsDouble;
 
+        [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string className, string title);
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+        [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        static extern bool SetWindowText(IntPtr window, string text);
+
+        /// <summary>The game window's title with the version, "YourBand 1.0.0" (the player's own title is the product name).</summary>
+        static void TitleWithVersion()
+        {
+            if (Application.isEditor || Application.platform != RuntimePlatform.WindowsPlayer)
+                return;
+            var me = (uint)System.Diagnostics.Process.GetCurrentProcess().Id;
+            for (var window = FindWindowEx(IntPtr.Zero, IntPtr.Zero, "UnityWndClass", null); window != IntPtr.Zero;
+                 window = FindWindowEx(IntPtr.Zero, window, "UnityWndClass", null))
+            {
+                GetWindowThreadProcessId(window, out var process);
+                if (process == me)
+                    SetWindowText(window, Application.productName + " " + Application.version);
+            }
+        }
+
         void Start()
         {
+            TitleWithVersion();
             // smooth enough for the scrolling chart, and leaves the processor to the audio engine
             Application.targetFrameRate = 120;
             var root = GetComponent<UIDocument>().rootVisualElement;
@@ -148,8 +171,13 @@ namespace YourBand.Runtime.Desktop
             vr = gameObject.AddComponent<VrMode>();
             vr.Commanded += Execute;
             Load(songIndex);
-            if (Arg("-view") == "band")
+            // the band is on from the start where the band pack is installed (V hides it); -view chart starts with the chart
+            // alone, as screenshots (-shot) do
+            var view = Arg("-view");
+            if (view == "band")
                 SetBandView(true);
+            else if (view != "chart" && Arg("-shot") == null && (Application.isEditor || File.Exists(BandStage.PackPath)))
+                SetBandView(true, quiet: true);
             if (args.Contains("-vr"))
                 SetVr(true);
             if (args.Contains("-nochart"))
@@ -591,8 +619,9 @@ namespace YourBand.Runtime.Desktop
             }
         }
 
-        /// <summary>The 3D band behind the chart, or the chart alone (the default).</summary>
-        void SetBandView(bool on)
+        /// <summary>The 3D band behind the chart (the default where the band pack is installed), or the chart alone.</summary>
+        /// <param name="quiet">No notice if the band cannot be shown (at the start: it is only the default).</param>
+        void SetBandView(bool on, bool quiet = false)
         {
             if (on && band == null)
             {
@@ -600,7 +629,8 @@ namespace YourBand.Runtime.Desktop
                 if (band == null)
                 {
                     Debug.LogWarning("YourBand: no band view: " + missing);
-                    screen.Notice("No band view: the 3D band is an optional download (the band pack, with the release).");
+                    if (!quiet)
+                        screen.Notice("No band view: the 3D band is an optional download (the band pack, with the release).");
                     return;
                 }
                 band.SetSong(chart, arrangement);

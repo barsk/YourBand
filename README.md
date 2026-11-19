@@ -34,7 +34,7 @@ amp plugin (e.g. TONE3000) in the same program, so you hear yourself and the ban
 - **A chart you can play from.** Chord diagrams drawn from the song, the strumming pattern with the stroke lit as it is played, a *scrolling tab* with bar numbers, lyrics, a section map to navigate with, speed adjustments in 5 % steps, and a matrix overview (`M`) of which track (instrument) plays in which bar.
 - **Your guitar, your amp.** The engine hosts the free [TONE3000](https://www.tone3000.com/plugin/download) amp plugin featuring the highly acclaimed NAM A2 neural amp profiles
   for your guitar and switches its presets with a hotkey `T`, any USB game controller or a VR controller. An external ordinary amp can also be used.
-- **A 3D band** (an optional download). Press `V` and four musicians appear playing their instruments: the drummer's sticking on the drums and cymbals, the guitarist's fingers on the real frets, the bassist's plucks, the keyboardist's keys.
+- **A 3D band** (an optional download). Four musicians play their instruments behind the chart (`V` hides or shows them): the drummer's sticking on the drums and cymbals, the guitarist's fingers on the real frets, the bassist's plucks, the keyboardist's keys.
 - **Mixed reality.** In VR (Quest 3 through Virtual Desktop) the band stands in your room and the chart hangs on a board like a music stand; you place them with the controllers.
 - **A real mixer.** Mute, solo, volume and pan per instrument (pan follows the musicians' places on stage), and a sound of its own for every instrument, playstyle and song.
 
@@ -65,7 +65,7 @@ engine (`Engine\YourBand Engine.exe`) by itself. Nothing else needs installing f
 the game and the engine; the band plays on plugins you install yourself. Without any plugins the band plays its built-in sounds: a synthesized drum kit, bass and guitar. The keyboards have no built-in sound, so they are silent until Numa Player is installed. The plugins are what make it sound like a real band, so install them next. 
 
 **The 3D band is a separate, optional download** (about 100 MB): the Releases page has a *band pack* zip.
-Unzip it into the release folder (the one with `Game` and `Engine` in it); it adds `Game\Band\band.bundle`, and `V` now shows the band.
+Unzip it into the release folder (the one with `Game` and `Engine` in it); it adds `Game\Band\band.bundle`, and the band now shows when the game starts (`V` hides it).
 Without it the game is exactly the same, minus the band view: the music, the chart and the audio band do not need it.
 
 ### 3. Install the plugins
@@ -203,7 +203,7 @@ The band plays the song in one of the playstyles (Ballad, Rock or Pop), with the
 | `Tab`                   | the tab panel shows the next track the band plays                |
 | `M`                     | toggle the tracks overview, bar by bar; click a bar to go there  |
 | `B` / `P`               | the next band playstyle / strumming pattern                      |
-| `V` / `X`               | the 3D band view / VR mode                                       |
+| `V` / `X`               | toggle the 3D band (shown at start) / VR mode                    |
 | `C` / `T`               | the control panel / your guitar's tone (if using the amp plugin) |
 | `H`                     | help                                                             |
 
