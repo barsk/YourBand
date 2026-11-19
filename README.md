@@ -4,11 +4,11 @@
 
 ### A jam track player and band that plays along with you.
 
-Load a song from Ultimate Guitar Chord and/or Tab pages. Or a full-fledged Guitar Pro file. A drummer, a bassist, a keyboardist and a guitarist play the song around you, on real instrument plugins, in front of you on the screen or in your own room in (optional) mixed reality VR.
+Load a song from Ultimate Guitar Chord and/or Tab pages. Or a full-fledged Guitar Pro file. A drummer, a bassist, a keyboardist and a guitarist play the song with you, on real instrument plugins, in front of you on the screen or in your own room in (optional) mixed reality VR.
 
-Or skip the band visuals, and focus solely on the the chords with strumming patterns or tabs for lead, riffs and solos. All displayed on screen with easy to use controls and navigation.
+Or skip the band visuals, and focus solely on the chords with strumming patterns or tabs for lead, riffs and solos. All displayed on screen with easy to use controls and navigation.
 
-Plug in your guitar or any other instrument and play along. Mute unwanted instruments or tracks, select intrument sounds from *real* studio plugings with exquisite quality. All based on open software and free studio plugins. A full studio band, for you, for free (except Virtual Desktop for mixed reality, see below).
+Plug in your guitar or any other instrument and play along. Mute unwanted instruments or tracks, select instrument sounds from *real* studio plugins with exquisite quality. All based on open software and free studio plugins. A full studio band, for you, for free (except Virtual Desktop for mixed reality, see below).
 
 ![Windows](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4?logo=windows&logoColor=white)
 ![Unity](https://img.shields.io/badge/game-Unity%206%20(URP)-000000?logo=unity&logoColor=white)
@@ -21,20 +21,20 @@ Plug in your guitar or any other instrument and play along. Mute unwanted instru
 
 </div>
 
-YourBand is a practice tool and jam partner with focus for guitarists, but you can play any instrument really. Open a song, count in, and the band
+YourBand is a practice tool and jam partner with a focus on guitarists, but you can play any instrument really. Open a song, count in, and the band
 is there: **the drummer hits what the song's drum track says, the bassist walks the bass line, the keyboardist
 plays the piano part, the rhythm guitarist picks the real fingerpicking pattern**. Your own guitar goes through an
-amp plugin (e.g. TONE3000) in the same program, so you hear yourself and the band together with a few milliseconds of latency. Or play with an external amp.
+amp plugin (e.g. TONE3000) in the same program, so you hear yourself and the band together with a few milliseconds of latency. Or play with an external amp, or an acoustic guitar.
 
 ## ✨ What it does
 
 - **Import a Guitar Pro file** (`.gp`, `.gpx`, `.gp3`-`.gp5`) and assign instruments
-  to play its tracks: drums, the bass line, the keyboards, the guitar strums chords or picks string by string for fingerpicked techniques, leads with their bends, slides, vibrato, hammer-ons and palm mutes. Each instrument has a dropdown for its track; the game connects them sensibly by itself, where you can modify if needed.
-- **Import from a [Ultimate Guitar web page](https://www.ultimate-guitar.com/)** The application interprets the UG web page for the chords with strumming patterns and/or tabs laying out the song chart ready to play along. The band plays its parts (drums, bass, rythm and keyboards), from the chords and the strumming patterns decoded from the UG page, in one of three **playstyles** (Ballad, Rock, Pop), and counts you in on sticks.
-- **A chart you can play from.** Chord diagrams drawn from the song, the strumming pattern with the stroke lit as it is played, a *scrolling tab* with bar numbers, lyrics, a section map to navigate with, speed adjustments in 5 % steps, and an matrix overview (`M`) of which track (instrument) plays in which bar.
+  to play its tracks: drums, the bass line, the keyboards, the guitar strums chords or picks string by string for fingerpicked techniques, leads with their bends, slides, vibrato, hammer-ons and palm mutes. Each instrument has a dropdown for its track; the game connects them sensibly by itself, and you can change them if needed.
+- **Import from an [Ultimate Guitar web page](https://www.ultimate-guitar.com/)**: the application interprets the UG web page for the chords with strumming patterns and/or tabs, and lays out the song chart, ready to play along. The band plays its parts (drums, bass, rhythm and keyboards), from the chords and the strumming patterns decoded from the UG page, in one of three **playstyles** (Ballad, Rock, Pop), and counts you in on sticks.
+- **A chart you can play from.** Chord diagrams drawn from the song, the strumming pattern with the stroke lit as it is played, a *scrolling tab* with bar numbers, lyrics, a section map to navigate with, speed adjustments in 5 % steps, and a matrix overview (`M`) of which track (instrument) plays in which bar.
 - **Your guitar, your amp.** The engine hosts the free [TONE3000](https://www.tone3000.com/plugin/download) amp plugin featuring the highly acclaimed NAM A2 neural amp profiles
   for your guitar and switches its presets with a hotkey `T`, any USB game controller or a VR controller. An external ordinary amp can also be used.
-- **A 3D band** (an optional download). Press `V` and four musicians appears playing their instruments: the  drummer's sticking on the drums and cymbals, the guitarist's fingers on the real frets, the bassist's plucks, the  keyboardist's keys.
+- **A 3D band** (an optional download). Press `V` and four musicians appear playing their instruments: the drummer's sticking on the drums and cymbals, the guitarist's fingers on the real frets, the bassist's plucks, the keyboardist's keys.
 - **Mixed reality.** In VR (Quest 3 through Virtual Desktop) the band stands in your room and the chart hangs on a board like a music stand; you place them with the controllers.
 - **A real mixer.** Mute, solo, volume and pan per instrument (pan follows the musicians' places on stage), and a sound of its own for every instrument, playstyle and song.
 
@@ -53,8 +53,8 @@ amp plugin (e.g. TONE3000) in the same program, so you hear yourself and the ban
 - Windows 10 or 11, 64-bit.
 - If using the internal amp plugin (TONE3000), an audio interface with an **ASIO** driver is strongly recommended: the author measured a 7.8 ms round trip with a Focusrite Scarlett Solo at 48 kHz and a 64-sample buffer.<br> 
 Windows audio works perfectly well if you don't need the amp plugin, for playing along to the band with an acoustic guitar or with an external amp.
-- For (optional) VR: a Quest 3 and [Virtual Desktop](https://www.vrdesktop.net). VD is needed for the mixed reality passthrough feature making the chroma-key magenta VR backdrop color fully transparent and creating the mixed reality feature with the band appearing in your room. VD is the only component that is not free in this setup, but very well worth its cost if you do PCVR IMHO. There are other solutions mentioned for mixed VR passthrough for SteamVR and OpenXR if you google them, but none tested here. 
-- Free accounts are needed to setup to download some of the free plugins.
+- For (optional) VR: a Quest 3 and [Virtual Desktop](https://www.vrdesktop.net). VD provides the passthrough: it makes the magenta chroma-key backdrop fully transparent, so the band appears in your room. VD is the only part of this setup that isn't free, but it's well worth its cost if you play other PCVR games too, IMHO. There are other passthrough solutions for SteamVR and OpenXR online, but none have been tested here. 
+- A few free accounts are needed to download some of the free plugins and Native Instruments.
 - A guitar (or any other instrument you want to practice with).
 
 ### 2. Download YourBand
@@ -67,8 +67,6 @@ the game and the engine; the band plays on plugins you install yourself. Without
 **The 3D band is a separate, optional download** (about 100 MB): the Releases page has a *band pack* zip.
 Unzip it into the release folder (the one with `Game` and `Engine` in it); it adds `Game\Band\band.bundle`, and `V` now shows the band.
 Without it the game is exactly the same, minus the band view: the music, the chart and the audio band do not need it.
-
-
 
 ### 3. Install the plugins
 
@@ -86,16 +84,16 @@ VST3 plugins go where their installers put them, `C:\Program Files\Common Files\
 
 #### Kontakt 8 Player and Shreddage 3 Stratus FREE (the rhythm guitar)
 
-Shreddage is a sampled electric guitar that lives inside Native Instruments' free Kontakt Player. This is the longest install; the guitar is worth it! The application is using its specific API of keyswitches to dynamically play the plugin guitar beyond static MIDI tones with vibrato, bends, slides, palm mutes and muted strums (see [how it works](docs/shreddage-keyswitches.md)).
+Shreddage is a sampled electric guitar that lives inside Native Instruments' free Kontakt Player. This is the longest install; the guitar is worth it! The application uses its keyswitches to dynamically play the plugin guitar beyond static MIDI tones with vibrato, bends, slides, palm mutes and muted strums (see [how it works](docs/shreddage-keyswitches.md)).
 
 1. Download and install **[Native Access](https://www.native-instruments.com/en/specials/native-access/)**, Native
    Instruments' installer, and sign in with a free Native ID.
 2. In Native Access open **Library**, then **Available**, choose the **Kontakt** category and install
-   **Kontakt 8 Player** ([its free download page](https://www.native-instruments.com/en/products/komplete/samplers/kontakt-7-player/free-download/)
+   **Kontakt 8 Player** ([its free download page](https://www.native-instruments.com/products/kontakt-player)
    has the details). If you already own the full Kontakt 8, skip this step: it plays Shreddage too.
 3. Go to the **[Shreddage 3 Stratus Free](https://impactsoundworks.com/product/shreddage-3-stratus-free/)**
    page at Impact Soundworks, add it to the cart (the price is $0; a tip is optional) and check out. You receive a serial number. Make sure it is the 3.5 version!
-4. Add the serial in Native Access. **Shreddage 3 Stratus FREE** (about 1 GB) appears under your library; install it. (You may have to push the refresh button). 
+4. Add the serial in Native Access. **Shreddage 3 Stratus FREE** (about 1 GB) appears under your library; install it. (You may have to press the refresh button.) 
 
 Kontakt then shows up as a VST3 plugin for the application.
 
@@ -106,19 +104,19 @@ Kontakt then shows up as a VST3 plugin for the application.
    driver, or Windows audio Low Latency if you don't want or need the guitar amp plugin), a 48 kHz sample rate and a small buffer (64 samples; raise it if you hear crackling). Pick your
    guitar's input channel in **Guitar input**.
 3. **Guitar tone...** opens the TONE3000 plugin. Load an amp model and a cabinet (browse tones at
-   [tone3000.com](https://www.tone3000.com)), and save them as presets: they also appear in app in the list beside the button, and a `T`, footswitch (upcoming feature), USB gamecontroller or VR controller steps through them.
+   [tone3000.com](https://www.tone3000.com)), and save them as presets: they also appear in the list beside the button, and the `T` key, a USB game controller, a VR controller or (coming soon) a footswitch steps through them.
 
 <div align="center">
 
 <img src="docs/images/control-panel.png" alt="The control panel: audio device, guitar input, band style, a row for every instrument with its track, plugin, mute, solo, volume and pan" width="560">
 
-*The control panel (`C`): a row per instrument with the song's track it plays, its plugin, mixer controls; mute, solo, volume and pan.*
+*The control panel (`C`): a row per instrument with the song's track it plays, its plugin and its mixer controls: mute, solo, volume and pan.*
 
 </div>
 
 ### 5. Set up the band's sounds
 > [!IMPORTANT]
-> The settings for `Strumming mode`, `Keyswitches` and `Voice Handling` absolutely needs to be set as instructed below. The application will not be able to play the guitar correctly otherwise!
+> The settings for `Strumming mode`, `Keyswitchable` and `Voice Handling` absolutely need to be set as instructed below. The application will not be able to play the guitar correctly otherwise!
 
 Every instrument has a sound for each playstyle (Ballad, Rock, Pop). Set them once, save them as the defaults, and every song you open starts with them.
 
@@ -146,42 +144,74 @@ Every instrument has a sound for each playstyle (Ballad, Rock, Pop). Set them on
    | Voice limits | Kontakt, *Instrument Options* (the wrench in the instrument's header), *Voice Handling* (the names can differ a little between Kontakt versions) | **Standard 32, High Quality 16** |
    | Palm mutes (optional) | Shreddage, *Articulations* tab, *Map* | give **Mute** the rule `CC20 64-127` |
 
-  The band plays Shreddage's strings one by one and rings them like a guitarist's hand, so Strumming Mode **has to be off** (notes play as notes) and **Keyswitchable on** (the application controls it *dynamically* for strumming parts vs picked notes or finger style play). The default voice limits (8 and 4) run out as soon as a few strings ring, and chords then lose notes or go silent: raise them to 32 and 16. 
+  The band plays Shreddage's strings one by one and rings them like a guitarist's hand, so Strumming Mode **has to be off** (notes play as notes) and **Keyswitchable on** (the application controls it *dynamically* for strumming parts vs picked notes or fingerstyle play). The default voice limits (8 and 4) run out as soon as a few strings ring, and chords then lose notes or go silent: raise them to 32 and 16. 
 5. Close Kontakt's window: the sound, with these settings, is saved for the song and playstyle. *Repeat* for the other playstyles (Ballad, Rock, Pop). 
 6. Click **Save defaults** in the playstyle window. A song opened for the first time now starts with these saved defaults, and **Load defaults** overrides what a song already has.
 
+> [!Tip]
+> The Shreddage `All-around Rhythm` preset is a good default for rhythm guitar, `American Lead` works for lead guitar tracks (if you opt for a Guitar Pro file containing multiple instrument tracks). Do try out other presets as well.<br>
+> Numa Player has numerous tweakable sounds for piano, electric piano, organs, and strings. For instance a Pipe Diapason organ with some tweaks can be used as a harmonica replacement.
 
-### 6. Add a song and play
+### 6. Importing songs
+> [!Note]
+> Songs are not included: import your own. They stay on your computer in `songs-local\` and are never uploaded to the cloud.<br>
+> The Ultimate Guitar import reads the pages whose URLs you give it, and does not save copies of them. Their terms do not allow automated scraping and the lyrics are licensed content, so use it for your own practice and see [docs/plan.md#legal](docs/plan.md#legal).
 
-- **Import new...** in the control panel takes a Guitar Pro file (and, optionally, an Ultimate Guitar chords page
-  for its strumming), turns it into a song and opens it. `L` steps through your songs. **Delete song...**, to its right, deletes the
-  open song after you confirm: its files go to the Recycle Bin, so you can get them back.
-- Songs are not included: import your own. They stay on your computer in `songs-local\` and are never uploaded.
+Make sure to set up the playstyle plugins and presets before importing the first song, as the songs you import inherit those settings. Having a good default saves you a bit of hassle later. Of course you can still change them per song afterwards.
 
-> The Ultimate Guitar import reads pages you give the URL for. Their terms do not allow automated scraping and the lyrics are licensed content, so use it for your own practice and see [docs/plan.md](docs/plan.md#legal).
+The best import type is the Guitar Pro file, since it relies on a standardized file format and contains tracks with tabs for every instrument. But it can be too complicated for a beginner with lots of picked notes and stray chords; a chords page may then suit you better.
 
-| Key | Does |
-|---|---|
-| `Space` | play / pause (a count-in first from the top) |
-| `R` / `Home` | restart with a count-in / back to the top |
-| `←` `→` / `PgUp` `PgDn` | a bar / a section back or on |
-| `↑` `↓` | practice speed, 5 % steps |
-| `1` `2` `3` `4` | show the song, chords, strumming and tab panels |
-| `Tab` | the tab panel shows the next track the band plays |
-| `M` | the tracks overview, bar by bar; click a bar to go there |
-| `B` / `P` | the next band playstyle / strumming pattern |
-| `V` / `X` | the 3D band view / VR mode |
-| `C` / `T` | the control panel / your guitar's tone |
-| `H` | help |
+The chord and tab importers interpret the submitted page and build a song chart from it, but since page formats differ, correct decoding is not guaranteed, although many quirks have been worked out. If you run into problems, report an issue and I will look into it. 
 
-Want to play the rhythm yourself? Set the *Rhythm guitar* row to **None**. **None** takes any instrument out of the band in that song, and each song saves and remembers it.
+There are many versions of all three file types for a particular song on Ultimate Guitar, so look through them to find a version that looks complete and tidy and not overly complicated – unless that is what you are looking for.
+
+The different import options are as follows:
+
+- **A Guitar Pro file:** the recommended import type that will give a full representation of the true sound of a song, with every lick, riff and solo, laying out every instrument track separately for you to fine-tune the plugin choice and sound presets for. 
+Import a Guitar Pro **file** from the *Guitar Pro* section of the search result header. E.g. search for a song, for instance *Wicked Game* from Chris Isaak. In the result list header choose the Guitar Pro tab.<br><br>
+![guitar pro tab](docs/images/guitar-pro-tab.png)<br>
+Choose a version of the file that is appropriate, most often the one with the highest rating. Here I click on [**Wicked Game (ver 2)**](https://tabs.ultimate-guitar.com/tab/chris-isaak/wicked-game-guitar-pro-222293). Peek at the different instrument tracks and start the playback in the upper left to see if this version is useful. Then go to the bottom of the page and you will find a download link:
+![download gp file](docs/images/guitar-pro-download.png)
+<br>
+Save this file in a folder. Then open the control panel with `C`. **Import new...** in the control panel takes a Guitar Pro file (and, optionally, an Ultimate Guitar chords page for its strumming in case the gp file lacks it), interprets the gp file and loads it as a song. **Delete song...**, to its right, deletes the currently open song after you confirm. Its files are moved to the Recycle Bin, so you can get them back if needed.<br>
+  You now have the option of selecting which band member plays which instrument track. There are a few extra instruments that can also be set up to play, but they have no visible 3D model in the game view of the band. These are the Lead guitar and Instrument 1 slots. The application makes a default selection of which tracks are played by whom, but sometimes manual editing here is necessary. This is how I set up Wicked Game:<br><br>
+![control-panel-wicked-game.png](docs/images/control-panel-wicked-game.png)<br>
+For the rhythm guitar I use the All-around Rhythm preset, for Lead I use Classic Rock. This gp file *has* strumming stroke directions, so those are used. Some gp files may lack that, and therefore we have the option to include a *chord or tab page URL* from which this information can be taken. The strumming pattern needs to match the tabs for the rhythm guitar for this to work well though. Unfortunately this Wicked Game gp file has no lyrics, so they are missing here; otherwise the lyrics are shown in the song chart too.
+<br>
+This gp file has *identical* tracks for the left and right rhythm guitar so the importer will show only *one* of them with a note on the track name.
+
+- **A basic jam track to train on chords and tempo:** 
+This is a great starting point for any learning and practicing musician. It will provide a simplified view of a song without the solos and riffs (unless they are included as tabs in that page).
+Import an Ultimate Guitar **URL** from the *Chord* section. E.g. search for a song, for instance *Heart of Gold* from Neil Young. In the result list header choose the Chords tab.<br><br>
+![chord tab](docs/images/chord-tab.png)<br>
+The band plays the song in one of the playstyles (Ballad, Rock or Pop), with the page's strumming pattern, or the common strum D - D U - U D U if the page has none. That gives you an easy-to-follow jam track.
+
+- **A UG tab page:** this imports the song from a tab page: click Tab in the search result header mentioned above and choose a tab page. It is generally not recommended to import a Tab page, since the much better formalized Guitar Pro files include the same information and more. But for some situations, this import type may suit your needs.
+
+- **UG Chord and Tab combined:** it is possible to combine both a Chord and Tab page for an import and the importer will make its best effort to combine the pieces into a complete song. It only works well if the two pages line up: the same tuning and capo, and mostly the same chords.  
+
+### 7. Song window shortcuts
+
+| Key                     | Function                                                         |
+| ----------------------- | ---------------------------------------------------------------- |
+| `L`                     | the next song                                                    |
+| `Space`                 | play / pause (a count-in first from the top)                     |
+| `R` / `Home`            | restart with a count-in / back to the top                        |
+| `←` `→` / `PgUp` `PgDn` | a bar / a section back or on                                     |
+| `↑` `↓`                 | practice speed, 5 % steps                                        |
+| `1` `2` `3` `4`         | toggle the song, chords, strumming and tab panels                |
+| `Tab`                   | the tab panel shows the next track the band plays                |
+| `M`                     | toggle the tracks overview, bar by bar; click a bar to go there  |
+| `B` / `P`               | the next band playstyle / strumming pattern                      |
+| `V` / `X`               | the 3D band view / VR mode                                       |
+| `C` / `T`               | the control panel / your guitar's tone (if using the amp plugin) |
+| `H`                     | help                                                             |
+
+Want to play the rhythm yourself? Set the *Rhythm guitar* row to **None** (or click the mixer's **M** button to mute it). **None** takes that instrument out of the band entirely (which may save some CPU); **M** only silences it for a while.
 
 ## 🧠 How it works
 
-Two programs talk over a local connection. The **audio engine** (C++ / JUCE) owns the audio interface, the plugins and
-the clock, and plays the notes it is given. The **game** (Unity) turns a song into those notes (what each band member
-plays, with its techniques), draws the chart and the 3D band, and follows the engine's clock so everything you see is
-what you hear. The two are separate on purpose: a plugin crash cannot take the game down, and the engine's JUCE licence does not touch the game.
+Two programs talk over a local connection. The **audio engine** (C++ / JUCE) controls the audio interface and the plugins, and plays the notes. The **game** window application turns an imported song into what each band member plays and draws the chart and the 3D band. 
 
 The details are in the documentation:
 
@@ -249,7 +279,7 @@ it), [docs/capture.md](docs/capture.md) (video to hands).
 
 ## 🗺 Roadmap
 
-Planned: A custom made footswitch for controlling the application, e.g. play/pause, back/forward, switch tones. 
+Planned: A custom-made footswitch for controlling the application, e.g. play/pause, back/forward, switch tones. 
 
 ## 🙏 Credits and licences
 
