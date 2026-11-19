@@ -360,11 +360,20 @@ namespace YourBand.SongTool
             var bar = staff.Bars.FirstOrDefault();
             if (bar == null)
                 return "";
-            var name = bar.KeySignature.ToString().Replace("Sharp", "#");
-            if (bar.KeySignatureType == KeySignatureType.Minor)
-                name += "m";
-            return name;
+            // alphaTab's KeySignature counts sharps (+) or flats (-) and is named after the major key; a minor key
+            // with the same signature is its relative minor (one sharp: G major or E minor).
+            int accidentals = (int)bar.KeySignature;
+            if (accidentals < -7 || accidentals > 7)
+                return "";
+            return bar.KeySignatureType == KeySignatureType.Minor
+                ? MinorKeys[accidentals + 7] + "m"
+                : MajorKeys[accidentals + 7];
         }
+
+        static readonly string[] MajorKeys =
+            { "Cb", "Gb", "Db", "Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E", "B", "F#", "C#" };
+        static readonly string[] MinorKeys =
+            { "Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E", "B", "F#", "C#", "G#", "D#", "A#" };
 
         static double Tempo(Score score, ImportReport report)
         {
@@ -973,8 +982,12 @@ namespace YourBand.SongTool
                         }
 
                         // the chords: only beats that sound two or more notes (strummed chords); a beat whose notes are all tied
-                        // from the strum before is that strum held on (not another strum)
-                        if (notes.Count >= 2 && notes.All(n => n.IsTieDestination))
+                        // from the strum before is that strum held on (not another strum), and so is a beat that picks
+                        // some of its chord's notes right after it (see HeldStrum)
+                        var heldStrum = HeldStrum(strums, notes, at, ChordName(beat) != null, staff);
+                        if (heldStrum != null)
+                            heldStrum.Duration += length;
+                        else if (notes.Count >= 2 && notes.All(n => n.IsTieDestination))
                         {
                             if (strums.Count > 0 && Math.Abs(strums[strums.Count - 1].At + strums[strums.Count - 1].Duration - at) < 1e-6)
                                 strums[strums.Count - 1].Duration += length;
@@ -1046,6 +1059,32 @@ namespace YourBand.SongTool
             song.Voicings.AddRange(voicings.Values);
             if (song.Chords.Count == 0)
                 report.Add("No chords detected (the track has no simultaneous notes); the tab is there but the chart has no chord names.");
+        }
+
+        /// <summary>
+        /// The strum a beat holds on: the last strum, when the beat follows it straight on (no rest between), writes no chord
+        /// marker of its own, plays fewer notes than it, and only notes of its chord (the strum's own, or its written name's).
+        /// A fingerpicked bar strikes its chord once and then picks its strings one by one: those notes are the chord sounding
+        /// on, not passing notes, and without them the chord would last as long as its first beat (an eighth note, shorter
+        /// than <see cref="MinRegion"/>, so every bar of the demo ballad Lantern Light was merged into one "passing" chord).
+        /// The strum must sound three or more notes, or carry a chord marker of its own (No Woman No Cry's verses pinch F as
+        /// F2 C3 under "F" and pick the rest of it): a lead line's unmarked double stops followed by its melody stay as they are.
+        /// A string the strum struck must be picked on the same fret: another fret is the hand on the next chord already
+        /// (Wonderwall's Dsus4 comes in a sixteenth before its marker, its D and G strings on other frets than Cadd9's).
+        /// </summary>
+        static Strum HeldStrum(List<Strum> strums, List<Note> notes, double at, bool marked, Staff staff)
+        {
+            if (marked || notes.Count == 0 || strums.Count == 0)
+                return null;
+            var last = strums[strums.Count - 1];
+            var isChord = last.Pitches.Distinct().Count() >= 3 || (last.Marked && last.ChordName != null);
+            if (Math.Abs(last.At + last.Duration - at) > 1e-6 || !isChord || notes.Count >= last.Pitches.Count)
+                return null;
+            var tones = new HashSet<int>(last.Pcs);
+            if (last.ChordName != null && YourBand.Core.Music.Chord.TryParse(last.ChordName, out var chord))
+                tones.UnionWith(chord.PitchClasses);
+            bool SameFret(Note n) => (int)n.String - 1 is var s && (s < 0 || s >= last.Frets.Length || last.Frets[s] < 0 || last.Frets[s] == (int)n.Fret);
+            return notes.All(n => SameFret(n) && Pitch(staff, n) is var p && p >= 0 && tones.Contains(p % 12)) ? last : null;
         }
 
         /// <summary>
@@ -1234,6 +1273,8 @@ namespace YourBand.SongTool
             // 2) merge each short region (a passing strum) into the neighbor it most resembles — the one it shares
             //    the most notes with (a leading-tone tail shares the previous chord; a pickup shares the next).
             //    On a tie it goes left, so a chord keeps its full length and the next starts on its first strum.
+            //    A short region that opens with the file's marker for the chord after it, not the one before, is where
+            //    that chord starts (Wonderwall strikes G's two bass notes on its marker, then the treble strings).
             var groups = new List<List<Strum>>(raw);
             bool merged = true;
             while (merged)
@@ -1244,7 +1285,7 @@ namespace YourBand.SongTool
                     var dur = groups[i].Sum(s => s.Duration);
                     if (dur >= MinRegion)
                         continue;
-                    var target = i == 0 ? 1 : i == groups.Count - 1 ? i - 1 : Nearest(groups, i);
+                    var target = i == 0 ? 1 : i == groups.Count - 1 ? i - 1 : OpensNext(groups, i) ? i + 1 : Nearest(groups, i);
                     var into = groups[target];
                     if (target > i) into.InsertRange(0, groups[i]); else into.AddRange(groups[i]);
                     groups.RemoveAt(i);
@@ -1300,7 +1341,35 @@ namespace YourBand.SongTool
                     Lead = g.All(s => s.Pitches.Distinct().Count() <= 2) && total < 0.5 * (Math.Min(end, nextStart) - start),
                 });
             }
+            // 4) neighbors the file names the same, back to back, are one chord: a strum of its treble strings that picks
+            //    its bass notes is a region of its own (another bass), and the chord would be struck twice
+            for (int i = regions.Count - 1; i > 0; --i)
+            {
+                var a = regions[i - 1];
+                var b = regions[i];
+                if (a.ChordName == null || a.ChordName != b.ChordName || Math.Abs(a.Start + a.Duration - b.Start) > 1e-6)
+                    continue;
+                if (b.Duration > a.Duration)
+                    (a.CorePcs, a.Bass, a.Frets) = (b.CorePcs, b.Bass, b.Frets);
+                a.Diagram ??= b.Diagram;
+                a.Lead &= b.Lead;
+                a.Duration += b.Duration;
+                regions.RemoveAt(i);
+            }
             return regions;
+        }
+
+        /// <summary>
+        /// Whether the short region at <paramref name="i"/> opens with the file's chord marker for the region after it, a
+        /// name the region before it does not have: the file writes that chord as starting there.
+        /// </summary>
+        static bool OpensNext(List<List<Strum>> groups, int i)
+        {
+            var first = groups[i][0];
+            if (!first.Marked || first.ChordName == null)
+                return false;
+            return groups[i + 1][0].ChordName == first.ChordName
+                && groups[i - 1][groups[i - 1].Count - 1].ChordName != first.ChordName;
         }
 
         /// <summary>

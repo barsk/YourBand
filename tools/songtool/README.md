@@ -102,8 +102,14 @@ It imports what the current song model holds:
   importer reads the bar it repeats, in the tab, chords, strumming and the other parts;
 - the chords and their voicings. The strums are grouped into regions — a run of strums with the same bass note and
   no long pause, with a brief passing strum (e.g. a leading-tone shape into the next chord) merged into the
-  neighbor it most resembles. Where the file writes chord names (chord markers on beats; each holds until the next,
-  and a marker that opens a short run at the end of a longer one starts the new chord there) they are used as-is;
+  neighbor it most resembles. A strum sounds on through the beats right after it that pick only its chord's notes
+  (its own, or its written name's) with no chord marker of their own, a string it struck on the same fret: a fingerpicked
+  bar strikes its chord once and picks the rest, and that chord is not a brief passing strum (another fret is the hand on
+  the next chord already: Wonderwall's Dsus4, a sixteenth before its marker). This holds for a strum of three or more notes, or a
+  two-note one with its own chord marker (No Woman No Cry pinches F as F2 C3 under "F"); a lead line's unmarked double
+  stops do not hold on. Where the file writes chord names (chord markers on beats; each holds until the next,
+  and a marker that opens a short run at the end of a longer one starts the new chord there, as does a short run that
+  opens with the marker of the chord after it; neighbors with the same written name are one chord) they are used as-is;
   `gpx-info <file> --beats <track> <bars>` shows them as `chord:'..'`. A name held on from an earlier marker names
   only the strums that fit it (the strum's lowest note in the chord, and more of its notes in it than outside it): a
   file often stops writing names for a stretch, and the strums there are named by their notes (No Woman No Cry's
@@ -124,7 +130,8 @@ It imports what the current song model holds:
   eighth-note grid, a chord scored by the notes it holds, the notes it does not, and whether the bass notes struck are
   its root; a change costs something, less at a bar line or a beat, and a bass note under the chord reads as a slash
   chord (G/D). The result is a good first draft, not a transcription: check it against the song;
-- the sections, tempo, time signatures, lyrics and song info (title, artist, key, capo, tuning);
+- the sections, tempo, time signatures, lyrics and song info (title, artist, key, capo, tuning); the key is the first
+  bar's signature, a minor one named as the relative minor (one sharp: G, or Em when the file marks it minor);
 - the strumming, as described below.
 
 `--track n` picks the track to read the tab from (by index). By default it is the busiest six-string guitar track
