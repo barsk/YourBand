@@ -3,13 +3,6 @@
 # 🎸 YourBand
 
 ### A jam track player and band that plays along with you.
-
-Load a song from Ultimate Guitar Chord and/or Tab pages. Or a full-fledged Guitar Pro file. A drummer, a bassist, a keyboardist and a guitarist play the song with you, on real instrument plugins, in front of you on the screen or in your own room in (optional) mixed reality VR.
-
-Or skip the band visuals, and focus solely on the chords with strumming patterns or tabs for lead, riffs and solos. All displayed on screen with easy to use controls and navigation.
-
-Plug in your guitar or any other instrument and play along. Mute unwanted instruments or tracks, select instrument sounds from *real* studio plugins with exquisite quality. All based on open software and free studio plugins. A full studio band, for you, for free (except Virtual Desktop for mixed reality, see below).
-
 ![Windows](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4?logo=windows&logoColor=white)
 ![Unity](https://img.shields.io/badge/game-Unity%206%20(URP)-000000?logo=unity&logoColor=white)
 ![JUCE](https://img.shields.io/badge/audio%20engine-C%2B%2B%20%2F%20JUCE%209-8DC63F)
@@ -17,14 +10,32 @@ Plug in your guitar or any other instrument and play along. Mute unwanted instru
 ![VR](https://img.shields.io/badge/VR-Quest%203%20via%20Virtual%20Desktop-7B61FF)
 ![Licence](https://img.shields.io/badge/licence-GPL%20v3-blue)
 
+Load a song from Ultimate Guitar Chord and/or Tab pages. Or a full-fledged Guitar Pro file. A drummer, a bassist, a keyboardist and a guitarist play the song with you, on real instrument plugins, in front of you on the screen or in your own room in (optional) mixed reality VR.
+
+Or skip the band visuals, and focus solely on the chords with strumming patterns or tabs for lead, riffs and solos. All displayed on screen with easy to use controls and navigation.
+
+Plug in your guitar or any other instrument and play along. Mute unwanted instruments or tracks, select instrument sounds from *real* studio plugins with exquisite quality. All based on open software and free studio plugins. A full studio band, for you, for free (except Virtual Desktop for mixed reality, see below).
+
 <img src="docs/images/band-view.png" alt="The band view: a guitarist, a drummer, a bassist and a keyboardist playing behind the chart" width="900">
 
-</div>
 
-YourBand is a practice tool and jam partner with a focus on guitarists, but you can play any instrument really. Open a song, count in, and the band
+
+
+<br><br>
+
+| [![Watch the video](https://img.youtube.com/vi/R3rfzmOm-Lc/hqdefault.jpg)](https://youtu.be/R3rfzmOm-Lc) | [![Watch the video](https://img.youtube.com/vi/kkk0E0CPo9E/hqdefault.jpg)](https://youtu.be/kkk0E0CPo9E) |
+| -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Demo song (YouTube)                                                                                      | VR mixed reality (YouTube)                                                                               |                                                                                                          |                                                                                                          
+
+
+
+YourBand is a practice tool and jam partner with a focus on guitarists, but you can play any instrument. Open a song, count in, and the band
 is there: **the drummer hits what the song's drum track says, the bassist walks the bass line, the keyboardist
 plays the piano part, the rhythm guitarist picks the real fingerpicking pattern**. Your own guitar goes through an
 amp plugin (e.g. TONE3000) in the same program, so you hear yourself and the band together with a few milliseconds of latency. Or play with an external amp, or an acoustic guitar.
+
+
+</div>
 
 ## ✨ What it does
 
@@ -99,7 +110,7 @@ Kontakt then shows up as a VST3 plugin for the application.
 
 ### 4. First start: audio and your guitar
 
-1. Start `Game\YourBand.exe`. The demo song, *Practice Room*, is on screen. Press `Space` to count in and play.
+1. Start `Game\YourBand.exe`. The first demo song, *Highway Boogie*, is on screen. Press `Space` to count in and play.
 2. Press `C` to open the engine's **control panel**. Choose your audio **Device** (your interface's ASIO
    driver, or Windows audio Low Latency if you don't want or need the guitar amp plugin), a 48 kHz sample rate and a small buffer (64 samples; raise it if you hear crackling). Pick your
    guitar's input channel in **Guitar input**.
@@ -154,7 +165,7 @@ Every instrument has a sound for each playstyle (Ballad, Rock, Pop). Set them on
 
 ### 6. Importing songs
 > [!Note]
-> Songs are not included: import your own. They stay on your computer in `songs-local\` and are never uploaded to the cloud.<br>
+> Four demo songs written for YourBand are included (artist *YourBand Demo*). Import your own songs: they stay on your computer in `songs-local\` and are never uploaded to the cloud.<br>
 > The Ultimate Guitar import reads the pages whose URLs you give it, and does not save copies of them. Their terms do not allow automated scraping and the lyrics are licensed content, so use it for your own practice and see [docs/plan.md#legal](docs/plan.md#legal).
 
 Make sure to set up the playstyle plugins and presets before importing the first song, as the songs you import inherit those settings. Having a good default saves you a bit of hassle later. Of course you can still change them per song afterwards.
@@ -279,7 +290,10 @@ it), [docs/capture.md](docs/capture.md) (video to hands).
 
 ## 🗺 Roadmap
 
-Planned: A custom-made footswitch for controlling the application, e.g. play/pause, back/forward, switch tones. 
+Planned: 
+- Better and more varied animations for the 3D game band models. 
+- A custom-made footswitch for controlling the application, e.g. play/pause, back/forward, switch tones. 
+
 
 ## 🙏 Credits and licences
 

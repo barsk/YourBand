@@ -6,9 +6,11 @@ Makes a release: one folder, zipped, that runs on another computer (tools\releas
 The program only: the game and the engine as last built (-Build builds both first: game\build_desktop.cmd,
 engine\build.cmd), with songtool beside the engine, published self-contained (the control panel's Import... runs it;
 no .NET needed on the other computer), and the Visual C++ runtime the engine uses (msvcp140, vcruntime140,
-vcruntime140_1), so nothing needs installing; the plugins are installed on their own. -WithSongs adds the songs
-(songs-local), -WithSettings the band's sounds (%APPDATA%\YourBand: band-defaults.sounds, songs\*.sounds); the
-engine's own settings never go: they name the plugins by where they are on this computer. Written to
+vcruntime140_1), so nothing needs installing; the plugins are installed on their own. The demo songs
+(tools\demosongs\songs) are always in: imported into the release's songs-local, numbered so that the game opens
+Highway Boogie first (1-highway-boogie-gp5.song.json, ...), their files in songs-local\gpx. -WithSongs adds the songs
+(songs-local), -WithSettings the band's
+sounds (%APPDATA%\YourBand: band-defaults.sounds, songs\*.sounds); the engine's own settings never go: they name the plugins by where they are on this computer. Written to
 Documents\YourBand-releases\YourBand-<date>-<commit>.zip (and the folder it zips).
 
 The 3D band is an optional download, the band pack (game\Builds\BandPack\Band\band.bundle, made by the game's
@@ -88,11 +90,26 @@ dotnet publish (Join-Path $repo 'tools\songtool') -c Release -r win-x64 --self-c
 if ($LASTEXITCODE -ne 0) { throw 'songtool did not publish.' }
 Get-ChildItem (Join-Path $engineDir 'songtool') -Include *.pdb, *.xml -Recurse | Remove-Item  # (debug symbols, a library's API docs)
 
+# the demo songs, imported by the release's own songtool, so they play from the start; numbered in this order (the
+# game opens the first song by file name, and the engine's song list shows the names)
+Write-Host "Demo songs..."
+$songs = Join-Path $folder 'songs-local'
+$demos = Join-Path $songs 'gpx'
+New-Item -ItemType Directory -Force $demos | Out-Null
+$number = 0
+foreach ($title in 'Highway Boogie', 'Basement Show', 'Lantern Light', 'Paper Sky') {
+    $demo = Join-Path $PSScriptRoot "demosongs\songs\YourBand Demo - $title.gp5"
+    Copy-Item $demo $demos
+    $saved = & (Join-Path $engineDir 'songtool\songtool.exe') import --gp (Join-Path $demos (Split-Path $demo -Leaf)) --out-dir $songs |
+        Select-String '^Saved (.+)$' | ForEach-Object { $_.Matches[0].Groups[1].Value }
+    if ($LASTEXITCODE -ne 0 -or -not $saved) { throw "The demo song $title did not import." }
+    $number++
+    Rename-Item $saved ('{0}-{1}' -f $number, (Split-Path $saved -Leaf))
+}
+
 if ($WithSongs) {
     Write-Host "Songs..."
-    Copy-Tree (Join-Path $repo 'songs-local') (Join-Path $folder 'songs-local')
-} else {
-    New-Item -ItemType Directory -Force (Join-Path $folder 'songs-local') | Out-Null  # (where imports go)
+    Copy-Tree (Join-Path $repo 'songs-local') $songs
 }
 
 if ($WithSettings) {

@@ -8,8 +8,9 @@ control panel, H the game's help.
   Game\          the game
   Engine\        the audio engine and its control panel; songtool\ imports songs (Import... in the control panel)
   songs-local\   the songs (*.song.json), their Guitar Pro files (gpx\) and which track each band member plays
-                 (*.band.json); imports land here. Empty in a release made without songs: copy a songs-local
-                 folder here, or import songs
+                 (*.band.json); imports land here. It starts with four demo songs written for YourBand (artist
+                 "YourBand Demo"): a boogie, a pop song, a punk song and a fingerpicked ballad. Copy a songs-local
+                 folder here for more, or import songs
   settings\      in a release made with them: the band's sounds as they were on the computer it was made on
   Game\Band\     the optional 3D band (shown at start, V hides it): made by unzipping the band pack over this folder. Without
                  it the game has no band view and is otherwise the same
