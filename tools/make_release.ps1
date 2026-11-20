@@ -11,10 +11,12 @@ vcruntime140_1), so nothing needs installing; the plugins are installed on their
 Highway Boogie first (1-highway-boogie-gp5.song.json, ...), their files in songs-local\gpx. -WithSongs adds the songs
 (songs-local), -WithSettings the band's
 sounds (%APPDATA%\YourBand: band-defaults.sounds, songs\*.sounds); the engine's own settings never go: they name the plugins by where they are on this computer. Written to
-Documents\YourBand-releases\YourBand-<date>-<commit>.zip (and the folder it zips).
+Documents\YourBand-releases\YourBand-<version>.zip, holding the folder YourBand-<version> (the version is the game's,
+game\ProjectSettings bundleVersion; a "+" after it when the working tree has changes not committed). VERSION.txt in
+the folder names the commit.
 
 The 3D band is an optional download, the band pack (game\Builds\BandPack\Band\band.bundle, made by the game's
-build): by default it goes in a zip of its own, YourBand-band-pack-<date>-<commit>.zip, to unzip into the release's
+build): by default it goes in a zip of its own, YourBand-band-pack-<version>.zip (Game\Band and README-band-pack.txt), to unzip into the release's
 folder (the one with Game and Engine; it holds Game\Band\band.bundle and a NOTICE.txt with the licences of what is inside). -WithBand puts it in
 the release's own zip instead.
 #>
@@ -41,10 +43,11 @@ foreach ($needed in (Join-Path $game 'YourBand.exe'), $engine) {
     if (-not (Test-Path $needed)) { throw "Not built: $needed (build it, or run with -Build)" }
 }
 
-# the release's name: the date and the commit (with "+" when the working tree has changes not committed)
-$commit = (git -C $repo rev-parse --short HEAD).Trim()
+# the release's name: the game's version (with "+" when the working tree has changes not committed)
+$version = (Select-String -Path (Join-Path $repo 'game\ProjectSettings\ProjectSettings.asset') -Pattern '^\s*bundleVersion:\s*(\S+)').Matches[0].Groups[1].Value
+if (-not $version) { throw 'No bundleVersion in game\ProjectSettings\ProjectSettings.asset' }
 $changed = git -C $repo status --porcelain --untracked-files=no
-$name = 'YourBand-{0}-{1}{2}' -f (Get-Date -Format 'yyyy-MM-dd'), $commit, $(if ($changed) { '+' } else { '' })
+$name = 'YourBand-{0}{1}' -f $version, $(if ($changed) { '+' } else { '' })
 $folder = Join-Path $Out $name
 if (Test-Path $folder) { Remove-Item $folder -Recurse -Force }
 New-Item -ItemType Directory -Force $folder | Out-Null
@@ -138,9 +141,12 @@ if (-not $WithBand -and (Test-Path $pack)) {
     $stage = Join-Path $Out "$packName-stage"
     if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
     Write-BandPack (Join-Path $stage 'Game')
+    # (not README.txt: unzipped into the release's folder, it would replace the release's own)
+    Set-Content (Join-Path $stage 'README-band-pack.txt') ("The 3D band package. Unzip it into the YourBand folder (the one with Game and Engine).`r`n" +
+        "For more information see Game\Band\NOTICE.txt") -Encoding UTF8
     $packZip = Join-Path $Out "$packName.zip"
     if (Test-Path $packZip) { Remove-Item $packZip -Force }
-    tar.exe -a -c -f $packZip -C $stage Game
+    tar.exe -a -c -f $packZip -C $stage Game README-band-pack.txt
     if ($LASTEXITCODE -ne 0) { throw 'The band pack zip failed.' }
     Remove-Item $stage -Recurse -Force
     Write-Host ("Made {0} ({1:N0} MB)" -f $packZip, ((Get-Item $packZip).Length / 1MB))
