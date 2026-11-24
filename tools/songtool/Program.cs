@@ -251,8 +251,7 @@ namespace YourBand.SongTool
             var chart = shownTrack != null || args.Contains("--chart") ? new SongChart(song) : null;
             if (shownTrack != null)
                 chart.ShowChordsOf(shownTrack);
-            var end = song.Chords.Count > 0 ? song.Chords.Max(c => c.AtQuarter + c.Quarters) : 0;
-            var bars = song.Tempo.BarAt(Math.Max(0, end - 0.001)).bar + 1;
+            var bars = (chart ?? new SongChart(song)).Bars.Count;  // (as the game counts them: to the last note of any track)
             int first = 0, last = bars - 1;
             if (range != null)
             {

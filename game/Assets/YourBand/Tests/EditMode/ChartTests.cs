@@ -23,6 +23,20 @@ namespace YourBand.Core.Tests
         }
 
         [Test]
+        public void Bars_GoOnToTheLastNoteOfAnyTrack()
+        {
+            // the chords end in bar 2, a track plays on into bar 4 (Dreams: the guitar stops, bass, drums and vocals go on)
+            var song = new Song();
+            song.Chords.Add(new ChordEvent { Name = "E", AtQuarter = 0, Quarters = 8 });
+            var drums = new SongTrack { Name = "Drums", Kind = "drums" };
+            drums.Notes.Add(new TrackNote { AtQuarter = 13, Quarters = 0.5, Pitch = 36 });
+            song.Tracks.Add(drums);
+            var chart = new SongChart(song);
+            Assert.AreEqual(4, chart.Bars.Count);
+            Assert.AreEqual(16, chart.EndQuarter);
+        }
+
+        [Test]
         public void Bars_KnowTheirSections()
         {
             var chart = Demo();
@@ -185,7 +199,7 @@ namespace YourBand.Core.Tests
             var song = new Song();
             song.Chords.Add(new ChordEvent { Name = "C", AtQuarter = 12, Quarters = 4 });
             song.Riffs.Add(new Riff { Name = "Main", Notes = { new TabNote { AtQuarter = 4, Quarters = 1, StringIndex = 5 } } });
-            song.Tracks.Add(new SongTrack { Index = 0, Name = "Lead", Kind = "guitar", Tuning = standard, Notes = { Note(0), Note(4), Note(19) },
+            song.Tracks.Add(new SongTrack { Index = 0, Name = "Lead", Kind = "guitar", Tuning = standard, Notes = { Note(0), Note(4) },
                                             Chords = { new ChordMarker { AtQuarter = 0, Name = "Em" }, new ChordMarker { AtQuarter = 4, Name = "Em" } } });
             song.Tracks.Add(new SongTrack { Index = 1, Name = "Main", Kind = "guitar", Tuning = standard, Notes = { Note(4), Note(10) },
                                             Chords = { new ChordMarker { AtQuarter = 4, Name = "E5" }, new ChordMarker { AtQuarter = 10, Name = "G" } } });
@@ -230,7 +244,6 @@ namespace YourBand.Core.Tests
         {
             var song = SongWithMarkers();
             song.Chords.Clear();
-            song.Tracks[0].Notes.RemoveAll(n => n.AtQuarter > 15);
             song.Sections.Add(new Section { Name = "All", AtQuarter = 0, Quarters = 16 });
             CollectionAssert.AreEqual(new[] { "Em@0+4", "E5@4+6", "G@10+2" }, Shown(new SongChart(song)));
         }

@@ -198,6 +198,10 @@ namespace YourBand.Core.Chart
             ends.AddRange(song.Sections.Select(s => s.AtQuarter + s.Quarters));
             ends.AddRange(song.Lyrics.SelectMany(l => l.Words).Select(w => w.AtQuarter + 1));
             ends.AddRange(song.Riffs.SelectMany(r => r.Notes).Select(n => n.AtQuarter + Math.Max(n.Quarters, 0.25)));
+            // and every track of the file, played or not: a song whose guitar stops before the end (Dreams: bass, drums
+            // and vocals play bars 113-144 alone) goes on to the last note of any instrument, as the file does
+            ends.AddRange(song.Tracks.SelectMany(t => t.Notes).Select(n => n.AtQuarter + Math.Max(n.Quarters, 0.25)));
+            ends.AddRange(song.Parts.SelectMany(p => p.Notes).Select(n => n.AtQuarter + Math.Max(n.Quarters, 0.25)));
             var end = ends.Max();
 
             var tempo = song.Tempo;
